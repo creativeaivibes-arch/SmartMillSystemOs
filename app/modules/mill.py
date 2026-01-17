@@ -2,85 +2,83 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import time
-import sqlite3
 
-from app.core.database import get_db_connection
+# --- DATABASE IMPORTLARI (GÜNCELLENDİ) ---
+from app.core.database import fetch_data, add_data
+# Excel işlemleri için gerekli kütüphaneler
+try:
+    import xlsxwriter
+except ImportError:
+    pass # Hata vermesin, aşağıda try-except ile yönetiliyor
 
 def save_uretim_kaydi(uretim_tarihi, uretim_hatti, uretim_adi, vardiya, sorumlu, **uretim_degerleri):
-    """Üretim kaydını veritabanına kaydet"""
+    """Üretim kaydını Google Sheets'e kaydet"""
     # Validasyonlar
     if not uretim_hatti or not vardiya:
         return False, "Üretim Hattı ve Vardiya zorunludur!"
         
     try:
-        with get_db_connection() as conn:
-            c = conn.cursor()
-            
-            # Tarih formatlama
-            tarih_str = uretim_tarihi.strftime('%Y-%m-%d %H:%M:%S')
-            
-            # Kolonlar ve Değerler
-            # DB Schema: tarih, uretim_hatti, degirmen_uretim_adi, vardiya, sorumlu...
-            # Map UI fields to DB fields
-            
-            db_data = {
-                'tarih': tarih_str,
-                'uretim_hatti': uretim_hatti,
-                'degirmen_uretim_adi': uretim_adi,
-                'vardiya': vardiya,
-                'sorumlu': sorumlu,
-                # Hammadde
-                'kirilan_bugday': uretim_degerleri.get('kirilan_bugday', 0),
-                'nem_orani': uretim_degerleri.get('nem_orani', 0), # B1 Rutubet
-                'tav_suresi': uretim_degerleri.get('tav_suresi', 0),
-                # Çıktılar
-                'un_1': uretim_degerleri.get('un_1', 0),
-                'un_2': uretim_degerleri.get('un_2', 0),
-                'razmol': uretim_degerleri.get('razmol', 0),
-                'kepek': uretim_degerleri.get('kepek', 0),
-                'bongalite': uretim_degerleri.get('bongalite', 0),
-                'kirik_bugday': uretim_degerleri.get('kirik_bugday', 0),
-                # Randımanlar (Hesaplanıp kaydedilebilir veya sadece okunurken hesaplanabilir. 
-                # DB'de randiman_1, toplam_randiman mevcut. Kaydedelim.)
-                'randiman_1': uretim_degerleri.get('randiman_1', 0),
-                'toplam_randiman': uretim_degerleri.get('toplam_randiman', 0),
-                'kayip': uretim_degerleri.get('kayip', 0),
-                # Parti No (Legacy) - Üretim Adı olarak kullanabiliriz veya boş geçebiliriz
-                'parti_no': uretim_adi if uretim_adi else f"PRD-{datetime.now().strftime('%Y%m%d%H%M')}"
-            }
-            
-            columns = list(db_data.keys())
-            values = list(db_data.values())
-            
-            placeholders = ', '.join(['?'] * len(values))
-            column_names = ', '.join(columns)
-            
-            query = f"INSERT INTO uretim_kaydi ({column_names}) VALUES ({placeholders})"
-            
-            c.execute(query, values)
-            conn.commit()
-            
+        # Tarih formatlama
+        tarih_str = uretim_tarihi.strftime('%Y-%m-%d %H:%M:%S')
+        
+        # Veri Paketi Oluşturma
+        db_data = {
+            'tarih': tarih_str,
+            'uretim_hatti': uretim_hatti,
+            'degirmen_uretim_adi': uretim_adi,
+            'vardiya': vardiya,
+            'sorumlu': sorumlu,
+            # Hammadde
+            'kirilan_bugday': float(uretim_degerleri.get('kirilan_bugday', 0)),
+            'nem_orani': float(uretim_degerleri.get('nem_orani', 0)), # B1 Rutubet
+            'tav_suresi': float(uretim_degerleri.get('tav_suresi', 0)),
+            # Çıktılar
+            'un_1': float(uretim_degerleri.get('un_1', 0)),
+            'un_2': float(uretim_degerleri.get('un_2', 0)),
+            'razmol': float(uretim_degerleri.get('razmol', 0)),
+            'kepek': float(uretim_degerleri.get('kepek', 0)),
+            'bongalite': float(uretim_degerleri.get('bongalite', 0)),
+            'kirik_bugday': float(uretim_degerleri.get('kirik_bugday', 0)),
+            # Randımanlar
+            'randiman_1': float(uretim_degerleri.get('randiman_1', 0)),
+            'toplam_randiman': float(uretim_degerleri.get('toplam_randiman', 0)),
+            'kayip': float(uretim_degerleri.get('kayip', 0)),
+            # Parti No (Otomatik)
+            'parti_no': uretim_adi if uretim_adi else f"PRD-{datetime.now().strftime('%Y%m%d%H%M')}"
+        }
+        
+        # Google Sheets'e Kaydet
+        if add_data("uretim_kaydi", db_data):
             return True, "Üretim kaydı başarıyla eklendi!"
+        else:
+            return False, "Kayıt sırasında bir hata oluştu."
             
     except Exception as e:
-        return False, f"Veritabanı hatası: {str(e)}"
+        return False, f"Sistem hatası: {str(e)}"
 
 def get_uretim_kayitlari():
     """Üretim kayıtlarını getir"""
     try:
-        with get_db_connection() as conn:
-            df = pd.read_sql_query(
-                "SELECT * FROM uretim_kaydi ORDER BY tarih DESC LIMIT 100",
-                conn
-            )
-            return df
-    except:
+        # Google Sheets'ten veriyi çek
+        df = fetch_data("uretim_kaydi")
+        
+        if df.empty:
+            return pd.DataFrame()
+            
+        # Tarihe göre sırala (Yeniden eskiye)
+        if 'tarih' in df.columns:
+            df['tarih'] = pd.to_datetime(df['tarih'])
+            df = df.sort_values('tarih', ascending=False)
+            
+        return df.head(100) # Son 100 kayıt
+    except Exception as e:
+        st.error(f"Kayıtlar yüklenemedi: {e}")
         return pd.DataFrame()
 
 def show_uretim_kaydi():
     """Üretim Kaydı Modülü - Yenilenmiş Tasarım"""
     
-    if st.session_state.user_role not in ["admin", "operations"]:
+    if st.session_state.get('user_role') not in ["admin", "operations"]:
         st.warning("⛔ Bu modüle erişim izniniz yok!")
         return
         
@@ -93,12 +91,12 @@ def show_uretim_kaydi():
         st.subheader("📋 Üretim Bilgileri")
         uretim_tarihi = st.date_input("Üretim Tarihi *", value=datetime.now())
         
-        # Üretim Hattı (Kullanıcı Tanımlı - Text input şimdilik yeterli)
+        # Üretim Hattı
         uretim_hatti = st.text_input("Üretim Hattı *", placeholder="Hat 1, Hat 2...")
         
         uretim_adi = st.text_input("Üretim Adı", placeholder="Özel üretim ismi...")
         
-        # Vardiya (Kullanıcı Tanımlı)
+        # Vardiya
         vardiya = st.text_input("Vardiya *", placeholder="08:00 - 16:00")
         
         sorumlu = st.text_input("Vardiya Sorumlusu")
@@ -171,7 +169,8 @@ def show_uretim_kaydi():
             'kayip': kayip_yuzde
         }
         
-        success, msg = save_uretim_kaydi(uretim_tarihi, uretim_hatti, uretim_adi, uretim_silosu, vardiya, sorumlu, **uretim_verileri)
+        # uretim_silosu parametresi kaldırıldı (zaten yukarıdaki inputlarda yoktu)
+        success, msg = save_uretim_kaydi(uretim_tarihi, uretim_hatti, uretim_adi, vardiya, sorumlu, **uretim_verileri)
         
         if success:
             st.success("✅ Üretim Kaydı Başarıyla Sisteme İşlendi!")
@@ -194,10 +193,8 @@ def show_uretim_arsivi():
     # Filtreleme
     col_f1, col_f2 = st.columns(2)
     with col_f1:
-        vardiya_filter = st.multiselect(
-            "Vardiya Filtrele",
-            df['vardiya'].unique()
-        )
+        vardiya_list = df['vardiya'].unique().tolist() if 'vardiya' in df.columns else []
+        vardiya_filter = st.multiselect("Vardiya Filtrele", vardiya_list)
     
     filtered_df = df.copy()
     if vardiya_filter:
@@ -211,9 +208,9 @@ def show_uretim_arsivi():
         column_config={
             "tarih": st.column_config.DatetimeColumn("Tarih", format="D/M/Y H:m"),
             "parti_no": "Parti No",
-            "kirilan_bugday": st.column_config.NumberColumn("Kırılan Buğday (Ton)", format="%.1f"),
-            "un_uretim_toplam": st.column_config.NumberColumn("Toplam Un (Çuval)"),
-            "elektrik_tuketimi": st.column_config.NumberColumn("Elektrik (kWh)")
+            "kirilan_bugday": st.column_config.NumberColumn("Kırılan Buğday (Kg)", format="%.0f"),
+            "toplam_randiman": st.column_config.NumberColumn("Toplam Randıman (%)", format="%.2f"),
+            "kayip": st.column_config.NumberColumn("Kayıp (%)", format="%.2f")
         }
     )
     
@@ -237,6 +234,10 @@ def show_uretim_arsivi():
                 'border': 1
             })
             
+            # Tarih formatı (Excel için)
+            # String gelen tarihi datetime objesine çevirip yazmak daha iyi olabilir
+            # Ancak basitlik için string bırakıyoruz.
+            
             # Write headers
             for col_num, value in enumerate(df.columns.values):
                 worksheet.write(0, col_num, value, header_format)
@@ -244,23 +245,27 @@ def show_uretim_arsivi():
             # Write data
             for row_num, row_data in enumerate(df.values):
                 for col_num, value in enumerate(row_data):
+                    # NaN kontrolü
+                    if pd.isna(value):
+                        value = ""
                     worksheet.write(row_num + 1, col_num, value)
                     
             workbook.close()
             output.seek(0)
             return output
         except Exception as e:
-            st.error(f"Excel hatası: {e}")
+            st.error(f"Excel oluşturma hatası: {e}")
             return None
 
     col_exp_btn1, col_exp_btn2 = st.columns([4, 1])
     with col_exp_btn2:
-        excel_data = create_excel_report(filtered_df)
-        if excel_data:
-            st.download_button(
-                label="📊 Excel Olarak İndir",
-                data=excel_data,
-                file_name=f"uretim_arsivi_{datetime.now().strftime('%Y%m%d')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
-            )
+        if st.button("📊 Excel Hazırla"):
+            excel_data = create_excel_report(filtered_df)
+            if excel_data:
+                st.download_button(
+                    label="📥 İndir",
+                    data=excel_data,
+                    file_name=f"uretim_arsivi_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
