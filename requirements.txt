@@ -1,0 +1,7 @@
+streamlit
+pandas
+numpy
+reportlab
+xlsxwriter
+openpyxl
+altair

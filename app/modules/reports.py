@@ -1,0 +1,1089 @@
+import io
+from datetime import datetime
+import pandas as pd
+import streamlit as st
+from app.core.utils import turkce_karakter_duzelt
+
+try:
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib import colors
+    from reportlab.platypus.flowables import HRFlowable, KeepTogether
+    from reportlab.lib.pagesizes import A4
+    PDF_AVAILABLE = True
+except ImportError:
+    PDF_AVAILABLE = False
+
+def turkce_karakter_duzelt_pdf(text):
+    """PDF için Türkçe karakter düzeltme"""
+    return turkce_karakter_duzelt(text)
+
+def create_silo_pdf_report(silo_name, silo_data, tavli_ortalamalari=None):
+    """
+    Silo için profesyonel PDF raporu oluştur
+    """
+    
+    if not PDF_AVAILABLE:
+        st.error("PDF oluşturma için 'reportlab' kütüphanesi kurulu değil!")
+        return None
+    
+    try:
+        # PDF dosyasını bellekten oluştur
+        buffer = io.BytesIO()
+        
+        # PDF oluşturma - SOLA HİZALI
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=A4,
+            rightMargin=30,
+            leftMargin=30,
+            topMargin=30,
+            bottomMargin=30
+        )
+        
+        # Stiller - TÜMÜ SOLA HİZALI
+        styles = getSampleStyleSheet()
+        
+        # Başlık stili - SOLA HİZALI
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontName='Helvetica-Bold',
+            fontSize=18,
+            textColor=colors.HexColor('#0B4F6C'),
+            alignment=0,  # 0 = SOLA HİZALI (1 ortali, 2 sağa)
+            spaceAfter=20
+        )
+        
+        # Alt başlık stili - SOLA HİZALI
+        subtitle_style = ParagraphStyle(
+            'CustomSubtitle',
+            parent=styles['Heading2'],
+            fontName='Helvetica-Bold',
+            fontSize=14,
+            textColor=colors.HexColor('#1E2A3A'),
+            alignment=0,  # SOLA HİZALI
+            spaceAfter=12
+        )
+        
+        # Normal metin stili - SOLA HİZALI
+        normal_style = ParagraphStyle(
+            'CustomNormal',
+            parent=styles['Normal'],
+            fontName='Helvetica',
+            fontSize=11,
+            textColor=colors.black,
+            alignment=0,  # SOLA HİZALI
+            spaceAfter=8
+        )
+        
+        # Vurgu metin stili - SOLA HİZALI
+        bold_style = ParagraphStyle(
+            'CustomBold',
+            parent=styles['Normal'],
+            fontName='Helvetica-Bold',
+            fontSize=11,
+            textColor=colors.black,
+            alignment=0,  # SOLA HİZALI
+            spaceAfter=8
+        )
+        
+        # Footer stili - ORTALI (sadece footer için)
+        footer_style = ParagraphStyle(
+            'Footer',
+            parent=styles['Normal'],
+            fontName='Helvetica',
+            fontSize=8,
+            textColor=colors.grey,
+            alignment=1  # Ortalı (sadece footer)
+        )
+        
+        # 5. İçerik oluştur
+        story = []
+        
+        # BAŞLIK - SOLA HİZALI ve Türkçe karakter düzeltmesi
+        silo_name_fixed = turkce_karakter_duzelt_pdf(silo_name)
+        story.append(Paragraph(f"SILO ANALIZ RAPORU", title_style))
+        story.append(Spacer(1, 15))
+        
+        # Silo ve tarih bilgileri - SOLA HİZALI
+        story.append(Paragraph(f"<b>Silo:</b> {silo_name_fixed}", bold_style))
+        story.append(Paragraph(f"<b>Rapor Tarihi:</b> {datetime.now().strftime('%d/%m/%Y %H:%M')}", bold_style))
+        story.append(Spacer(1, 25))
+        
+        # 1. SILO GENEL BILGILERI - SOLA HİZALI
+        story.append(Paragraph("1. SILO GENEL BILGILERI", subtitle_style))
+        story.append(Spacer(1, 10))
+        
+        bugday_cinsi = turkce_karakter_duzelt_pdf(str(silo_data.get('bugday_cinsi', '-')).strip())
+        
+        genel_data = [
+            ["Bugday Cinsi:", bugday_cinsi],
+            ["Toplam Bugday Miktari:", f"{float(silo_data.get('mevcut_miktar', 0)):,.1f} Ton"],
+            ["Ortalama Maliyeti:", f"{float(silo_data.get('maliyet', 0)):,.2f} TL/KG"],
+            ["Tavli Bugday Stok:", f"{float(silo_data.get('tavli_bugday_stok', 0)):,.1f} Ton"],
+            ["Kapasite:", f"{float(silo_data.get('kapasite', 0)):,.0f} Ton"],
+            ["Doluluk Orani:", f"%{(float(silo_data.get('mevcut_miktar', 0))/float(silo_data.get('kapasite', 1))*100):.1f}" 
+             if float(silo_data.get('kapasite', 0)) > 0 else "%0.0"]
+        ]
+        
+        # Tablo - SOLA HİZALI
+        genel_table = Table(genel_data, colWidths=[120, 120])
+        genel_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#E6F3F7')),
+            ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#0B4F6C')),
+            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+            ('ALIGN', (1, 0), (1, -1), 'LEFT'),  # SOLA HİZALI
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 11),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ]))
+        
+        story.append(genel_table)
+        story.append(Spacer(1, 25))
+        
+        # 2. TAVLI ANALIZ SONUCLARI - SOLA HİZALI
+        story.append(Paragraph("2. TAVLI BUGDAY ANALIZ SONUCLARI", subtitle_style))
+        story.append(Spacer(1, 10))
+        
+        if tavli_ortalamalari and tavli_ortalamalari.get('toplam_tonaj', 0) > 0:
+            
+            # 2.1 KIMYASAL ANALIZLER - SOLA HİZALI
+            story.append(Paragraph("<b>2.1 Kimyasal Analizler</b>", bold_style))
+            story.append(Spacer(1, 5))
+            
+            kimyasal_data = []
+            kimyasal_params = [
+                ('protein', 'Protein:', '%.1f%%'),
+                ('rutubet', 'Rutubet:', '%.1f%%'),
+                ('gluten', 'Gluten:', '%.1f%%'),
+                ('gluten_index', 'Gluten Index:', '%.0f'),
+                ('sedim', 'Sedimantasyon:', '%.1f ml'),
+                ('g_sedim', 'Gecikmeli Sedim:', '%.1f ml'),
+                ('fn', 'F.N:', '%.0f'),
+                ('ffn', 'F.F.N:', '%.0f'),
+                ('amilograph', 'Amilograph:', '%.0f'),
+                ('kul', 'Kul:', '%.2f%%')
+            ]
+            
+            for param_key, param_label, param_format in kimyasal_params:
+                if tavli_ortalamalari.get(param_key, 0) > 0:
+                    value = tavli_ortalamalari[param_key]
+                    kimyasal_data.append([param_label, param_format % value])
+            
+            if kimyasal_data:
+                kimyasal_table = Table(kimyasal_data, colWidths=[120, 80])
+                kimyasal_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#F8F9FA')),
+                    ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#212529')),
+                    ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+                    ('ALIGN', (1, 0), (1, -1), 'LEFT'),  # SOLA HİZALI
+                    ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+                    ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 10),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                    ('TOPPADDING', (0, 0), (-1, -1), 6),
+                ]))
+                
+                story.append(kimyasal_table)
+                story.append(Spacer(1, 15))
+            
+            # 2.2 FARINOGRAPH ANALIZLERI - SOLA HİZALI
+            farino_params = [
+                ('su_kaldirma_f', 'Su Kaldirma:', '%.1f%%'),
+                ('gelisme_suresi', 'Gelisme Suresi:', '%.1f dk'),
+                ('stabilite', 'Stabilite:', '%.1f dk'),
+                ('yumusama', 'Yumusama Derecesi:', '%.0f FU')
+            ]
+            
+            farino_data = []
+            for param_key, param_label, param_format in farino_params:
+                if tavli_ortalamalari.get(param_key, 0) > 0:
+                    value = tavli_ortalamalari[param_key]
+                    farino_data.append([param_label, param_format % value])
+            
+            if farino_data:
+                story.append(Paragraph("<b>2.2 Farinograph Analizleri</b>", bold_style))
+                story.append(Spacer(1, 5))
+                
+                farino_table = Table(farino_data, colWidths=[120, 80])
+                farino_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#FFF3CD')),
+                    ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#856404')),
+                    ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+                    ('ALIGN', (1, 0), (1, -1), 'LEFT'),  # SOLA HİZALI
+                    ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 10),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                    ('TOPPADDING', (0, 0), (-1, -1), 6),
+                ]))
+                
+                story.append(farino_table)
+                story.append(Spacer(1, 15))
+            
+            # 2.3 EXTENSOGRAPH ANALIZLERI - SOLA HİZALI
+            if any([tavli_ortalamalari.get('enerji45', 0) > 0,
+                   tavli_ortalamalari.get('direnc45', 0) > 0,
+                   tavli_ortalamalari.get('taban45', 0) > 0]):
+                
+                story.append(Paragraph("<b>2.3 Extensograph Analizleri</b>", bold_style))
+                story.append(Spacer(1, 5))
+                
+                # Su Kaldırma (E)
+                if tavli_ortalamalari.get('su_kaldirma_e', 0) > 0:
+                    story.append(Paragraph(f"<b>Su Kaldirma:</b> {tavli_ortalamalari['su_kaldirma_e']:.1f}%", normal_style))
+                
+                # 45. Dakika
+                story.append(Paragraph("<b>45. Dakika:</b>", bold_style))
+                
+                ext_45_data = []
+                if tavli_ortalamalari.get('enerji45', 0) > 0:
+                    ext_45_data.append(["  Enerji:", f"{tavli_ortalamalari['enerji45']:.0f}"])
+                if tavli_ortalamalari.get('direnc45', 0) > 0:
+                    ext_45_data.append(["  Direnc:", f"{tavli_ortalamalari['direnc45']:.0f}"])
+                if tavli_ortalamalari.get('taban45', 0) > 0:
+                    ext_45_data.append(["  Taban:", f"{tavli_ortalamalari['taban45']:.0f}"])
+                
+                if ext_45_data:
+                    ext_45_table = Table(ext_45_data, colWidths=[80, 60])
+                    ext_45_table.setStyle(TableStyle([
+                        ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+                        ('ALIGN', (1, 0), (1, -1), 'LEFT'),  # SOLA HİZALI
+                        ('FONTNAME', (0, 0), (0, -1), 'Helvetica'),
+                        ('FONTSIZE', (0, 0), (-1, -1), 10),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                        ('TOPPADDING', (0, 0), (-1, -1), 4),
+                    ]))
+                    story.append(ext_45_table)
+                
+                # 90. Dakika
+                if any([tavli_ortalamalari.get('enerji90', 0) > 0,
+                       tavli_ortalamalari.get('direnc90', 0) > 0,
+                       tavli_ortalamalari.get('taban90', 0) > 0]):
+                    
+                    story.append(Spacer(1, 5))
+                    story.append(Paragraph("<b>90. Dakika:</b>", bold_style))
+                    
+                    ext_90_data = []
+                    if tavli_ortalamalari.get('enerji90', 0) > 0:
+                        ext_90_data.append(["  Enerji:", f"{tavli_ortalamalari['enerji90']:.0f}"])
+                    if tavli_ortalamalari.get('direnc90', 0) > 0:
+                        ext_90_data.append(["  Direnc:", f"{tavli_ortalamalari['direnc90']:.0f}"])
+                    if tavli_ortalamalari.get('taban90', 0) > 0:
+                        ext_90_data.append(["  Taban:", f"{tavli_ortalamalari['taban90']:.0f}"])
+                    
+                    if ext_90_data:
+                        ext_90_table = Table(ext_90_data, colWidths=[80, 60])
+                        ext_90_table.setStyle(TableStyle([
+                            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+                            ('ALIGN', (1, 0), (1, -1), 'LEFT'),  # SOLA HİZALI
+                            ('FONTNAME', (0, 0), (0, -1), 'Helvetica'),
+                            ('FONTSIZE', (0, 0), (-1, -1), 10),
+                            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                            ('TOPPADDING', (0, 0), (-1, -1), 4),
+                        ]))
+                        story.append(ext_90_table)
+                
+                # 135. Dakika
+                if any([tavli_ortalamalari.get('enerji135', 0) > 0,
+                       tavli_ortalamalari.get('direnc135', 0) > 0,
+                       tavli_ortalamalari.get('taban135', 0) > 0]):
+                    
+                    story.append(Spacer(1, 5))
+                    story.append(Paragraph("<b>135. Dakika:</b>", bold_style))
+                    
+                    ext_135_data = []
+                    if tavli_ortalamalari.get('enerji135', 0) > 0:
+                        ext_135_data.append(["  Enerji:", f"{tavli_ortalamalari['enerji135']:.0f}"])
+                    if tavli_ortalamalari.get('direnc135', 0) > 0:
+                        ext_135_data.append(["  Direnc:", f"{tavli_ortalamalari['direnc135']:.0f}"])
+                    if tavli_ortalamalari.get('taban135', 0) > 0:
+                        ext_135_data.append(["  Taban:", f"{tavli_ortalamalari['taban135']:.0f}"])
+                    
+                    if ext_135_data:
+                        ext_135_table = Table(ext_135_data, colWidths=[80, 60])
+                        ext_135_table.setStyle(TableStyle([
+                            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+                            ('ALIGN', (1, 0), (1, -1), 'LEFT'),  # SOLA HİZALI
+                            ('FONTNAME', (0, 0), (0, -1), 'Helvetica'),
+                            ('FONTSIZE', (0, 0), (-1, -1), 10),
+                            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                            ('TOPPADDING', (0, 0), (-1, -1), 4),
+                        ]))
+                        story.append(ext_135_table)
+            
+            story.append(Spacer(1, 10))
+            
+        else:
+            story.append(Paragraph("Bu silo icin henuz tavli bugday analiz kaydi bulunmamaktadir.", normal_style))
+        
+        # ALT BILGI - SOLA HİZALI
+        story.append(Spacer(1, 30))
+        story.append(HRFlowable(width="100%", thickness=1, color=colors.grey))
+        story.append(Spacer(1, 10))
+        story.append(Paragraph(f"<font size='8' color='gray'>Smart Mill System Os- Silo Kalite Kontrol Raporu • {datetime.now().strftime('%d/%m/%Y')}</font>", footer_style))
+        
+        # PDF'yi oluştur
+        doc.build(story)
+        
+        # Buffer'dan PDF verisini al
+        pdf_bytes = buffer.getvalue()
+        buffer.close()
+        
+        return pdf_bytes
+        
+    except Exception as e:
+        st.error(f"PDF olusturma hatasi: {str(e)}")
+        import traceback
+        st.code(traceback.format_exc())
+        return None
+
+def create_pacal_pdf_report(tarih, urun_adi, oranlar, analizler):
+    """
+    Paçal için profesyonel PDF raporu oluştur
+    """
+    
+    if not PDF_AVAILABLE:
+        st.error("PDF oluşturma için 'reportlab' kütüphanesi kurulu değil!")
+        return None
+    
+    try:
+        # PDF dosyasını bellekten oluştur
+        buffer = io.BytesIO()
+        
+        # PDF oluşturma - TEK SAYFA
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=A4,
+            rightMargin=20,
+            leftMargin=20,
+            topMargin=20,
+            bottomMargin=20
+        )
+        
+        # Stiller
+        styles = getSampleStyleSheet()
+        
+        # Başlık stili
+        title_style = ParagraphStyle(
+            'PacalTitle',
+            parent=styles['Heading1'],
+            fontName='Helvetica-Bold',
+            fontSize=14,
+            textColor=colors.HexColor('#0B4F6C'),
+            alignment=1,
+            spaceAfter=15
+        )
+        
+        # Alt başlık stili
+        subtitle_style = ParagraphStyle(
+            'PacalSubtitle',
+            parent=styles['Heading2'],
+            fontName='Helvetica-Bold',
+            fontSize=12,
+            textColor=colors.HexColor('#1E2A3A'),
+            alignment=0,
+            spaceAfter=8
+        )
+        
+        # Bold metin stili
+        bold_style = ParagraphStyle(
+            'PacalBold',
+            parent=styles['Normal'],
+            fontName='Helvetica-Bold',
+            fontSize=9,
+            textColor=colors.black,
+            alignment=0,
+            spaceAfter=4,
+        )
+        
+        # Normal metin stili
+        normal_style = ParagraphStyle(
+            'PacalNormal',
+            parent=styles['Normal'],
+            fontName='Helvetica',
+            fontSize=9,
+            textColor=colors.black,
+            alignment=0,
+            spaceAfter=4,
+        )
+        
+        # Küçük metin stili
+        small_style = ParagraphStyle(
+            'PacalSmall',
+            parent=styles['Normal'],
+            fontName='Helvetica',
+            fontSize=8,
+            textColor=colors.black,
+            alignment=0,
+            spaceAfter=2,
+        )
+        
+        # İçerik oluştur
+        story = []
+        
+        # BAŞLIK
+        baslik = turkce_karakter_duzelt_pdf("PAÇAL ÜRETİM RAPORU")
+        story.append(Paragraph(baslik, title_style))
+        story.append(Spacer(1, 10))
+        
+        # Temel bilgiler
+        urun_adi_fixed = turkce_karakter_duzelt_pdf(urun_adi)
+        rapor_tarihi = datetime.now().strftime('%d/%m/%Y %H:%M')
+        
+        story.append(Paragraph(f"{turkce_karakter_duzelt_pdf('Ürün Adı:')} {urun_adi_fixed}", bold_style))
+        story.append(Paragraph(f"{turkce_karakter_duzelt_pdf('Paçal Tarihi:')} {tarih}", bold_style))
+        story.append(Paragraph(f"{turkce_karakter_duzelt_pdf('Rapor Tarihi:')} {rapor_tarihi}", bold_style))
+        story.append(Spacer(1, 15))
+        
+        # ========== 1. SILO ORANLARI ==========
+        story.append(Paragraph(turkce_karakter_duzelt_pdf("1. SILO KULLANIM ORANLARI"), subtitle_style))
+        story.append(Spacer(1, 5))
+        
+        # Silo oranları tablosu
+        if oranlar:
+            oran_data = []
+            
+            # Başlık satırı
+            oran_data.append([
+                turkce_karakter_duzelt_pdf("Silo"),
+                turkce_karakter_duzelt_pdf("Oran (%)"),
+                turkce_karakter_duzelt_pdf("Silo"),
+                turkce_karakter_duzelt_pdf("Oran (%)")
+            ])
+            
+            # Oranları listeye dönüştür ve sırala
+            oran_listesi = [(silo, oran) for silo, oran in oranlar.items() if oran > 0]
+            oran_listesi.sort(key=lambda x: x[1], reverse=True)
+            
+            # 2'li gruplar halinde düzenle
+            for i in range(0, len(oran_listesi), 2):
+                row = []
+                for j in range(2):
+                    if i + j < len(oran_listesi):
+                        silo, oran = oran_listesi[i + j]
+                        silo_fixed = turkce_karakter_duzelt_pdf(silo)
+                        row.extend([silo_fixed, f"{oran:.1f}%"])
+                    else:
+                        row.extend(["", ""])
+                
+                oran_data.append(row)
+            
+            # Toplam oran
+            toplam_oran = sum(oran for _, oran in oran_listesi)
+            oran_data.append([
+                turkce_karakter_duzelt_pdf("TOPLAM"),
+                f"{toplam_oran:.1f}%",
+                "",
+                ""
+            ])
+            
+            # Oranlar tablosu
+            oran_table = Table(oran_data, colWidths=[100, 60, 100, 60])
+            oran_table.setStyle(TableStyle([
+                # Başlık satırı
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F81BD')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 9),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                
+                # Veri satırları
+                ('ALIGN', (0, 1), (-2, -2), 'LEFT'),
+                ('ALIGN', (1, 1), (-1, -2), 'CENTER'),
+                ('FONTNAME', (0, 1), (-2, -2), 'Helvetica-Bold'),
+                ('FONTNAME', (1, 1), (-1, -2), 'Helvetica'),
+                ('FONTSIZE', (0, 1), (-1, -2), 9),
+                ('BOTTOMPADDING', (0, 1), (-1, -2), 6),
+                ('TOPPADDING', (0, 1), (-1, -2), 6),
+                ('GRID', (0, 0), (-1, -2), 0.5, colors.lightgrey),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, colors.HexColor('#F8F9FA')]),
+                
+                # Toplam satırı
+                ('BACKGROUND', (0, -1), (1, -1), colors.HexColor('#E6F3F7')),
+                ('FONTNAME', (0, -1), (1, -1), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, -1), (1, -1), 10),
+                ('TEXTCOLOR', (0, -1), (1, -1), colors.HexColor('#0B4F6C')),
+                ('ALIGN', (0, -1), (1, -1), 'CENTER'),
+            ]))
+            
+            story.append(oran_table)
+            story.append(Spacer(1, 15))
+        
+        # ========== 2. PAÇAL ANALİZ SONUÇLARI ==========
+        story.append(Paragraph(turkce_karakter_duzelt_pdf("2. PAÇAL ANALİZ SONUÇLARI"), subtitle_style))
+        story.append(Spacer(1, 5))
+        
+        if analizler and isinstance(analizler, dict):
+            # Maliyet bilgisi
+            if 'maliyet' in analizler:
+                maliyet_text = f"{turkce_karakter_duzelt_pdf('Paçal Maliyeti:')} {analizler['maliyet']:.2f} TL/KG"
+                story.append(Paragraph(maliyet_text, bold_style))
+                story.append(Spacer(1, 10))
+            
+            # ========== 2.1 KİMYASAL ANALİZLER ==========
+            story.append(Paragraph(turkce_karakter_duzelt_pdf("2.1 Kimyasal Analizler"), bold_style))
+            
+            # Kimyasal analiz tablosu
+            kimya_data = []
+            
+            # Başlık satırı
+            kimya_data.append([
+                turkce_karakter_duzelt_pdf("Parametre"),
+                turkce_karakter_duzelt_pdf("Değer"),
+                turkce_karakter_duzelt_pdf("Parametre"),
+                turkce_karakter_duzelt_pdf("Değer")
+            ])
+            
+            # Kimyasal parametreler
+            kimya_params = [
+                (turkce_karakter_duzelt_pdf("Protein"), 'protein', '%.1f %%'),
+                (turkce_karakter_duzelt_pdf("Rutubet"), 'rutubet', '%.1f %%'),
+                (turkce_karakter_duzelt_pdf("Gluten"), 'gluten', '%.1f %%'),
+                (turkce_karakter_duzelt_pdf("Gluten Index"), 'gluten_index', '%.0f'),
+                (turkce_karakter_duzelt_pdf("Sedimantasyon"), 'sedim', '%.1f ml'),
+                (turkce_karakter_duzelt_pdf("Gecikmeli Sedim"), 'g_sedim', '%.1f ml'),
+                (turkce_karakter_duzelt_pdf("F.N"), 'fn', '%.0f'),
+                (turkce_karakter_duzelt_pdf("F.F.N"), 'ffn', '%.0f'),
+                (turkce_karakter_duzelt_pdf("Kül"), 'kul', '%.2f %%'),
+            ]
+            
+            # 2'li gruplar halinde düzenle
+            for i in range(0, len(kimya_params), 2):
+                row = []
+                for j in range(2):
+                    if i + j < len(kimya_params):
+                        param_label, param_key, param_format = kimya_params[i + j]
+                        
+                        if param_key in analizler and analizler[param_key] > 0:
+                            value = param_format % analizler[param_key]
+                        else:
+                            value = "-"
+                        
+                        row.extend([param_label, value])
+                    else:
+                        row.extend(["", ""])
+                
+                kimya_data.append(row)
+            
+            # Kimyasal tablo
+            if kimya_data:
+                kimya_table = Table(kimya_data, colWidths=[95, 65, 95, 65])
+                kimya_table.setStyle(TableStyle([
+                    # Başlık satırı
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#E6F3F7')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#0B4F6C')),
+                    ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 8),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+                    
+                    # Veri satırları
+                    ('ALIGN', (0, 1), (-2, -1), 'LEFT'),
+                    ('ALIGN', (1, 1), (-1, -1), 'CENTER'),
+                    ('FONTNAME', (0, 1), (-2, -1), 'Helvetica-Bold'),
+                    ('FONTNAME', (1, 1), (-1, -1), 'Helvetica'),
+                    ('FONTSIZE', (0, 1), (-1, -1), 8),
+                    ('BOTTOMPADDING', (0, 1), (-1, -1), 4),
+                    ('TOPPADDING', (0, 1), (-1, -1), 4),
+                    ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F0F7FF')]),
+                ]))
+                story.append(kimya_table)
+            
+            story.append(Spacer(1, 10))
+            
+            # ========== 2.2 FARINOGRAPH ANALİZLERİ ==========
+            farino_vars = False
+            farino_params = [
+                ('su_kaldirma_f', '%.1f %%'),
+                ('gelisme_suresi', '%.1f dk'),
+                ('stabilite', '%.1f dk'),
+                ('yumusama', '%.0f FU'),
+            ]
+            
+            for param_key, _ in farino_params:
+                if param_key in analizler and analizler[param_key] > 0:
+                    farino_vars = True
+                    break
+            
+            if farino_vars:
+                story.append(Paragraph(turkce_karakter_duzelt_pdf("2.2 Farinograph Analizleri"), bold_style))
+                
+                # Farinograph tablosu
+                farino_data = []
+                
+                # Başlık satırı
+                farino_data.append([
+                    turkce_karakter_duzelt_pdf("Parametre"),
+                    turkce_karakter_duzelt_pdf("Değer"),
+                    turkce_karakter_duzelt_pdf("Parametre"),
+                    turkce_karakter_duzelt_pdf("Değer")
+                ])
+                
+                farino_params_detay = [
+                    (turkce_karakter_duzelt_pdf("Su Kaldırma"), 'su_kaldirma_f', '%.1f %%'),
+                    (turkce_karakter_duzelt_pdf("Gelişme Süresi"), 'gelisme_suresi', '%.1f dk'),
+                    (turkce_karakter_duzelt_pdf("Stabilite"), 'stabilite', '%.1f dk'),
+                    (turkce_karakter_duzelt_pdf("Yumuşama Derecesi"), 'yumusama', '%.0f FU'),
+                ]
+                
+                # 2'li gruplar halinde düzenle
+                for i in range(0, len(farino_params_detay), 2):
+                    row = []
+                    for j in range(2):
+                        if i + j < len(farino_params_detay):
+                            param_label, param_key, param_format = farino_params_detay[i + j]
+                            
+                            if param_key in analizler and analizler[param_key] > 0:
+                                value = param_format % analizler[param_key]
+                            else:
+                                value = "-"
+                            
+                            row.extend([param_label, value])
+                        else:
+                            row.extend(["", ""])
+                    
+                    farino_data.append(row)
+                
+                # Farinograph tablo
+                if farino_data:
+                    farino_table = Table(farino_data, colWidths=[95, 65, 95, 65])
+                    farino_table.setStyle(TableStyle([
+                        # Başlık satırı
+                        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#FFF3CD')),
+                        ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#856404')),
+                        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+                        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0, 0), (-1, 0), 8),
+                        ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+                        
+                        # Veri satırları
+                        ('ALIGN', (0, 1), (-2, -1), 'LEFT'),
+                        ('ALIGN', (1, 1), (-1, -1), 'CENTER'),
+                        ('FONTNAME', (0, 1), (-2, -1), 'Helvetica-Bold'),
+                        ('FONTNAME', (1, 1), (-1, -1), 'Helvetica'),
+                        ('FONTSIZE', (0, 1), (-1, -1), 8),
+                        ('BOTTOMPADDING', (0, 1), (-1, -1), 4),
+                        ('TOPPADDING', (0, 1), (-1, -1), 4),
+                        ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
+                        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#FFF9E6')]),
+                    ]))
+                    story.append(farino_table)
+                
+                story.append(Spacer(1, 10))
+            
+            # ========== 2.3 EXTENSOGRAPH ANALİZLERİ ==========
+            extenso_vars = False
+            extenso_params = [
+                'enerji45', 'direnc45', 'taban45',
+                'enerji90', 'direnc90', 'taban90',
+                'enerji135', 'direnc135', 'taban135',
+                'su_kaldirma_e'
+            ]
+            
+            for param_key in extenso_params:
+                if param_key in analizler and analizler[param_key] > 0:
+                    extenso_vars = True
+                    break
+            
+            if extenso_vars:
+                extenso_content = []
+                
+                extenso_baslik = turkce_karakter_duzelt_pdf("2.3 Extensograph Analizleri")
+                extenso_content.append(Paragraph(extenso_baslik, bold_style))
+                
+                # Su Kaldırma (E)
+                if 'su_kaldirma_e' in analizler and analizler['su_kaldirma_e'] > 0:
+                    su_label = turkce_karakter_duzelt_pdf("Su Kaldırma:")
+                    su_text = f"{su_label} {analizler['su_kaldirma_e']:.1f} %"
+                    extenso_content.append(Paragraph(su_text, normal_style))
+                    extenso_content.append(Spacer(1, 5))
+                
+                # Dakika analizleri
+                dakika_data = []
+                
+                # Başlık satırı
+                dakika_data.append([
+                    turkce_karakter_duzelt_pdf("Dakika"),
+                    turkce_karakter_duzelt_pdf("Enerji"),
+                    turkce_karakter_duzelt_pdf("Direnç"),
+                    turkce_karakter_duzelt_pdf("Taban")
+                ])
+                
+                dakika_params = [
+                    ('45', 'enerji45', 'direnc45', 'taban45'),
+                    ('90', 'enerji90', 'direnc90', 'taban90'),
+                    ('135', 'enerji135', 'direnc135', 'taban135'),
+                ]
+                
+                for dakika, enerji_key, direnc_key, taban_key in dakika_params:
+                    row = [f"{dakika}."]
+                    
+                    # Enerji
+                    if enerji_key in analizler and analizler[enerji_key] > 0:
+                        row.append(f"{analizler[enerji_key]:.0f}")
+                    else:
+                        row.append("-")
+                    
+                    # Direnç
+                    if direnc_key in analizler and analizler[direnc_key] > 0:
+                        row.append(f"{analizler[direnc_key]:.0f}")
+                    else:
+                        row.append("-")
+                    
+                    # Taban
+                    if taban_key in analizler and analizler[taban_key] > 0:
+                        row.append(f"{analizler[taban_key]:.0f}")
+                    else:
+                        row.append("-")
+                    
+                    dakika_data.append(row)
+                
+                # Extenso tablosu
+                if len(dakika_data) > 1:
+                    extenso_table = Table(dakika_data, colWidths=[40, 50, 50, 50])
+                    extenso_table.setStyle(TableStyle([
+                        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#E6F3F7')),
+                        ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#0B4F6C')),
+                        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+                        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0, 0), (-1, 0), 8),
+                        ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+                        
+                        # Veri satırları
+                        ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#F8F9FA')),
+                        ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+                        ('ALIGN', (0, 1), (-1, -1), 'CENTER'),
+                        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                        ('FONTSIZE', (0, 1), (-1, -1), 8),
+                        ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
+                        ('BOTTOMPADDING', (0, 1), (-1, -1), 4),
+                        ('TOPPADDING', (0, 1), (-1, -1), 4),
+                        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F0F7FF')]),
+                    ]))
+                    extenso_content.append(extenso_table)
+                
+                # Tüm extensograph içeriğini bir arada tut
+                story.append(KeepTogether(extenso_content))
+            
+            # Analiz istatistikleri
+            if 'toplam_analiz_tonaji' in analizler and analizler['toplam_analiz_tonaji'] > 0:
+                stat_text = f"{turkce_karakter_duzelt_pdf('Analiz Bilgisi:')} {analizler.get('kullanilan_silo_sayisi', 0)} {turkce_karakter_duzelt_pdf('silo')}, {analizler['toplam_analiz_tonaji']:.1f} {turkce_karakter_duzelt_pdf('ton')}"
+                story.append(Spacer(1, 10))
+                story.append(Paragraph(stat_text, small_style))
+                
+        else:
+            # Analiz yoksa bilgi mesajı
+            no_analysis_text = turkce_karakter_duzelt_pdf("Bu paçal için analiz verisi bulunmamaktadır.")
+            story.append(Paragraph(no_analysis_text, normal_style))
+        
+        # ALT BİLGİ
+        story.append(Spacer(1, 10))
+        story.append(HRFlowable(width="100%", thickness=0.5, color=colors.grey))
+        
+        footer_date = datetime.now().strftime('%d/%m/%Y')
+        footer_text = turkce_karakter_duzelt_pdf(f"Üretim Kalite Kontrol Raporu • {footer_date}")
+        
+        footer_style = ParagraphStyle(
+            'PacalFooter',
+            parent=styles['Normal'],
+            fontName='Helvetica',
+            fontSize=7,
+            textColor=colors.grey,
+            alignment=1
+        )
+        
+        story.append(Paragraph(footer_text, footer_style))
+        
+        # PDF'yi oluştur
+        doc.build(story)
+        
+        # Buffer'dan PDF verisini al
+        pdf_bytes = buffer.getvalue()
+        buffer.close()
+        
+        return pdf_bytes
+        
+    except Exception as e:
+        st.error(f"Paçal PDF oluşturma hatası: {str(e)}")
+        import traceback
+        st.code(traceback.format_exc())
+        return None
+
+def create_un_maliyet_pdf_report(hesaplama_verileri):
+    """
+    Un Maliyet Hesaplama için profesyonel PDF raporu oluştur
+    """
+    
+    if not PDF_AVAILABLE:
+        st.error("PDF oluşturma için 'reportlab' kütüphanesi kurulu değil!")
+        return None
+    
+    try:
+        # PDF dosyasını bellekten oluştur
+        buffer = io.BytesIO()
+        
+        # PDF oluşturma - TEK SAYFA
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=A4,
+            rightMargin=20,
+            leftMargin=20,
+            topMargin=20,
+            bottomMargin=20
+        )
+        
+        # Stiller
+        styles = getSampleStyleSheet()
+        
+        # Başlık stili
+        title_style = ParagraphStyle(
+            'UnMaliyetTitle',
+            parent=styles['Heading1'],
+            fontName='Helvetica-Bold',
+            fontSize=16,
+            textColor=colors.HexColor('#0B4F6C'),
+            alignment=1,  # ORTALI
+            spaceAfter=20
+        )
+        
+        # Alt başlık stili
+        subtitle_style = ParagraphStyle(
+            'UnMaliyetSubtitle',
+            parent=styles['Heading2'],
+            fontName='Helvetica-Bold',
+            fontSize=12,
+            textColor=colors.HexColor('#1E2A3A'),
+            alignment=0,  # SOLA HİZALI
+            spaceAfter=10
+        )
+        
+        # Bold metin stili
+        bold_style = ParagraphStyle(
+            'UnMaliyetBold',
+            parent=styles['Normal'],
+            fontName='Helvetica-Bold',
+            fontSize=10,
+            textColor=colors.black,
+            alignment=0,
+            spaceAfter=6,
+        )
+        
+        # Normal metin stili
+        normal_style = ParagraphStyle(
+            'UnMaliyetNormal',
+            parent=styles['Normal'],
+            fontName='Helvetica',
+            fontSize=10,
+            textColor=colors.black,
+            alignment=0,
+            spaceAfter=6,
+        )
+        
+        # Footer stili
+        footer_style = ParagraphStyle(
+            'UnMaliyetFooter',
+            parent=styles['Normal'],
+            fontName='Helvetica',
+            fontSize=8,
+            textColor=colors.grey,
+            alignment=1,  # ORTALI
+        )
+        
+        # İçerik oluştur
+        story = []
+        
+        # BAŞLIK
+        baslik = turkce_karakter_duzelt_pdf("AYLIK UN MALİYET RAPORU")
+        story.append(Paragraph(baslik, title_style))
+        story.append(Spacer(1, 10))
+        
+        # DÖNEM BİLGİSİ
+        donem_text = turkce_karakter_duzelt_pdf(f"DÖNEM: {hesaplama_verileri['ay']} {hesaplama_verileri['yil']}")
+        story.append(Paragraph(donem_text, bold_style))
+        
+        un_cesidi_text = turkce_karakter_duzelt_pdf(f"Un Çeşidi: {hesaplama_verileri['un_cesidi']}")
+        story.append(Paragraph(un_cesidi_text, bold_style))
+        
+        rapor_tarihi = datetime.now().strftime('%d/%m/%Y %H:%M')
+        tarih_text = turkce_karakter_duzelt_pdf(f"Rapor Tarihi: {rapor_tarihi}")
+        story.append(Paragraph(tarih_text, normal_style))
+        
+        story.append(Spacer(1, 20))
+        
+        # ========== TEMEL BİLGİLER TABLOSU ==========
+        story.append(Paragraph(turkce_karakter_duzelt_pdf("TEMEL BİLGİLER"), subtitle_style))
+        story.append(Spacer(1, 10))
+        
+        # Temel bilgiler tablosu
+        temel_data = []
+        
+        # Başlık satırı
+        temel_data.append([
+            turkce_karakter_duzelt_pdf("Parametre"),
+            turkce_karakter_duzelt_pdf("Değer")
+        ])
+        
+        # Temel parametreler
+        temel_params = [
+            (turkce_karakter_duzelt_pdf("Aylık Buğday Paçal Maliyeti"), 
+             f"{hesaplama_verileri['bugday_pacal_maliyeti']:,.2f} TL/KG"),
+            (turkce_karakter_duzelt_pdf("Aylık Kırılan Buğday"), 
+             f"{hesaplama_verileri['aylik_kirilan_bugday']:,.1f} Ton"),
+            (turkce_karakter_duzelt_pdf("Un Randımanı"), 
+             f"{hesaplama_verileri['un_randimani']:,.1f} %"),
+            (turkce_karakter_duzelt_pdf("Aylık Ortalama Un Satış Fiyatı (50 Kg)"), 
+             f"{hesaplama_verileri['un_satis_fiyati']:,.2f} TL"),
+            (turkce_karakter_duzelt_pdf("Üretilen Un Miktarı"), 
+             f"{hesaplama_verileri['un_tonaj']:,.1f} Ton")
+        ]
+        
+        for param_label, param_value in temel_params:
+            temel_data.append([param_label, param_value])
+        
+        # Temel bilgiler tablosu
+        temel_table = Table(temel_data, colWidths=[200, 120])
+        temel_table.setStyle(TableStyle([
+            # Başlık satırı
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F81BD')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+            
+            # Veri satırları
+            ('BACKGROUND', (0, 1), (0, -1), colors.HexColor('#E6F3F7')),
+            ('TEXTCOLOR', (0, 1), (0, -1), colors.HexColor('#0B4F6C')),
+            ('ALIGN', (0, 1), (0, -1), 'LEFT'),
+            ('ALIGN', (1, 1), (1, -1), 'RIGHT'),
+            ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
+            ('FONTNAME', (1, 1), (1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -1), 10),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
+            ('TOPPADDING', (0, 1), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
+            ('ROWBACKGROUNDS', (1, 1), (1, -1), [colors.white]),
+        ]))
+        
+        story.append(temel_table)
+        story.append(Spacer(1, 20))
+        
+        # ========== SONUÇLAR TABLOSU ==========
+        story.append(Paragraph(turkce_karakter_duzelt_pdf("HESAPLAMA SONUÇLARI"), subtitle_style))
+        story.append(Spacer(1, 10))
+        
+        # Sonuçlar tablosu
+        sonuc_data = []
+        
+        # Başlık satırı
+        sonuc_data.append([
+            turkce_karakter_duzelt_pdf(""),
+            turkce_karakter_duzelt_pdf("Değer")
+        ])
+        
+        # Sonuç parametreleri (renkli ikonlu)
+        sonuc_params = [
+            (turkce_karakter_duzelt_pdf("💰 Net Kar (50 KG)"), 
+             f"{hesaplama_verileri['net_kar_50kg']:,.2f} TL"),
+            (turkce_karakter_duzelt_pdf("🏭 Fabrika Çıkış Maliyeti (50 Kg)"), 
+             f"{hesaplama_verileri['fabrika_cikis_maliyet']:,.2f} TL"),
+            (turkce_karakter_duzelt_pdf("💵 Net Kar (Toplam)"), 
+             f"{hesaplama_verileri['net_kar_toplam']:,.2f} TL")
+        ]
+        
+        for param_label, param_value in sonuc_params:
+            sonuc_data.append([param_label, param_value])
+        
+        # Sonuçlar tablosu (renkli)
+        sonuc_table = Table(sonuc_data, colWidths=[200, 120])
+        sonuc_table.setStyle(TableStyle([
+            # Başlık satırı (gizli, çünkü başlık yok)
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F8F9FA')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#F8F9FA')),
+            ('FONTSIZE', (0, 0), (-1, 0), 1),
+            
+            # Veri satırları
+            ('BACKGROUND', (0, 1), (0, 1), colors.HexColor('#E6F3F7')),  # 1. satır - mavi
+            ('BACKGROUND', (0, 2), (0, 2), colors.HexColor('#FFF3CD')),  # 2. satır - sarı
+            ('BACKGROUND', (0, 3), (0, 3), colors.HexColor('#D4EDDA')),  # 3. satır - yeşil
+            
+            ('TEXTCOLOR', (0, 1), (0, -1), colors.black),
+            ('TEXTCOLOR', (1, 1), (1, -1), colors.HexColor('#0B4F6C')),
+            ('ALIGN', (0, 1), (0, -1), 'LEFT'),
+            ('ALIGN', (1, 1), (1, -1), 'RIGHT'),
+            ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
+            ('FONTNAME', (1, 1), (1, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 1), (-1, -1), 11),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 10),
+            ('TOPPADDING', (0, 1), (-1, -1), 10),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
+        ]))
+        
+        story.append(sonuc_table)
+        story.append(Spacer(1, 20))
+        
+        # ALT BİLGİ
+        story.append(HRFlowable(width="100%", thickness=0.5, color=colors.grey))
+        story.append(Spacer(1, 10))
+        
+        footer_text = turkce_karakter_duzelt_pdf(f"Üretim Finans Raporu • {hesaplama_verileri['ay']} {hesaplama_verileri['yil']}")
+        story.append(Paragraph(footer_text, footer_style))
+        
+        # PDF'yi oluştur
+        doc.build(story)
+        
+        # Buffer'dan PDF verisini al
+        pdf_bytes = buffer.getvalue()
+        buffer.close()
+        
+        return pdf_bytes
+        
+    except Exception as e:
+        st.error(f"Un Maliyet PDF oluşturma hatası: {str(e)}")
+        import traceback
+        st.code(traceback.format_exc())
+        return None
+
+def download_styled_excel(df, filename, sheet_name="Rapor"):
+    """Excel çıktısını profesyonel formatta hazırlar (Ortalı, Kenarlıklı, Renkli Başlık)"""
+    import xlsxwriter  # Lazy import to avoid dependency issues if not used
+    
+    output = io.BytesIO()
+    writer = pd.ExcelWriter(output, engine='xlsxwriter')
+    df.to_excel(writer, sheet_name=sheet_name, index=False)
+    
+    workbook = writer.book
+    worksheet = writer.sheets[sheet_name]
+    
+    # Formatlar
+    header_fmt = workbook.add_format({
+        'bold': True, 'text_wrap': True, 'valign': 'vcenter', 'align': 'center',
+        'fg_color': '#0B4F6C', 'font_color': 'white', 'border': 1
+    })
+    cell_fmt = workbook.add_format({'border': 1, 'align': 'center', 'valign': 'vcenter'})
+    
+    # Başlıkları uygula
+    for col_num, value in enumerate(df.columns.values):
+        worksheet.write(0, col_num, value, header_fmt)
+        worksheet.set_column(col_num, col_num, 15) # Genişlik
+        
+    # Hücreleri formatla (veri varsa)
+    if not df.empty:
+        worksheet.set_column(0, len(df.columns) - 1, 15, cell_fmt)
+        
+    writer.close()
+    output.seek(0)
+    
+    st.download_button(
+        label="📥 Excel Raporu İndir (Formatlı)",
+        data=output,
+        file_name=filename,
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True
+    )
