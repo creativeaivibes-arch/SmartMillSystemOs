@@ -5,94 +5,99 @@ import time
 from datetime import datetime
 import io
 
-from app.core.database import get_db_connection
+# ESKİ IMPORTLAR KALDIRILDI, YENİLERİ EKLENDİ
+from app.core.database import fetch_data, add_data, get_conn
 from app.core.utils import turkce_karakter_duzelt
 from app.modules.dashboard import get_silo_data
-from app.modules.reports import create_pacal_pdf_report, turkce_karakter_duzelt_pdf
+# Rapor modülü yoksa hata vermemesi için try-except bloğu
+try:
+    from app.modules.reports import create_pacal_pdf_report, turkce_karakter_duzelt_pdf
+except ImportError:
+    def create_pacal_pdf_report(*args, **kwargs): return None
+    def turkce_karakter_duzelt_pdf(text): return text
 
 def get_pacal_history():
-    """Paçal geçmişini getir"""
+    """Paçal geçmişini getir - GOOGLE SHEETS UYUMLU"""
     try:
-        with get_db_connection() as conn:
-            df = pd.read_sql_query(
-                "SELECT id, tarih, urun_adi, silo_oranlari_json, sonuc_analizleri_json FROM pacal_kayitlari ORDER BY tarih DESC", 
-                conn
-            )
-            return df
+        # SQL yerine fetch_data
+        df = fetch_data("pacal_kayitlari")
+        
+        if df.empty:
+            return pd.DataFrame()
+            
+        # Tarihe göre sırala
+        if 'tarih' in df.columns:
+            df['tarih'] = pd.to_datetime(df['tarih'])
+            df = df.sort_values('tarih', ascending=False)
+            
+        return df
     except Exception as e:
         st.error(f"Paçal geçmişi yüklenemedi: {str(e)}")
         return pd.DataFrame()
 
 def get_tavli_analiz_agirlikli_ortalama(silo_isim):
-    """Silo için tüm tavlı analizlerin tonaj ağırlıklı ortalamasını hesapla"""
+    """Silo için tüm tavlı analizlerin tonaj ağırlıklı ortalamasını hesapla - GOOGLE SHEETS UYUMLU"""
     try:
-        with get_db_connection() as conn:
-            # Tüm tavlı analizleri getir
-            df = pd.read_sql_query(
-                """SELECT * FROM tavli_analiz 
-                WHERE silo_isim = ? 
-                ORDER BY tarih""",
-                conn,
-                params=(silo_isim,)
-            )
+        # 1. Tüm analizleri çek
+        df = fetch_data("tavli_analiz")
+        
+        if df.empty:
+            return None
             
-            if df.empty:
-                return None
-            
-            # Analiz parametreleri listesi
-            analiz_parametreleri = [
-                'protein', 'rutubet', 'gluten', 'gluten_index',
-                'sedim', 'g_sedim', 'fn', 'ffn', 'amilograph', 'kul',
-                'su_kaldirma_f', 'gelisme_suresi', 'stabilite', 'yumusama',
-                'su_kaldirma_e', 'enerji45', 'direnc45', 'taban45',
-                'enerji90', 'direnc90', 'taban90', 'enerji135',
-                'direnc135', 'taban135'
-            ]
-            
-            # Toplam tonaj
-            toplam_tonaj = df['analiz_tonaj'].sum()
-            
-            if toplam_tonaj <= 0:
-                return None
-            
-            # Ağırlıklı ortalamaları hesapla
-            agirlikli_ortalama = {}
-            
-            for param in analiz_parametreleri:
-                if param in df.columns:
-                    # NaN değerleri 0 olarak değerlendir
-                    df[param] = pd.to_numeric(df[param], errors='coerce').fillna(0)
-                    
-                    # Ağırlıklı ortalama hesapla: Σ(tonaj * değer) / Σ(tonaj)
-                    try:
-                        agirlikli_deger = (df['analiz_tonaj'] * df[param]).sum() / toplam_tonaj
-                        agirlikli_ortalama[param] = float(agirlikli_deger)
-                    except:
-                        agirlikli_ortalama[param] = 0.0
-                else:
+        # 2. İlgili siloya göre filtrele (Pandas Filter)
+        df = df[df['silo_isim'] == silo_isim]
+        
+        if df.empty:
+            return None
+        
+        # Analiz parametreleri listesi
+        analiz_parametreleri = [
+            'protein', 'rutubet', 'gluten', 'gluten_index',
+            'sedim', 'g_sedim', 'fn', 'ffn', 'amilograph', 'kul',
+            'su_kaldirma_f', 'gelisme_suresi', 'stabilite', 'yumusama',
+            'su_kaldirma_e', 'enerji45', 'direnc45', 'taban45',
+            'enerji90', 'direnc90', 'taban90', 'enerji135',
+            'direnc135', 'taban135'
+        ]
+        
+        # Sayısal değerlere çevir
+        df['analiz_tonaj'] = pd.to_numeric(df['analiz_tonaj'], errors='coerce').fillna(0)
+        
+        # Toplam tonaj
+        toplam_tonaj = df['analiz_tonaj'].sum()
+        
+        if toplam_tonaj <= 0:
+            return None
+        
+        # Ağırlıklı ortalamaları hesapla
+        agirlikli_ortalama = {}
+        
+        for param in analiz_parametreleri:
+            if param in df.columns:
+                # NaN değerleri 0 olarak değerlendir
+                df[param] = pd.to_numeric(df[param], errors='coerce').fillna(0)
+                
+                # Ağırlıklı ortalama hesapla: Σ(tonaj * değer) / Σ(tonaj)
+                try:
+                    agirlikli_deger = (df['analiz_tonaj'] * df[param]).sum() / toplam_tonaj
+                    agirlikli_ortalama[param] = float(agirlikli_deger)
+                except:
                     agirlikli_ortalama[param] = 0.0
-            
-            # Toplam tonajı da ekle
-            agirlikli_ortalama['toplam_tonaj'] = float(toplam_tonaj)
-            agirlikli_ortalama['analiz_sayisi'] = len(df)
-            
-            return agirlikli_ortalama
-            
+            else:
+                agirlikli_ortalama[param] = 0.0
+        
+        # Toplam tonajı da ekle
+        agirlikli_ortalama['toplam_tonaj'] = float(toplam_tonaj)
+        agirlikli_ortalama['analiz_sayisi'] = len(df)
+        
+        return agirlikli_ortalama
+        
     except Exception as e:
         st.error(f"Ağırlıklı ortalama hesaplama hatası ({silo_isim}): {str(e)}")
         return None
 
 def calculate_pacal_metrics(oranlar, tavli_analizler):
-    """
-    Paçal oranlarına göre beklenen analiz değerlerini hesaplar.
-    
-    Args:
-        oranlar (dict): {silo_isim: oran_yuzde}
-        tavli_analizler (dict): {silo_isim: analiz_dict}
-        
-    Returns:
-        dict: Hesaplanan analiz sonuçları
-    """
+    """Paçal oranlarına göre beklenen analiz değerlerini hesaplar."""
     analiz_sonuclari = {
         'protein': 0.0, 'rutubet': 0.0, 'gluten': 0.0, 'gluten_index': 0.0,
         'sedim': 0.0, 'g_sedim': 0.0, 'fn': 0.0, 'ffn': 0.0, 
@@ -102,8 +107,6 @@ def calculate_pacal_metrics(oranlar, tavli_analizler):
         'enerji90': 0.0, 'direnc90': 0.0, 'taban90': 0.0, 'enerji135': 0.0,
         'direnc135': 0.0, 'taban135': 0.0
     }
-    
-    # Normalizasyon kontrolü (toplam oran) not enforced here to allow partial calculation logic
     
     analiz_var_mi = False
     
@@ -125,11 +128,10 @@ def calculate_pacal_metrics(oranlar, tavli_analizler):
         
     return analiz_sonuclari
 
-
 def show_pacal_hesaplayici():
     """Paçal Hesaplayıcı modülü"""
     
-    if st.session_state.user_role not in ["admin", "operations"]:
+    if st.session_state.get('user_role') not in ["admin", "operations"]:
         st.warning("⛔ Bu modüle erişim izniniz yok!")
         return
     
@@ -178,7 +180,11 @@ def show_pacal_hesaplayici():
                 with col_label:
                     st.write(f"**{row['isim']}**")
                     bugday_cinsi = str(row.get('bugday_cinsi', '')).strip() or "-"
-                    st.caption(f"Cins: {bugday_cinsi} | Maliyet: {float(row.get('maliyet', 0)):.2f} TL/KG | Mevcut: {float(row['mevcut_miktar']):.1f} Ton")
+                    # Güvenli float dönüşümü
+                    maliyet = float(row.get('maliyet', 0)) if pd.notnull(row.get('maliyet')) else 0.0
+                    mevcut = float(row['mevcut_miktar']) if pd.notnull(row['mevcut_miktar']) else 0.0
+                    
+                    st.caption(f"Cins: {bugday_cinsi} | Maliyet: {maliyet:.2f} TL/KG | Mevcut: {mevcut:.1f} Ton")
                     
                     durum = analiz_durumlari.get(row['isim'], {'var': False})
                     if durum['var']:
@@ -213,15 +219,13 @@ def show_pacal_hesaplayici():
                             maliyet = float(silo_verisi.iloc[0].get('maliyet', 0))
                             paçal_maliyeti += maliyet * (oran / 100)
                 
-                # Hesaplama Fonksiyonunu Kullan
+                # Hesaplama
                 analiz_sonuclari = calculate_pacal_metrics(oranlar, tavli_analizler)
                 
                 analiz_var_mi = analiz_sonuclari is not None
                 
-                # Maliyet Hesabı (Ayrı döngü çünkü tavli_analizler'de maliyet yok)
-                # Maliyet Hesabı (Ayrı döngü çünkü tavli_analizler'de maliyet yok)
                 if analiz_var_mi:
-                     # Add missing params 
+                     # Kullanılan analiz tonajı
                     kullanilan_silolar = [isim for isim, oran in oranlar.items() if oran > 0]
                     analiz_sonuclari['kullanilan_silo_sayisi'] = len(kullanilan_silolar)
 
@@ -285,15 +289,26 @@ def show_pacal_hesaplayici():
                         if st.button("✅ Paçalı Kaydet", type="primary"):
                             if urun_adi.strip():
                                 try:
-                                    with get_db_connection() as conn:
-                                        c = conn.cursor()
-                                        kayit_verisi = {'maliyet': paçal_maliyeti, **analiz_sonuclari}
-                                        c.execute("INSERT INTO pacal_kayitlari (urun_adi, silo_oranlari_json, sonuc_analizleri_json) VALUES (?, ?, ?)",
-                                                 (urun_adi.strip(), json.dumps(oranlar, ensure_ascii=False), json.dumps(kayit_verisi, ensure_ascii=False)))
-                                        conn.commit()
-                                    st.success("✅ Paçal kaydedildi!")
-                                    time.sleep(1)
-                                    st.rerun()
+                                    # Google Sheets için ID oluştur (Timestamp)
+                                    unique_id = int(datetime.now().timestamp())
+                                    
+                                    kayit_verisi = {'maliyet': paçal_maliyeti, **analiz_sonuclari}
+                                    
+                                    data_to_save = {
+                                        'id': unique_id,
+                                        'tarih': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                        'urun_adi': urun_adi.strip(),
+                                        'silo_oranlari_json': json.dumps(oranlar, ensure_ascii=False),
+                                        'sonuc_analizleri_json': json.dumps(kayit_verisi, ensure_ascii=False)
+                                    }
+                                    
+                                    if add_data("pacal_kayitlari", data_to_save):
+                                        st.success("✅ Paçal kaydedildi!")
+                                        time.sleep(1)
+                                        st.rerun()
+                                    else:
+                                        st.error("Kaydedilirken hata oluştu.")
+                                        
                                 except Exception as e:
                                     st.error(f"Hata: {e}")
                             else:
@@ -314,14 +329,22 @@ def show_pacal_gecmisi():
         st.info("Kayıt yok")
         return
     
-    df_pacal['Tarih'] = pd.to_datetime(df_pacal['tarih']).dt.strftime('%Y-%m-%d')
+    # Tarih formatlama
+    if 'tarih' in df_pacal.columns:
+        df_pacal['Tarih'] = pd.to_datetime(df_pacal['tarih']).dt.strftime('%Y-%m-%d')
+    else:
+        df_pacal['Tarih'] = "-"
+        
     df_pacal = df_pacal.sort_values('Tarih', ascending=False)
     
     st.dataframe(df_pacal[['Tarih', 'urun_adi', 'id']], use_container_width=True)
     
     # Seçili kaydı detaylı göster ve PDF oluştur
+    # ID'ler int olmalı
+    df_pacal['id'] = pd.to_numeric(df_pacal['id'], errors='coerce')
+    
     selected_id = st.selectbox("Detaylarını Görüntülemek İstediğiniz Kaydı Seçin", 
-                               df_pacal['id'].tolist(),
+                               df_pacal['id'].dropna().tolist(),
                                format_func=lambda x: f"{df_pacal[df_pacal['id']==x]['urun_adi'].values[0]} ({df_pacal[df_pacal['id']==x]['Tarih'].values[0]})")
     
     if selected_id:
@@ -344,14 +367,12 @@ def show_pacal_gecmisi():
                 
             with c2:
                 st.markdown("### 🧪 Analiz Değerleri")
-                # Analizleri kategorize edip gösterelim
-                
                 # Helper function for safe float conversion
                 def safe_float(val):
                     try: return float(val)
                     except: return 0.0
 
-                # Tablı Görünüm (Aynı Hesaplayıcıdaki Gibi)
+                # Tablı Görünüm
                 tab1, tab2, tab3 = st.tabs(["🧪 Kimyasal", "📈 Farinograph", "📊 Extensograph"])
                 
                 with tab1:
@@ -394,12 +415,6 @@ def show_pacal_gecmisi():
                         st.write(f"Direnç: {safe_float(analizler.get('direnc135', 0)):.0f}")
                         st.write(f"Uzama: {safe_float(analizler.get('taban135', 0)):.0f}")
                     
-                    st.divider()
-                    st.write(f"**Su Kaldırma (E):** %{safe_float(analizler.get('su_kaldirma_e', 0)):.1f}")
-                    
-                st.caption(f"Toplam Analiz Tonajı: {safe_float(analizler.get('toplam_analiz_tonaji', 0)):.1f} Ton")
-            
-            # PDF BUTONU
             st.divider()
             
             if st.button("📥 PDF Rapor İndir", key=f"pdf_pacal_{selected_id}", type="primary"):
