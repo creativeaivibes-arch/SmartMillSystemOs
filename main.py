@@ -13,7 +13,7 @@ st.set_page_config(
 # Core Imports
 from app.core.utils import init_session_state
 from app.core.styles import load_css
-from app.core.database import init_db
+
 from app.core.auth import check_password, do_logout, ROLES
 from app.core.config import SESSION_TIMEOUT_SECONDS
 
@@ -33,7 +33,7 @@ load_css()
 
 # 2. Veritabanı Başlat (Sadece ilk çalıştırmada veya gerekirse)
 if 'db_initialized' not in st.session_state:
-    init_db()
+    
     st.session_state.db_initialized = True
 
 # --- SESSION TIMEOUT CONTROL ---
@@ -321,3 +321,4 @@ with st.sidebar:
                 
         except Exception as e:
             st.error(f"Hata Oluştu: {e}")
+
