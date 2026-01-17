@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import time
 from datetime import datetime
-from app.core.database import get_db_connection
+from app.core.database import fetch_data
 from app.core.error_handling import error_handler, log_debug, log_info, log_warning, ERROR_HANDLING_AVAILABLE
 from app.core.utils import turkce_karakter_duzelt
 from app.core.styles import card_metric
@@ -238,3 +238,4 @@ def show_dashboard():
             if i + j < num_silos:
                 with cols[j]:
                     show_silo_card(df.iloc[i + j])
+
