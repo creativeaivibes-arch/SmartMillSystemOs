@@ -2,17 +2,16 @@ import streamlit as st
 import pandas as pd
 import time
 from datetime import datetime
-import sqlite3
-import json
 
-from app.core.database import get_db_connection
+# --- DATABASE BAĞLANTISI (GOOGLE SHEETS UYUMLU) ---
+from app.core.database import fetch_data, add_data, get_conn
 from app.core.utils import turkce_karakter_duzelt
 from app.core.config import INPUT_LIMITS, TERMS, get_limit
-# Rapor modülü importu (Döngüsel hatayı önlemek için gerekirse try-except eklenebilir)
+
+# Rapor modülü (Hata verirse boş geçmesi için önlem)
 try:
     from app.modules.reports import create_un_maliyet_pdf_report, download_styled_excel
 except ImportError:
-    # Eğer rapor modülü henüz yoksa hata vermesin, fonksiyonu boş geçsin
     def create_un_maliyet_pdf_report(*args): return None
     def download_styled_excel(*args): st.warning("Excel modülü yüklenemedi")
 
@@ -21,69 +20,57 @@ except ImportError:
 # --------------------------------------------------------------------------
 
 def save_spec(un_cinsi, parametre, min_val, max_val, hedef_val, tolerans):
-    """Spesifikasyon kaydet/güncelle"""
+    """Spesifikasyon kaydet/güncelle (Google Sheets)"""
     try:
-        with get_db_connection() as conn:
-            c = conn.cursor()
-            # Önce tabloyu kontrol et
-            c.execute("SELECT id FROM un_spekleri WHERE un_cinsi=? AND parametre=?", (un_cinsi, parametre))
-            exists = c.fetchone()
+        conn = get_conn()
+        df = fetch_data("un_spekleri")
+        
+        # Yeni kayıt verisi
+        new_row = {
+            'un_cinsi': un_cinsi, 'parametre': parametre, 
+            'min_deger': min_val, 'max_deger': max_val, 
+            'hedef_deger': hedef_val, 'tolerans': tolerans, 'aktif': 1
+        }
+        
+        if df.empty:
+            return add_data("un_spekleri", new_row)
+        
+        # Güncelleme mantığı
+        mask = (df['un_cinsi'] == un_cinsi) & (df['parametre'] == parametre)
+        if mask.any():
+            df.loc[mask, ['min_deger', 'max_deger', 'hedef_deger', 'tolerans', 'aktif']] = [min_val, max_val, hedef_val, tolerans, 1]
+            conn.update(worksheet="un_spekleri", data=df)
+        else:
+            add_data("un_spekleri", new_row)
             
-            if exists:
-                c.execute("""UPDATE un_spekleri 
-                           SET min_deger=?, max_deger=?, hedef_deger=?, tolerans=?, aktif=1 
-                           WHERE id=?""", 
-                           (min_val, max_val, hedef_val, tolerans, exists[0]))
-            else:
-                c.execute("""INSERT INTO un_spekleri (un_cinsi, parametre, min_deger, max_deger, hedef_deger, tolerans) 
-                           VALUES (?, ?, ?, ?, ?, ?)""",
-                           (un_cinsi, parametre, min_val, max_val, hedef_val, tolerans))
-            conn.commit()
-            return True
+        return True
     except Exception as e:
         st.error(f"Kayıt Hatası: {e}")
         return False
 
 def delete_spec_group(un_cinsi):
-    """Bir un cinsine ait tüm spekleri sil"""
     try:
-        with get_db_connection() as conn:
-            c = conn.cursor()
-            c.execute("DELETE FROM un_spekleri WHERE un_cinsi=?", (un_cinsi,))
-            conn.commit()
-            return True
-    except Exception as e:
-        return False
+        conn = get_conn()
+        df = fetch_data("un_spekleri")
+        if df.empty: return True
+        conn.update(worksheet="un_spekleri", data=df[df['un_cinsi'] != un_cinsi])
+        return True
+    except: return False
 
 def get_all_specs_dataframe():
-    """Tüm spekleri rapor için çek"""
-    try:
-        with get_db_connection() as conn:
-            df = pd.read_sql("""
-                SELECT un_cinsi as "Un Cinsi", 
-                       parametre as "Parametre", 
-                       min_deger as "Min", 
-                       hedef_deger as "Hedef", 
-                       max_deger as "Max" 
-                FROM un_spekleri 
-                ORDER BY un_cinsi, parametre
-            """, conn)
-            return df
-    except:
-        return pd.DataFrame()
+    df = fetch_data("un_spekleri")
+    if df.empty: return pd.DataFrame()
+    return df.rename(columns={'un_cinsi': 'Un Cinsi', 'parametre': 'Parametre', 'min_deger': 'Min', 'hedef_deger': 'Hedef', 'max_deger': 'Max'})[['Un Cinsi', 'Parametre', 'Min', 'Hedef', 'Max']]
 
 def show_spec_yonetimi():
-    """Un Kalite Spesifikasyon Yönetimi"""
-    st.markdown("### 🎯 Un Kalite Spesifikasyonları (Spec)")
+    st.markdown("### 🎯 Un Kalite Spesifikasyonları")
     
-    # Un Cinsi Seçimi
-    try:
-        with get_db_connection() as conn:
-            un_cinsleri = pd.read_sql("SELECT DISTINCT un_cinsi_marka FROM un_analiz WHERE un_cinsi_marka IS NOT NULL", conn)
-            spek_cinsleri = pd.read_sql("SELECT DISTINCT un_cinsi FROM un_spekleri", conn)
-            all_types = sorted(list(set(un_cinsleri['un_cinsi_marka'].tolist() + spek_cinsleri['un_cinsi'].tolist())))
-    except:
-        all_types = []
+    df_analiz, df_specs = fetch_data("un_analiz"), fetch_data("un_spekleri")
+    
+    # Listeleri güvenli şekilde al
+    l1 = df_analiz['un_cinsi_marka'].unique().tolist() if not df_analiz.empty and 'un_cinsi_marka' in df_analiz.columns else []
+    l2 = df_specs['un_cinsi'].unique().tolist() if not df_specs.empty and 'un_cinsi' in df_specs.columns else []
+    all_types = sorted(list(set(l1 + l2)))
 
     col_sel, col_add = st.columns([2, 1])
     with col_sel:
@@ -91,248 +78,150 @@ def show_spec_yonetimi():
     
     if secilen_urun == "(Seçiniz/Yeni Ekle)":
         with col_add:
-            yeni_isim = st.text_input("➕ Yeni Un Tanımla", placeholder="Örn: Tam Buğday Unu").strip()
-            if yeni_isim: secilen_urun = yeni_isim
+            yeni = st.text_input("➕ Yeni Un Tanımla").strip()
+            if yeni: secilen_urun = yeni
             else: secilen_urun = None
 
     if not secilen_urun:
-        st.info("👆 Lütfen bir un cinsi seçin.")
-        st.divider()
-        df_all = get_all_specs_dataframe()
-        if not df_all.empty: st.dataframe(df_all, use_container_width=True, hide_index=True)
+        st.info("👆 Lütfen seçim yapınız.")
+        d = get_all_specs_dataframe()
+        if not d.empty: st.dataframe(d, use_container_width=True, hide_index=True)
         return
 
     st.divider()
-    
-    current_specs = {}
-    try:
-        with get_db_connection() as conn:
-            df_specs = pd.read_sql("SELECT * FROM un_spekleri WHERE un_cinsi=?", conn, params=(secilen_urun,))
-            for _, row in df_specs.iterrows(): current_specs[row['parametre']] = row
-    except: pass
+    cur = {}
+    if not df_specs.empty:
+        for _, r in df_specs[df_specs['un_cinsi'] == secilen_urun].iterrows(): cur[r['parametre']] = r
 
-    # Parametre Grupları
-    param_groups = {
-        "Kimyasal Analizler": [("protein", "Protein (%)"), ("rutubet", "Rutubet (%)"), ("kul", "Kül (%)"), ("gluten", "Gluten (%)"), ("gluten_index", "Gluten Index"), ("sedim", "Sedim (ml)"), ("gecikmeli_sedim", "Gecikmeli Sedim (ml)"), ("fn", "Düşme Sayısı (FN)"), ("ffn", "F.F.N"), ("nisasta_zedelenmesi", "Nişasta Zedelenmesi")],
-        "Farinograph & Amilograph": [("su_kaldirma_f", "Su Kaldırma (Farino) (%)"), ("gelisme_suresi", "Gelişme Süresi (dk)"), ("stabilite", "Stabilite (dk)"), ("yumusama", "Yumuşama Derecesi (FU)"), ("amilograph", "Amilograph (AU)")],
-        "Extensograph": [("enerji45", "Enerji (45 dk)"), ("direnc45", "Direnç (45 dk)"), ("taban45", "Uzama/Taban (45 dk)"), ("enerji90", "Enerji (90 dk)"), ("direnc90", "Direnç (90 dk)"), ("taban90", "Uzama/Taban (90 dk)"), ("enerji135", "Enerji (135 dk)"), ("direnc135", "Direnç (135 dk)"), ("taban135", "Uzama/Taban (135 dk)"), ("su_kaldirma_e", "Su Kaldırma (Extenso) (%)")]
+    groups = {
+        "Kimyasal": [("protein", "Protein"), ("rutubet", "Rutubet"), ("kul", "Kül"), ("gluten", "Gluten"), ("gluten_index", "GI"), ("sedim", "Sedim"), ("gecikmeli_sedim", "G.Sedim"), ("fn", "FN"), ("ffn", "FFN"), ("nisasta_zedelenmesi", "Nişasta Z.")],
+        "Reoloji": [("su_kaldirma_f", "Su Kld(F)"), ("gelisme_suresi", "Gelişme"), ("stabilite", "Stabilite"), ("yumusama", "Yumuşama"), ("amilograph", "Amilo")]
     }
 
-    # Form
-    st.markdown(f"### 🛠️ Düzenleme: {secilen_urun}")
-    with st.form("spec_editor_full"):
-        tabs = st.tabs(list(param_groups.keys()))
-        input_keys = [] 
-        
-        for idx, (group, params) in enumerate(param_groups.items()):
-            with tabs[idx]:
-                for p_key, p_label in params:
-                    cur = current_specs.get(p_key, {})
+    with st.form("spec_form"):
+        tabs = st.tabs(list(groups.keys()))
+        keys = []
+        for i, (k, params) in enumerate(groups.items()):
+            with tabs[i]:
+                for pk, pl in params:
+                    c = cur.get(pk, {})
                     c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
-                    c1.markdown(f"**{p_label}**")
-                    st.number_input("Min", value=float(cur.get('min_deger', 0.0)), key=f"min_{p_key}", step=0.1, label_visibility="collapsed")
-                    st.number_input("Hedef", value=float(cur.get('hedef_deger', 0.0)), key=f"tgt_{p_key}", step=0.1, label_visibility="collapsed")
-                    st.number_input("Max", value=float(cur.get('max_deger', 0.0)), key=f"max_{p_key}", step=0.1, label_visibility="collapsed")
-                    input_keys.append(p_key)
+                    c1.markdown(f"**{pl}**")
+                    st.number_input("Min", value=float(c.get('min_deger', 0)), key=f"mn_{pk}", step=0.1, label_visibility="collapsed")
+                    st.number_input("Hdf", value=float(c.get('hedef_deger', 0)), key=f"tg_{pk}", step=0.1, label_visibility="collapsed")
+                    st.number_input("Max", value=float(c.get('max_deger', 0)), key=f"mx_{pk}", step=0.1, label_visibility="collapsed")
+                    keys.append(pk)
         
-        st.divider()
-        if st.form_submit_button("💾 Kaydet / Güncelle", type="primary"):
-            saved_count = 0
-            for p_key in input_keys:
-                s_min, s_tgt, s_max = st.session_state.get(f"min_{p_key}", 0.0), st.session_state.get(f"tgt_{p_key}", 0.0), st.session_state.get(f"max_{p_key}", 0.0)
-                if s_min > 0 or s_tgt > 0 or s_max > 0:
-                    if save_spec(secilen_urun, p_key, s_min, s_max, s_tgt, 0): saved_count += 1
-            if saved_count > 0: st.success(f"✅ {saved_count} parametre güncellendi."); time.sleep(1); st.rerun()
-            else: st.warning("Değişiklik yok.")
+        if st.form_submit_button("💾 Kaydet"):
+            cnt = 0
+            for k in keys:
+                mn, tg, mx = st.session_state.get(f"mn_{k}",0), st.session_state.get(f"tg_{k}",0), st.session_state.get(f"mx_{k}",0)
+                if mn > 0 or tg > 0 or mx > 0:
+                    if save_spec(secilen_urun, k, mn, mx, tg, 0): cnt += 1
+            st.success(f"{cnt} güncellendi"); time.sleep(1); st.rerun()
 
-    # Silme Butonu
     if st.session_state.get("user_role") == "admin":
-        st.divider()
-        if st.button("🗑️ Bu Tanımı Sil", type="secondary"):
+        if st.button("🗑️ Sil"):
             if delete_spec_group(secilen_urun): st.success("Silindi!"); time.sleep(1); st.rerun()
 
 # --------------------------------------------------------------------------
 # 2. UN ANALİZ KAYDI
 # --------------------------------------------------------------------------
 
-def save_un_analiz(lot_no, islem_tipi, **analiz_degerleri):
-    """Un analizini kaydet"""
+def save_un_analiz(lot, tip, **kw):
     try:
-        with get_db_connection() as conn:
-            c = conn.cursor()
-            
-            # Kolon kontrolleri
-            c.execute("PRAGMA table_info(un_analiz)")
-            mevcut = [col[1] for col in c.fetchall()]
-            for col in ['un_cinsi_marka', 'un_markasi']:
-                if col not in mevcut: c.execute(f"ALTER TABLE un_analiz ADD COLUMN {col} TEXT")
-            conn.commit()
-            
-            # Veri Hazırlığı
-            columns = ['lot_no', 'islem_tipi', 'tarih']
-            values = [lot_no, islem_tipi, datetime.now().strftime('%Y-%m-%d %H:%M:%S')]
-            
-            fields = ['un_cinsi_marka', 'un_markasi', 'uretim_silosu', 'protein', 'rutubet', 'gluten', 'gluten_index', 'sedim', 'gecikmeli_sedim', 'fn', 'ffn', 'amilograph', 'nisasta_zedelenmesi', 'kul', 'su_kaldirma_f', 'gelisme_suresi', 'stabilite', 'yumusama', 'su_kaldirma_e', 'direnc45', 'direnc90', 'direnc135', 'taban45', 'taban90', 'taban135', 'enerji45', 'enerji90', 'enerji135', 'notlar']
-            
-            for f in fields:
-                if f in analiz_degerleri:
-                    columns.append(f)
-                    values.append(analiz_degerleri[f])
-            
-            placeholders = ', '.join(['?'] * len(values))
-            cols_str = ', '.join(columns)
-            c.execute(f"INSERT INTO un_analiz ({cols_str}) VALUES ({placeholders})", values)
-            conn.commit()
-            return True, "Kaydedildi"
-            
-    except sqlite3.IntegrityError: return False, f"Bu lot zaten kayıtlı: {lot_no}"
+        # Lot kontrolü
+        df = fetch_data("un_analiz")
+        if not df.empty and 'lot_no' in df.columns and str(lot) in df['lot_no'].astype(str).values:
+            return False, f"Bu lot ({lot}) zaten kayıtlı!"
+
+        data = {'lot_no': str(lot), 'islem_tipi': tip, 'tarih': datetime.now().strftime('%Y-%m-%d %H:%M:%S'), **kw}
+        if add_data("un_analiz", data): return True, "Kaydedildi"
+        return False, "Hata"
     except Exception as e: return False, str(e)
 
 def show_un_analiz_kaydi():
-    """Un Analiz Kayıt Ekranı"""
-    if st.session_state.user_role not in ["admin", "operations"]:
-        st.warning("⛔ Yetkisiz Erişim"); return
-        
+    if st.session_state.user_role not in ["admin", "operations"]: st.warning("Yetkisiz"); return
     st.header("📝 Un Analiz Kaydı")
-    col1, col2 = st.columns([1, 1], gap="large")
     
-    with col1:
-        st.subheader("📋 Bilgiler")
-        lot_no = st.text_input("Lot No", value=f"UN-{datetime.now().strftime('%y%m%d%H%M%S')}")
-        islem_tipi = st.selectbox("İşlem Tipi", ["ÜRETİM", "SEVKİYAT", "NUMUNE", "ŞİKAYET", "İADE"])
-        un_markasi = st.text_input("Un Markası (Ticari)")
+    c1, c2 = st.columns(2)
+    with c1:
+        lot = st.text_input("Lot No", value=f"UN-{datetime.now().strftime('%y%m%d%H%M')}")
+        tip = st.selectbox("İşlem Tipi", ["ÜRETİM", "SEVKİYAT", "NUMUNE"])
+        marka = st.text_input("Un Markası")
         
-        # Un Cinsi Seçimi
-        try:
-            with get_db_connection() as conn:
-                u = pd.read_sql("SELECT DISTINCT un_cinsi_marka FROM un_analiz WHERE un_cinsi_marka IS NOT NULL", conn)
-                s = pd.read_sql("SELECT DISTINCT un_cinsi FROM un_spekleri", conn)
-                ts = sorted(list(set(u['un_cinsi_marka'].tolist() + s['un_cinsi'].tolist())))
-        except: ts = []
+        # Cins listesi
+        df_sp = fetch_data("un_spekleri")
+        specs = df_sp['un_cinsi'].unique().tolist() if not df_sp.empty else []
+        cins = st.selectbox("Cins", ["(Seç)"] + specs + ["(Yeni)"])
+        if cins == "(Yeni)": cins = st.text_input("Yeni Cins")
+        elif cins == "(Seç)": cins = ""
+        
+        silo = None
+        if tip == "ÜRETİM":
+            df_s = fetch_data("uretim_silolari")
+            sls = df_s[df_s['aktif']==1]['silo_adi'].tolist() if not df_s.empty else []
+            silo = st.selectbox("Silo", [""]+sls)
+        
+        note = st.text_area("Not")
+
+    with c2:
+        st.subheader("Değerler")
+        def inp(l, k, v=0.0): return st.number_input(l, 0.0, 1000.0, float(v), 0.1)
+        
+        with st.expander("Analizler", expanded=True):
+            pr = inp("Protein", "prot", 11.5)
+            ru = inp("Rutubet", "rut", 14.5)
+            gl = inp("Gluten", "glut", 28.0)
+            gi = inp("GI", "gi", 85.0)
+            sd = inp("Sedim", "sed", 40.0)
+            fn = inp("FN", "fn", 350.0)
+            kl = st.number_input("Kül", 0.0, 2.0, 0.720, 0.001, format="%.3f")
             
-        c1, c2 = st.columns([2, 1])
-        with c1: sel_type = st.selectbox("Un Cinsi", ["(Seçiniz)"] + ts + ["(Yeni)"])
-        if sel_type == "(Yeni)": 
-            with c2: un_cinsi_marka = st.text_input("Yeni Cins Adı").strip()
-        elif sel_type != "(Seçiniz)": un_cinsi_marka = sel_type
-        else: un_cinsi_marka = ""
-
-        # Silo
-        uretim_silosu = None
-        if islem_tipi == "ÜRETİM":
-            try:
-                with get_db_connection() as conn:
-                    sl = pd.read_sql("SELECT silo_adi FROM uretim_silolari WHERE aktif=1", conn)['silo_adi'].tolist()
-                    uretim_silosu = st.selectbox("Üretim Silosu", ["(Seçiniz)"] + sl)
-                    if uretim_silosu == "(Seçiniz)": uretim_silosu = None
-            except: pass
-        
-        notlar = st.text_area("Notlar")
-
-    with col2:
-        st.subheader("🧪 Değerler")
-        # Spec Kontrol
-        specs = {}
-        if un_cinsi_marka:
-            try:
-                with get_db_connection() as conn:
-                    df_s = pd.read_sql("SELECT * FROM un_spekleri WHERE un_cinsi=?", conn, params=(un_cinsi_marka,))
-                    for _, r in df_s.iterrows(): specs[r['parametre']] = r
-            except: pass
-
-        def val_in(lbl, key, d=0.0, mx=100.0, stp=0.1):
-            val = st.number_input(lbl, 0.0, float(mx), float(d), float(stp))
-            if key in specs:
-                s = specs[key]
-                st.caption(f"🎯 {s['hedef_deger']} | ↔️ {s['min_deger']}-{s['max_deger']}")
-                if val < s['min_deger'] or (s['max_deger'] > 0 and val > s['max_deger']): st.error("Limit Dışı!")
-            return val
-
-        with st.expander("Temel Analizler", expanded=True):
-            c1, c2 = st.columns(2)
-            with c1:
-                prot = val_in("Protein (%)", "protein", 11.5, 20.0)
-                rut = val_in("Rutubet (%)", "rutubet", 14.5, 20.0)
-                glut = val_in("Gluten (%)", "gluten", 28.0, 50.0)
-            with c2:
-                idx = val_in("G. Index", "gluten_index", 85.0, 100.0, 1.0)
-                sed = val_in("Sedim", "sedim", 40.0, 100.0, 1.0)
-                fn = val_in("FN", "fn", 350.0, 1000.0, 1.0)
-
-        with st.expander("Diğer"):
-            gs = val_in("G. Sedim", "gecikmeli_sedim", 50.0, 100.0, 1.0)
-            ffn = val_in("FFN", "ffn", 380.0, 1000.0, 1.0)
-            kul = st.number_input("Kül", 0.0, 2.0, 0.720, 0.001, format="%.3f")
-            ami = val_in("Amilo", "amilograph", 650.0, 2000.0, 1.0)
-            nis = val_in("Nişasta Z.", "nisasta_zedelenmesi", 15.0, 50.0)
-
-    if st.button("✅ Kaydet", type="primary", use_container_width=True):
-        if not lot_no or not islem_tipi or not un_cinsi_marka:
-            st.error("Zorunlu alanlar eksik!"); return
-        
-        data = {
-            'uretim_silosu': uretim_silosu, 'un_cinsi_marka': un_cinsi_marka, 'un_markasi': un_markasi,
-            'protein': prot, 'rutubet': rut, 'gluten': glut, 'gluten_index': idx,
-            'sedim': sed, 'gecikmeli_sedim': gs, 'fn': fn, 'ffn': ffn, 'amilograph': ami,
-            'nisasta_zedelenmesi': nis, 'kul': kul, 'notlar': notlar
-        }
-        ok, msg = save_un_analiz(lot_no, islem_tipi, **data)
+    if st.button("Kaydet", type="primary", use_container_width=True):
+        if not lot or not cins: st.error("Eksik bilgi"); return
+        dt = {'un_cinsi_marka': cins, 'un_markasi': marka, 'uretim_silosu': silo, 'protein': pr, 'rutubet': ru, 'gluten': gl, 'gluten_index': gi, 'sedim': sd, 'fn': fn, 'kul': kl, 'notlar': note}
+        ok, msg = save_un_analiz(lot, tip, **dt)
         if ok: st.success("Kaydedildi!"); time.sleep(1); st.rerun()
         else: st.error(msg)
 
 def show_un_analiz_kayitlari():
-    st.header("📚 Un Analiz Kayıtları")
-    try:
-        with get_db_connection() as conn:
-            df = pd.read_sql("SELECT * FROM un_analiz ORDER BY tarih DESC LIMIT 100", conn)
-    except: df = pd.DataFrame()
-    
+    st.header("📚 Kayıtlar")
+    df = fetch_data("un_analiz")
     if not df.empty:
-        st.dataframe(df, use_container_width=True)
-        download_styled_excel(df, f"analizler_{datetime.now().strftime('%Y%m%d')}.xlsx")
-    else: st.info("Kayıt yok.")
+        if 'tarih' in df.columns: df['tarih'] = pd.to_datetime(df['tarih']).dt.strftime('%d/%m/%Y %H:%M')
+        st.dataframe(df.sort_values('tarih', ascending=False), use_container_width=True)
+    else: st.info("Kayıt yok")
 
 # --------------------------------------------------------------------------
-# 3. MALİYET HESAPLAMA (Gelişmiş - Yan Ürünlü)
+# 3. MALİYET HESAPLAMA (TAM SÜRÜM - GOOGLE SHEETS UYUMLU)
 # --------------------------------------------------------------------------
 
 def save_un_maliyet_hesaplama(data, kullanici):
     try:
-        with get_db_connection() as conn:
-            c = conn.cursor()
-            cols = ['tarih', 'kullanici']
-            vals = [datetime.now().strftime('%Y-%m-%d %H:%M:%S'), kullanici]
-            
-            # İzin verilen alanlar
-            allowed = ['un_cesidi', 'bugday_pacal_maliyeti', 'aylik_kirilan_bugday', 'un_randimani', 
-                      'un_satis_fiyati', 'un2_orani', 'bongalite_orani', 'kepek_orani', 'razmol_orani', 
-                      'belge_geliri', 'un2_fiyati', 'bongalite_fiyati', 'kepek_fiyati', 'razmol_fiyati', 
-                      'ton_bugday_elektrik', 'elektrik_gideri', 'personel_maasi', 'bakim_maliyeti', 
-                      'mutfak_gideri', 'finans_gideri', 'nakliye', 'satis_pazarlama', 'pp_cuval', 
-                      'katki_maliyeti', 'net_kar_50kg', 'fabrika_cikis_maliyet', 'net_kar_toplam', 
-                      'toplam_gelir', 'toplam_gider', 'notlar', 'kirik_tonaj', 'kirik_fiyat', 
-                      'basak_tonaj', 'basak_fiyat', 'diger_giderler', 'ay', 'yil']
-            
-            for k, v in data.items():
-                if k in allowed:
-                    cols.append(k)
-                    vals.append(v)
-            
-            ph = ', '.join(['?'] * len(vals))
-            cl = ', '.join(cols)
-            c.execute(f"INSERT INTO un_maliyet_hesaplamalari ({cl}) VALUES ({ph})", vals)
-            conn.commit()
+        # Google Sheets uyumlu kayıt
+        row = {
+            'tarih': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'kullanici': kullanici,
+            'id': int(time.time()), # ID üret
+            **data # Tüm hesaplama verileri
+        }
+        
+        if add_data("un_maliyet_hesaplamalari", row):
             return True, "Kayıt Başarılı"
-    except Exception as e: return False, str(e)
+        return False, "Kayıt Başarısız"
+    except Exception as e:
+        return False, str(e)
 
 def get_un_maliyet_gecmisi():
-    try:
-        with get_db_connection() as conn:
-            return pd.read_sql("SELECT * FROM un_maliyet_hesaplamalari ORDER BY tarih DESC LIMIT 50", conn)
-    except: return pd.DataFrame()
+    df = fetch_data("un_maliyet_hesaplamalari")
+    if not df.empty and 'tarih' in df.columns:
+        df['tarih'] = pd.to_datetime(df['tarih'])
+        df = df.sort_values('tarih', ascending=False)
+    return df
 
 def show_un_maliyet_hesaplama():
-    """Un Maliyet Hesaplama Modülü - TAM KAPSAMLI"""
+    """Un Maliyet Hesaplama Modülü - TAM KAPSAMLI VE UYUMLU"""
     st.header("🧮 Un Maliyet Hesaplama")
     
     if 'hesaplama_yapildi' not in st.session_state: st.session_state.hesaplama_yapildi = False
@@ -342,7 +231,7 @@ def show_un_maliyet_hesaplama():
     with c1: ay = st.selectbox("Ay", ["OCAK", "ŞUBAT", "MART", "NİSAN", "MAYIS", "HAZİRAN", "TEMMUZ", "AĞUSTOS", "EYLÜL", "EKİM", "KASIM", "ARALIK"], index=datetime.now().month-1)
     with c2: yil = st.selectbox("Yıl", list(range(2026, 2037)))
 
-    # --- 3 KOLONLU GİRİŞ ALANI ---
+    # --- 3 KOLONLU GİRİŞ ALANI (ARADIĞIN KISIM) ---
     col1, col2, col3 = st.columns(3, gap="medium")
     
     # 1. TEMEL BİLGİLER
@@ -355,7 +244,7 @@ def show_un_maliyet_hesaplama():
         satis_fiyat = st.number_input("Un Satış Fiyatı (50KG) *", 980.0, step=1.0)
         belge = st.number_input("Belge Geliri (50KG)", 0.0)
 
-    # 2. YAN ÜRÜNLER (Senin aradığın kısım burası)
+    # 2. YAN ÜRÜNLER (Senin istediğin eksik kısımlar)
     with col2:
         st.markdown("#### 📊 YAN ÜRÜN ORANLARI (%)")
         c_y1, c_y2 = st.columns(2)
@@ -424,6 +313,7 @@ def show_un_maliyet_hesaplama():
             kar_cuval = kar_toplam / cuval_say if cuval_say > 0 else 0
             fab_cikis = satis_fiyat - kar_cuval
             
+            # Kayıt Paketi
             res = {
                 'ay': ay, 'yil': yil, 'un_cesidi': un_cesidi,
                 'bugday_pacal_maliyeti': bugday_pacal, 'aylik_kirilan_bugday': aylik_kirilan,
@@ -443,6 +333,7 @@ def show_un_maliyet_hesaplama():
             st.session_state.un_maliyet_hesaplama_verileri = res
             st.session_state.hesaplama_yapildi = True
             
+            # Veritabanına kayıt
             ok, msg = save_un_maliyet_hesaplama(res, st.session_state.get('username', '-'))
             if ok: st.success("✅ Hesaplandı ve Kaydedildi!"); time.sleep(1); st.rerun()
             else: st.warning(f"Hesaplandı ama kaydedilemedi: {msg}")
@@ -462,11 +353,9 @@ def show_un_maliyet_hesaplama():
             if pdf: st.download_button("İndir", pdf, "maliyet.pdf", "application/pdf")
 
 def show_un_maliyet_gecmisi():
-    """Geçmiş Kayıtlar"""
     st.header("📉 Maliyet Geçmişi")
     df = get_un_maliyet_gecmisi()
     if not df.empty:
-        # Görünümü sadeleştir
         disp_cols = ['tarih', 'ay', 'yil', 'un_cesidi', 'net_kar_50kg', 'fabrika_cikis_maliyet']
         cols = [c for c in disp_cols if c in df.columns]
         st.dataframe(df[cols], use_container_width=True)
