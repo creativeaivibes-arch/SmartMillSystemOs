@@ -1,134 +1,64 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-import os
-import shutil
 import time
-import sqlite3
 
-from app.core.database import get_db_connection, init_db
+# --- GÜNCELLENMİŞ IMPORTLAR ---
+from app.core.database import fetch_data, add_data, get_conn
 from app.core.auth import ROLES, hash_password
 
-# --- YEDEKLEME SİSTEMİ ---
-BACKUP_DIR = "backups"
-DB_FILE = "bugday_stok.db"
-
-def init_backup_system():
-    """Yedekleme klasörünü oluştur"""
-    if not os.path.exists(BACKUP_DIR):
-        os.makedirs(BACKUP_DIR)
-
-def create_daily_backup():
-    """Günlük yedek oluştur"""
-    try:
-        init_backup_system()
-        tarih_str = datetime.now().strftime('%Y-%m-%d')
-        backup_name = f"backup_{tarih_str}.db"
-        backup_path = os.path.join(BACKUP_DIR, backup_name)
-        
-        # Eğer bugün yedek alınmamışsa al
-        if not os.path.exists(backup_path):
-            shutil.copy2(DB_FILE, backup_path)
-            return True, f"✅ Günlük yedek oluşturuldu: {backup_name}"
-        return False, "Bugün zaten yedek alınmış."
-    except Exception as e:
-        return False, f"❌ Yedekleme hatası: {str(e)}"
-
-def cleanup_old_backups(days_to_keep=30):
-    """Eski yedekleri temizle (varsayılan: 30 gün)"""
-    try:
-        init_backup_system()
-        simdi = time.time()
-        silinen_sayisi = 0
-        
-        for f in os.listdir(BACKUP_DIR):
-            f_path = os.path.join(BACKUP_DIR, f)
-            if os.path.isfile(f_path) and f.startswith("backup_"):
-                # Dosya yaşını kontrol et
-                if os.stat(f_path).st_mtime < (simdi - (days_to_keep * 86400)):
-                    os.remove(f_path)
-                    silinen_sayisi += 1
-        return silinen_sayisi
-    except Exception as e:
-        print(f"Temizlik hatası: {e}")
-        return 0
-
-def check_daily_backup():
-    """Başlangıçta yedek kontrolü yap"""
-    create_daily_backup()
-    cleanup_old_backups()
-
-def get_backup_stats():
-    """Yedekleme istatistiklerini getir"""
-    try:
-        init_backup_system()
-        backups = []
-        total_size = 0
-        
-        for f in os.listdir(BACKUP_DIR):
-            if f.startswith("backup_"):
-                path = os.path.join(BACKUP_DIR, f)
-                size = os.path.getsize(path) / (1024*1024) # MB
-                tarih = datetime.fromtimestamp(os.path.getmtime(path)).strftime('%Y-%m-%d %H:%M')
-                backups.append({'dosya': f, 'boyut_mb': size, 'tarih': tarih})
-                total_size += size
-                
-        return sorted(backups, key=lambda x: x['tarih'], reverse=True), len(backups), total_size
-    except:
-        return [], 0, 0
-
+# --- YEDEKLEME SİSTEMİ (Bulut Uyumlu) ---
 def show_backup_management():
-    """Yedekleme Yönetimi Paneli"""
-    st.subheader("💾 Yedekleme Yönetimi")
+    """Yedekleme Yönetimi Paneli - Google Sheets Versiyonu"""
+    st.subheader("💾 Yedekleme ve Veri Güvenliği")
     
-    # İstatistikler
-    backups, count, total_size = get_backup_stats()
+    st.info("""
+    ℹ️ **Bilgi:** Sisteminiz şu an **Google Sheets (Bulut)** altyapısı üzerinde çalışmaktadır.
     
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Toplam Yedek", f"{count} Adet")
-    with col2:
-        st.metric("Toplam Boyut", f"{total_size:.1f} MB")
-    with col3:
-        if st.button("🔄 Şimdi Yedek Al", type="primary"):
-            status, msg = create_daily_backup()
-            if status:
-                st.success(msg)
-                time.sleep(1)
-                st.rerun()
-            else:
-                st.info(msg)
+    **Avantajları:**
+    1. ☁️ Verileriniz Google sunucularında otomatik olarak saklanır.
+    2. 🕒 Google E-Tablolar üzerinden "Dosya > Sürüm Geçmişi" diyerek geçmişe dönebilirsiniz.
+    3. 💾 Manuel olarak dosya kopyalamaya gerek yoktur.
+    """)
     
-    # Yedek Listesi
-    if backups:
-        st.write("### 🗂️ Mevcut Yedekler")
-        df_backup = pd.DataFrame(backups)
-        df_backup.columns = ["Dosya Adı", "Boyut (MB)", "Oluşturma Tarihi"]
-        
-        st.dataframe(
-            df_backup,
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "Boyut (MB)": st.column_config.NumberColumn(format="%.2f MB")
-            }
-        )
-        
-        # İndirme Seçeneği
-        selected_backup = st.selectbox("İndirilecek Yedeği Seçin", df_backup["Dosya Adı"])
-        if selected_backup:
-            file_path = os.path.join(BACKUP_DIR, selected_backup)
-            with open(file_path, "rb") as file:
+    st.divider()
+    st.write("### 📥 Verileri Excel Olarak İndir")
+    
+    # İndirilebilir Tablolar
+    tablolar = {
+        "Kullanıcılar": "kullanicilar",
+        "Buğday Siloları": "silolar",
+        "Üretim Siloları": "uretim_silolari",
+        "Hata Logları": "hata_loglari"
+    }
+    
+    selected_table = st.selectbox("Tablo Seçin", list(tablolar.keys()))
+    
+    if st.button("📥 Veriyi İndir"):
+        try:
+            df = fetch_data(tablolar[selected_table])
+            if not df.empty:
+                # Excel'e çevir (CSV yerine Excel daha güvenli karakter için)
+                from io import BytesIO
+                output = BytesIO()
+                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                    df.to_excel(writer, index=False, sheet_name='Sheet1')
+                processed_data = output.getvalue()
+                
                 st.download_button(
-                    label="📥 Seçili Yedeği İndir",
-                    data=file,
-                    file_name=selected_backup,
-                    mime="application/x-sqlite3"
+                    label=f"📥 {selected_table}.xlsx İndir",
+                    data=processed_data,
+                    file_name=f"{tablolar[selected_table]}_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
+            else:
+                st.warning("Bu tabloda veri yok.")
+        except Exception as e:
+            st.error(f"İndirme hatası: {e}")
 
 # --- KULLANICI YÖNETİMİ ---
 def show_user_management():
-    """Kullanıcı Yönetim Paneli"""
+    """Kullanıcı Yönetim Paneli - Google Sheets"""
     st.subheader("👥 Kullanıcı Yönetimi")
     
     # 1. Yeni Kullanıcı Ekleme
@@ -146,21 +76,30 @@ def show_user_management():
             
             if submit_btn:
                 if new_username and new_password:
+                    # Kullanıcı adı kontrolü
+                    df_users = fetch_data("kullanicilar")
+                    if not df_users.empty and 'kullanici_adi' in df_users.columns:
+                        if new_username in df_users['kullanici_adi'].values:
+                            st.error("❌ Bu kullanıcı adı zaten mevcut!")
+                            st.stop()
+
                     hashed_pw = hash_password(new_password)
                     if hashed_pw:
                         try:
-                            with get_db_connection() as conn:
-                                c = conn.cursor()
-                                c.execute(
-                                    "INSERT INTO kullanicilar (kullanici_adi, sifre_hash, rol, ad_soyad) VALUES (?, ?, ?, ?)",
-                                    (new_username, hashed_pw, new_role, new_full_name)
-                                )
-                                conn.commit()
-                            st.success(f"✅ Kullanıcı '{new_username}' başarıyla oluşturuldu!")
-                            time.sleep(1)
-                            st.rerun()
-                        except sqlite3.IntegrityError:
-                            st.error("❌ Bu kullanıcı adı zaten mevcut!")
+                            new_user_data = {
+                                "kullanici_adi": new_username,
+                                "sifre_hash": hashed_pw,
+                                "rol": new_role,
+                                "ad_soyad": new_full_name,
+                                "olusturma_tarihi": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                            }
+                            
+                            if add_data("kullanicilar", new_user_data):
+                                st.success(f"✅ Kullanıcı '{new_username}' başarıyla oluşturuldu!")
+                                time.sleep(1)
+                                st.rerun()
+                            else:
+                                st.error("Kullanıcı eklenirken hata oluştu.")
                         except Exception as e:
                             st.error(f"❌ Hata: {str(e)}")
                 else:
@@ -169,66 +108,53 @@ def show_user_management():
     # 2. Kullanıcı Listesi ve Düzenleme
     st.write("### 📋 Mevcut Kullanıcılar")
     
-    users_df = pd.DataFrame() # Initialize empty dataframe to prevent UnboundLocalError
-    
     try:
-        with get_db_connection() as conn:
-            # Table: kullanicilar, Columns: id, kullanici_adi, ad_soyad, rol, olusturma_tarihi
-            users_df = pd.read_sql_query("SELECT id, kullanici_adi, ad_soyad, rol, olusturma_tarihi FROM kullanicilar", conn)
+        users_df = fetch_data("kullanicilar")
+        
+        if not users_df.empty:
+            # Şifre hashlerini gösterme
+            display_df = users_df.drop(columns=['sifre_hash'], errors='ignore')
             
-            if not users_df.empty:
-                # Düzenlenebilir tablo
-                edited_df = st.data_editor(
-                    users_df,
-                    column_config={
-                        "kullanici_adi": "Kullanıcı Adı",
-                        "ad_soyad": "Ad Soyad",
-                        "rol": st.column_config.SelectboxColumn(
-                            "Rol",
-                            options=list(ROLES.keys()),
-                            required=True
-                        ),
-                        "olusturma_tarihi": st.column_config.DatetimeColumn("Oluşturulma", disabled=True),
-                        "id": st.column_config.NumberColumn("ID", disabled=True)
-                    },
-                    hide_index=True,
-                    use_container_width=True,
-                    key="user_editor"
-                )
-                
-                # Değişiklikleri Kaydet Butonu
-                if st.button("💾 Değişiklikleri Kaydet (Rol Güncelleme)"):
-                    # Bu basit bir implementasyon, sadece rol değişikliğini yansıtırız
-                    pass 
+            st.dataframe(
+                display_df, 
+                use_container_width=True, 
+                hide_index=True
+            )
+            
+            # Not: GSheets üzerinde edit yapmak karmaşık olabileceği için 
+            # şimdilik sadece Ekleme ve Silme özelliklerini aktif tutuyoruz.
+            # İleride data_editor ile update eklenebilir.
+            
     except Exception as e:
         st.error(f"Kullanıcı listesi yüklenemedi: {e}")
 
     # 3. Kullanıcı Silme
     with st.expander("🗑️ Kullanıcı Sil", expanded=False):
-        # Column name is kullanici_adi
-        user_list = users_df['kullanici_adi'].tolist() if not users_df.empty else []
-        user_to_delete = st.selectbox("Silinecek Kullanıcı", user_list)
-        
-        if st.button("Kullanıcıyı Sil", type="primary"):
-            if user_to_delete == "admin":
-                st.error("⛔ 'admin' kullanıcısı silinemez!")
-            elif user_to_delete == st.session_state.username:
-                st.error("⛔ Kendinizi silemezsiniz!")
-            else:
-                try:
-                    with get_db_connection() as conn:
-                        c = conn.cursor()
-                        c.execute("DELETE FROM kullanicilar WHERE kullanici_adi = ?", (user_to_delete,))
-                        conn.commit()
-                    st.success(f"✅ Kullanıcı '{user_to_delete}' silindi!")
-                    time.sleep(1)
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Silme hatası: {e}")
+        if not users_df.empty and 'kullanici_adi' in users_df.columns:
+            user_list = users_df['kullanici_adi'].tolist()
+            user_to_delete = st.selectbox("Silinecek Kullanıcı", user_list)
+            
+            if st.button("Kullanıcıyı Sil", type="primary"):
+                if user_to_delete == "admin":
+                    st.error("⛔ 'admin' kullanıcısı silinemez!")
+                elif user_to_delete == st.session_state.get('username'):
+                    st.error("⛔ Kendinizi silemezsiniz!")
+                else:
+                    try:
+                        conn = get_conn()
+                        # Filtrele ve güncelle (Silinmek isteneni çıkar)
+                        new_df = users_df[users_df['kullanici_adi'] != user_to_delete]
+                        conn.update(worksheet="kullanicilar", data=new_df)
+                        
+                        st.success(f"✅ Kullanıcı '{user_to_delete}' silindi!")
+                        time.sleep(1)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Silme hatası: {e}")
 
 # --- SİLO YÖNETİMİ ---
 def show_silo_management():
-    """Silo Yapılandırma ve Yönetim Paneli (Gelişmiş)"""
+    """Silo Yapılandırma ve Yönetim Paneli - Google Sheets"""
     st.subheader("🏭 Silo Yönetimi")
     
     tab_bugday, tab_un = st.tabs(["🌾 Buğday Siloları", "🍞 Un Siloları ve Bantlar"])
@@ -249,114 +175,64 @@ def show_silo_management():
                 if st.form_submit_button("Ekle"):
                     if new_silo_name:
                         try:
-                            with get_db_connection() as conn:
-                                c = conn.cursor()
-                                c.execute(
-                                    "INSERT INTO silolar (isim, kapasite, mevcut_miktar) VALUES (?, ?, 0)",
-                                    (new_silo_name, new_silo_cap)
-                                )
-                                conn.commit()
-                            st.success(f"✅ '{new_silo_name}' başarıyla eklendi!")
-                            time.sleep(1)
-                            st.rerun()
-                        except sqlite3.IntegrityError:
-                            st.error("❌ Bu isimde bir silo zaten var!")
+                            # İsim kontrolü
+                            df_silo = fetch_data("silolar")
+                            if not df_silo.empty and 'isim' in df_silo.columns:
+                                if new_silo_name in df_silo['isim'].values:
+                                    st.error("Bu isimde silo zaten var.")
+                                    st.stop()
+
+                            new_data = {
+                                "isim": new_silo_name,
+                                "kapasite": float(new_silo_cap),
+                                "mevcut_miktar": 0.0
+                            }
+                            if add_data("silolar", new_data):
+                                st.success(f"✅ '{new_silo_name}' başarıyla eklendi!")
+                                time.sleep(1)
+                                st.rerun()
+                            else:
+                                st.error("Ekleme başarısız.")
                         except Exception as e:
                             st.error(f"❌ Hata: {e}")
                     else:
                         st.warning("⚠️ Silo adı zorunludur!")
 
-        # 2. Mevcut Siloları Listele ve Düzenle
+        # 2. Mevcut Siloları Listele
         st.write("### 📋 Tanımlı Buğday Siloları")
-        
         try:
-            with get_db_connection() as conn:
-                silos_df = pd.read_sql_query("SELECT id, isim, kapasite, mevcut_miktar FROM silolar ORDER BY isim", conn)
-                
-                if not silos_df.empty:
-                    edited_df = st.data_editor(
-                        silos_df,
-                        column_config={
-                            "id": st.column_config.NumberColumn("ID", disabled=True),
-                            "isim": "Silo Adı",
-                            "kapasite": st.column_config.NumberColumn("Kapasite (Ton)", min_value=1.0),
-                            "mevcut_miktar": st.column_config.NumberColumn("Mevcut (Ton)", disabled=True)
-                        },
-                        hide_index=True,
-                        use_container_width=True,
-                        key="wheat_silo_editor"
-                    )
-                    
-                    if st.button("💾 Buğday Silosu Güncellemelerini Kaydet"):
-                         # Not: Gerçek update logic'i eklendi
+            silos_df = fetch_data("silolar")
+            if not silos_df.empty:
+                st.dataframe(silos_df, use_container_width=True, hide_index=True)
+            else:
+                st.warning("Tanımlı silo yok.")
+        except:
+            st.error("Veri alınamadı.")
+
+        # 3. Silo Silme
+        with st.expander("🗑️ Buğday Silosu Sil"):
+            if not silos_df.empty and 'isim' in silos_df.columns:
+                silo_to_del = st.selectbox("Silinecek Silo", silos_df['isim'].tolist())
+                if st.button("Siloyu Sil"):
+                    # Stok kontrolü
+                    current_stock = float(silos_df[silos_df['isim'] == silo_to_del]['mevcut_miktar'].iloc[0])
+                    if current_stock > 1:
+                        st.error(f"⛔ İçinde {current_stock} ton mal var! Önce boşaltmalısınız.")
+                    else:
                         try:
-                            c = conn.cursor()
-                            for index, row in edited_df.iterrows():
-                                c.execute("UPDATE silolar SET isim=?, kapasite=? WHERE id=?", 
-                                         (row['isim'], row['kapasite'], row['id']))
-                            conn.commit()
-                            st.success("✅ Güncellendi!")
+                            conn = get_conn()
+                            new_df = silos_df[silos_df['isim'] != silo_to_del]
+                            conn.update(worksheet="silolar", data=new_df)
+                            st.success("Silo silindi.")
                             time.sleep(1)
                             st.rerun()
                         except Exception as e:
-                            st.error(f"Güncelleme hatası: {e}")
-                else:
-                    st.warning("⚠️ Henüz hiç buğday silosu tanımlanmamış.")
-                    
-                # 3. GÜVENLİ SİLME (Strict Integrity)
-                with st.expander("🗑️ Buğday Silosu Sil (Güvenli Mod)", expanded=False):
-                    if not silos_df.empty:
-                        silo_to_delete = st.selectbox("Silinecek Silo", silos_df['isim'].tolist())
-                        
-                        if st.button("Siloyu Sil", type="primary"):
-                            # 1. Stok Kontrolü
-                            silo_stock = silos_df[silos_df['isim'] == silo_to_delete]['mevcut_miktar'].values[0]
-                            if silo_stock > 1:
-                                st.error(f"⛔ '{silo_to_delete}' içinde {silo_stock} ton mal var! Önce boşaltmalısınız.")
-                            else:
-                                # 2. Referans Kontrolü (Arşiv)
-                                cursor = conn.cursor()
-                                cursor.execute("SELECT COUNT(*) FROM bugday_giris_arsivi WHERE silo_isim = ?", (silo_to_delete,))
-                                usage_count = cursor.fetchone()[0]
-                                
-                                if usage_count > 0:
-                                    st.error(f"⛔ Bu silo silinemez! Geçmişte {usage_count} adet giriş işleminde kullanılmış. Veri bütünlüğü için silinemez.")
-                                else:
-                                    # 3. Referans Kontrolü (Tavlı Analiz)
-                                    cursor.execute("SELECT COUNT(*) FROM tavli_analiz WHERE silo_isim = ?", (silo_to_delete,))
-                                    analiz_count = cursor.fetchone()[0]
-                                    
-                                    if analiz_count > 0:
-                                        st.error(f"⛔ Bu silo silinemez! {analiz_count} adet tavlı analiz kaydı var.")
-                                    else:
-                                        # Temiz, silinebilir
-                                        try:
-                                            cursor.execute("DELETE FROM silolar WHERE isim = ?", (silo_to_delete,))
-                                            conn.commit()
-                                            st.success(f"✅ '{silo_to_delete}' kalıcı olarak silindi!")
-                                            time.sleep(1)
-                                            st.rerun()
-                                        except Exception as e:
-                                            st.error(f"Silme hatası: {e}")
-
-        except Exception as e:
-            st.error(f"Liste yüklenemedi: {e}")
+                            st.error(f"Silme hatası: {e}")
 
     # --- UN SİLOLARI VE BANTLAR ---
     with tab_un:
         st.info("Un üretim, analiz ve paketleme işlemlerinde kullanılan silolar/bantlar.")
         
-        # Un tablosunu kontrol et
-        try:
-             with get_db_connection() as conn:
-                conn.execute('''CREATE TABLE IF NOT EXISTS uretim_silolari 
-                                (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                                 silo_adi TEXT UNIQUE, 
-                                 aciklama TEXT, 
-                                 aktif INTEGER DEFAULT 1)''')
-                conn.commit()
-        except: pass
-
         # 1. Yeni Un Silosu
         with st.expander("➕ Yeni Un Silosu/Bandı Ekle"):
             with st.form("new_flour_silo_form"):
@@ -365,76 +241,40 @@ def show_silo_management():
                 if st.form_submit_button("Ekle"):
                     if f_name:
                         try:
-                            with get_db_connection() as conn:
-                                conn.execute("INSERT INTO uretim_silolari (silo_adi, aciklama) VALUES (?, ?)", (f_name, f_desc))
-                                conn.commit()
-                            st.success(f"✅ '{f_name}' eklendi!")
-                            time.sleep(1)
-                            st.rerun()
-                        except sqlite3.IntegrityError:
-                            st.error("⚠️ Bu isimde bir silo zaten var!")
+                            new_data = {"silo_adi": f_name, "aciklama": f_desc, "aktif": 1}
+                            if add_data("uretim_silolari", new_data):
+                                st.success(f"✅ '{f_name}' eklendi!")
+                                time.sleep(1)
+                                st.rerun()
+                            else:
+                                st.error("Hata oluştu.")
                         except Exception as e:
                             st.error(f"❌ Hata: {str(e)}")
         
         # 2. Listele
         try:
-            with get_db_connection() as conn:
-                df_un = pd.read_sql_query("SELECT * FROM uretim_silolari ORDER BY silo_adi", conn)
-                
+            df_un = fetch_data("uretim_silolari")
             if not df_un.empty:
-                edited_un = st.data_editor(
-                    df_un,
-                    column_config={
-                        "id": st.column_config.NumberColumn("ID", disabled=True),
-                        "aktif": st.column_config.CheckboxColumn("Aktif?", default=True)
-                    },
-                    hide_index=True,
-                    use_container_width=True,
-                    key="flour_silo_editor"
-                )
-                
-                if st.button("💾 Un Silosu Güncellemelerini Kaydet"):
+                st.dataframe(df_un, use_container_width=True, hide_index=True)
+            else:
+                st.info("Kayıt yok.")
+        except:
+            st.error("Veri okunamadı.")
+            
+        # 3. Silme
+        with st.expander("🗑️ Un Silosu Sil"):
+            if not df_un.empty and 'silo_adi' in df_un.columns:
+                del_un = st.selectbox("Silinecek Kayıt", df_un['silo_adi'].tolist())
+                if st.button("Kaydı Sil", key="del_un_btn"):
                     try:
-                        with get_db_connection() as conn_update:
-                            c = conn_update.cursor()
-                            for index, row in edited_un.iterrows():
-                                # Aktif durumunu integer'a çevir
-                                aktif_val = 1 if row['aktif'] else 0
-                                c.execute("UPDATE uretim_silolari SET silo_adi=?, aciklama=?, aktif=? WHERE id=?", 
-                                         (row['silo_adi'], row['aciklama'], aktif_val, row['id']))
-                            conn_update.commit()
-                        st.success("✅ Güncellendi!")
+                        conn = get_conn()
+                        new_df = df_un[df_un['silo_adi'] != del_un]
+                        conn.update(worksheet="uretim_silolari", data=new_df)
+                        st.success("Silindi!")
+                        time.sleep(1)
                         st.rerun()
                     except Exception as e:
                         st.error(f"Hata: {e}")
-
-                # 3. Referans Kontrollü Silme
-                with st.expander("🗑️ Un Silosu Sil (Güvenli Mod)"):
-                    # Silinecek silo seç
-                    silo_listesi = df_un['silo_adi'].tolist()
-                    del_un = st.selectbox("Silinecek Kayıt", silo_listesi, key="del_un_slc")
-                    
-                    if st.button("Kaydı Sil", key="del_un_btn"):
-                        try:
-                            # Kontrol: Un Analiz
-                            cursor = conn.cursor()
-                            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='un_analiz'")
-                            if cursor.fetchone():
-                                cursor.execute("SELECT COUNT(*) FROM un_analiz WHERE uretim_silosu = ?", (del_un,))
-                                un_usage = cursor.fetchone()[0]
-                                if un_usage > 0:
-                                    st.error(f"⛔ Silinemez! {un_usage} adet analiz kaydında kullanılmış. Sadece 'Aktif' kutucuğunu kaldırarak pasife alabilirsiniz.")
-                                    st.stop()
-                            
-                            conn.execute("DELETE FROM uretim_silolari WHERE silo_adi=?", (del_un,))
-                            conn.commit()
-                            st.success("Silindi!")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(str(e))
-                            
-        except Exception as e:
-            st.error(f"Veri hatası: {e}")
 
 # --- SİSTEM LOGLARI ---
 def show_system_logs():
@@ -445,86 +285,59 @@ def show_system_logs():
     with col_del:
         if st.button("🧹 Logları Temizle"):
             try:
-                with get_db_connection() as conn:
-                    conn.execute("DELETE FROM hata_loglari")
-                    conn.commit()
-                st.success("Loglar temizlendi!")
-                st.rerun()
+                conn = get_conn()
+                # Boş DataFrame göndererek temizle (Headers kalmalı)
+                # Google Sheets'te "clear" fonksiyonu yerine boş data update edebiliriz
+                # veya sadece headerları içeren bir df gönderebiliriz.
+                
+                # Mevcut logları çekip headerları alalım
+                df = fetch_data("hata_loglari")
+                if not df.empty:
+                    empty_df = pd.DataFrame(columns=df.columns)
+                    conn.update(worksheet="hata_loglari", data=empty_df)
+                    st.success("Loglar temizlendi!")
+                    time.sleep(1)
+                    st.rerun()
             except Exception as e:
                 st.error(f"Hata: {e}")
     
     try:
-        with get_db_connection() as conn:
-            logs = pd.read_sql_query("SELECT * FROM hata_loglari ORDER BY tarih DESC LIMIT 100", conn)
-            
+        logs = fetch_data("hata_loglari")
         if not logs.empty:
-            st.dataframe(
-                logs,
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "tarih": st.column_config.DatetimeColumn("Zaman", format="D/M/Y H:m:s"),
-                    "hata_mesaji": "Hata Mesajı",
-                    "modul": "Modül",
-                    "kullanici": "Kullanıcı",
-                    "hata_id": "Hata ID",
-                    "seviye": "Seviye"
-                }
-            )
+            # Tarihe göre sırala
+            if 'tarih' in logs.columns:
+                logs['tarih'] = pd.to_datetime(logs['tarih'])
+                logs = logs.sort_values('tarih', ascending=False)
+                
+            st.dataframe(logs, use_container_width=True, hide_index=True)
         else:
             st.info("Log kaydı bulunamadı.")
-            
     except Exception as e:
         st.error(f"Log görüntüleme hatası: {e}")
 
 # --- DEBUG PANEL ---
 def debug_tables():
     """Veritabanı tablolarını listele ve yapılarını göster"""
-    st.subheader("🔍 Veritabanı Tablo Yapısı")
+    st.subheader("🔍 Google Sheets Veri İnceleyici")
     
-    try:
-        with get_db_connection() as conn:
-            c = conn.cursor()
-            
-            # Tabloları listele
-            c.execute("SELECT name FROM sqlite_master WHERE type='table'")
-            tables = c.fetchall()
-            
-            if not tables:
-                st.warning("Veritabanında hiç tablo yok!")
-                if st.button("Tabloları Oluştur (Init DB)"):
-                    init_db()
-                    st.success("init_db() çalıştırıldı.")
-                    st.rerun()
-                return
-
-            table_names = [t[0] for t in tables]
-            selected_table = st.selectbox("İncelenecek Tablo", table_names)
-            
-            if selected_table:
-                # Tablo yapısı (SCHEMA)
-                st.write(f"**Tablo Şeması ({selected_table}):**")
-                c.execute(f"PRAGMA table_info({selected_table})")
-                schema = c.fetchall()
-                schema_df = pd.DataFrame(schema, columns=['cid', 'name', 'type', 'notnull', 'dflt_value', 'pk'])
-                st.dataframe(schema_df, use_container_width=True)
-                
-                # Tablo verisi (ÖRNEK)
-                st.write(f"**Veri Önizleme ({selected_table} - İlk 5 Kayıt):**")
-                try:
-                    data_df = pd.read_sql_query(f"SELECT * FROM {selected_table} LIMIT 5", conn)
-                    st.dataframe(data_df, use_container_width=True)
-                except Exception as ex:
-                    st.error(f"Veri okuma hatası: {ex}")
-
-    except Exception as e:
-        st.error(f"Debug hatası: {e}")
+    tables = ["kullanicilar", "silolar", "bugday_giris_arsivi", "hareketler", 
+              "un_analiz", "un_spekleri", "uretim_kaydi", "uretim_silolari"]
+    
+    selected_table = st.selectbox("İncelenecek Tablo (Worksheet)", tables)
+    
+    if st.button("Veriyi Getir"):
+        try:
+            df = fetch_data(selected_table)
+            st.write(f"**Tablo: {selected_table}** - {len(df)} kayıt")
+            st.dataframe(df)
+        except Exception as e:
+            st.error(f"Okuma hatası: {e}")
 
 def show_debug_panel():
     """Yönetici Hata Ayıklama Paneli"""
     st.title("🛠️ Yönetici Hata Ayıklama Paneli")
     
-    tab1, tab2, tab3 = st.tabs(["Database", "Session State", "System Info"])
+    tab1, tab2, tab3 = st.tabs(["Data Inspector", "Session State", "System Info"])
     
     with tab1:
         debug_tables()
@@ -535,6 +348,5 @@ def show_debug_panel():
         
     with tab3:
         st.write("### Sistem Bilgisi")
-        st.write(f"Python Version: {os.sys.version}")
-        st.write(f"Working Directory: {os.getcwd()}")
-        st.write(f"DB Path: {os.path.abspath(DB_FILE)}")
+        st.write(f"Python Version: {pd.__version__} (Pandas)")
+        st.write("Backend: Google Sheets API")
