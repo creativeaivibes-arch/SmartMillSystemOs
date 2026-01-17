@@ -1,104 +1,124 @@
 import streamlit as st
+import pandas as pd
+import time
+import bcrypt
+from datetime import datetime
 
-# --- GÜVENLİK KÜTÜPHANELERİ ---
-# bcrypt kurulu mu kontrol et
-BCRYPT_AVAILABLE = False
-try:
-    import bcrypt
-    BCRYPT_AVAILABLE = True
-except ImportError:
-    st.warning("⚠️ Güvenlik için 'bcrypt' kütüphanesi kurulmamış. Şifreler hash'lenemeyecek!")
-    bcrypt = None
+# YENİ IMPORTLAR (Google Sheets)
+from app.core.database import fetch_data, add_data
 
-# --- ŞİFRE YÖNETİMİ FONKSİYONLARI ---
+# --- ROL TANIMLARI ---
+ROLES = {
+    "admin": {
+        "sistem": ["Kullanıcı Yönetimi", "Yedekleme ve Veri Güvenliği", "Sistem Logları"],
+        "buğday": ["Silo Durumu (Dashboard)", "Mal Kabul (Giriş)", "Stok Çıkış (Yıkama)", 
+                   "Tavlı Buğday Analiz", "Paçal Hesaplayıcı", "Paçal Geçmişi (Rapor)", 
+                   "Stok Hareketleri (Log)", "Buğday Giriş Arşivi", "Buğday Spesifikasyonları"],
+        "un": ["Un Analiz Kaydı", "Un Analiz Kayıtları", "Un Spesifikasyonları"],
+        "değirmen": ["Üretim Kaydı", "Üretim Arşivi"],
+        "hesaplamalar": ["Un Maliyet Hesaplama", "Un Maliyet Geçmişi", "Katkı Maliyet Hesaplama", 
+                         "Un Geliştirici Enzim Dozajlama Hesaplama"]
+    },
+    "operations": {
+        "buğday": ["Silo Durumu (Dashboard)", "Mal Kabul (Giriş)", "Stok Çıkış (Yıkama)", 
+                   "Tavlı Buğday Analiz", "Paçal Geçmişi (Rapor)", "Stok Hareketleri (Log)"],
+        "un": ["Un Analiz Kaydı", "Un Analiz Kayıtları"],
+        "değirmen": ["Üretim Kaydı", "Üretim Arşivi"],
+        "hesaplamalar": ["Un Maliyet Hesaplama", "Katkı Maliyet Hesaplama", 
+                         "Un Geliştirici Enzim Dozajlama Hesaplama"]
+    },
+    "viewer": {
+        "buğday": ["Silo Durumu (Dashboard)", "Paçal Geçmişi (Rapor)", 
+                   "Stok Hareketleri (Log)", "Buğday Giriş Arşivi"],
+        "un": ["Un Analiz Kayıtları"],
+        "değirmen": ["Üretim Arşivi"],
+        "hesaplamalar": ["Un Maliyet Hesaplama"]
+    }
+}
+
+# --- ŞİFRE YÖNETİMİ ---
+
 def hash_password(password):
     """Şifreyi bcrypt ile hash'le"""
-    if not BCRYPT_AVAILABLE:
-        st.error("❌ bcrypt kütüphanesi kurulu değil! Şifreler hash'lenemiyor.")
-        return None
-    
-    if not password:
-        st.error("❌ Şifre boş olamaz!")
-        return None
-    
     try:
-        # Salt oluştur ve hash'le
-        salt = bcrypt.gensalt()
-        hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
-        return hashed.decode('utf-8')
+        return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
     except Exception as e:
-        st.error(f"❌ Şifre hash'leme hatası: {e}")
+        st.error(f"Şifreleme hatası: {e}")
         return None
 
 def check_password_hash(password, hashed_password):
-    """Şifreyi bcrypt ile kontrol et (Hash doğrulama)"""
-    if not BCRYPT_AVAILABLE:
-        st.warning("⚠️ bcrypt kurulu değil, şifre kontrolü yapılamıyor!")
-        return False
-    
-    if not hashed_password or not password:
-        return False
-    
+    """Şifreyi kontrol et"""
     try:
-        return bcrypt.checkpw(
-            password.encode('utf-8'), 
-            hashed_password.encode('utf-8')
-        )
-    except Exception as e:
-        st.error(f"❌ Şifre kontrol hatası: {e}")
+        return bcrypt.checkpw(password.encode('utf-8'), hashed_password.encode('utf-8'))
+    except Exception:
         return False
 
 def check_password(username, password):
-    """Kullanıcıyı veritabanından doğrula"""
-    # Circular import önlemek için burada import ediyoruz
-    from app.core.database import get_db_connection
-    
+    """
+    Kullanıcıyı Google Sheets üzerinden doğrula.
+    Eğer tablo boşsa varsayılan admin kullanıcısını oluşturur.
+    """
     try:
-        with get_db_connection() as conn:
-            c = conn.cursor()
-            c.execute("SELECT * FROM kullanicilar WHERE kullanici_adi = ?", (username,))
-            user = c.fetchone()
+        # 1. Kullanıcı tablosunu çek
+        df_users = fetch_data("kullanicilar")
+        
+        # 2. ACİL DURUM: Eğer tablo boşsa (İlk Kurulum) Admin oluştur
+        if df_users.empty:
+            st.warning("⚠️ Kullanıcı tablosu boş! Varsayılan yönetici oluşturuluyor...")
             
-            if user:
-                # Kullanıcı var, şifreyi kontrol et
-                # user['sifre_hash'] -> DB'deki hash
-                if check_password_hash(password, user['sifre_hash']):
-                    # Başarılı giriş
-                    
-                    # Son giriş tarihini güncelle
-                    try:
-                        c.execute("UPDATE kullanicilar SET son_giris_tarihi = CURRENT_TIMESTAMP WHERE id = ?", (user['id'],))
-                        conn.commit()
-                    except:
-                        pass
-                    
-                    # Kullanıcı bilgilerini map et
-                    user_dict = dict(user)
-                    user_dict['username'] = user_dict['kullanici_adi']
-                    user_dict['role'] = user_dict['rol']
-                    user_dict['full_name'] = user_dict.get('ad_soyad', user_dict['kullanici_adi'])
-                    
-                    return user_dict
+            default_pass = "admin123"
+            hashed_pw = hash_password(default_pass)
             
-            return None # Kullanıcı yok veya şifre yanlış
+            admin_user = {
+                "kullanici_adi": "admin",
+                "sifre_hash": hashed_pw,
+                "rol": "admin",
+                "ad_soyad": "Sistem Yöneticisi",
+                "olusturma_tarihi": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            }
             
-    except Exception as e:
-        st.error(f"Giriş hatası: {e}")
-        return None
+            if add_data("kullanicilar", admin_user):
+                st.success(f"✅ Yönetici oluşturuldu! Kullanıcı: **admin** / Şifre: **{default_pass}**")
+                time.sleep(2)
+                st.rerun()
+            else:
+                st.error("Varsayılan kullanıcı oluşturulamadı. Veritabanı bağlantısını kontrol edin.")
+                return None
 
-def validate_password_strength(password):
-    """Şifre gücünü kontrol et"""
-    if len(password) < 6:
-        return False, "Şifre en az 6 karakter olmalıdır"
-    
-    if len(password) > 100:
-        return False, "Şifre çok uzun"
-    
-    # İsteğe bağlı: daha karmaşık kurallar ekleyebilirsiniz
-    # if not any(char.isdigit() for char in password):
-    #     return False, "Şifre en az bir rakam içermeli"
-    
-    return True, "Şifre uygun"
+        # 3. Kullanıcıyı Bul (Pandas ile filtreleme)
+        # Kullanıcı adını küçük harfe çevirerek arayalım (case-insensitive)
+        if 'kullanici_adi' not in df_users.columns:
+            st.error("Veritabanı hatası: 'kullanici_adi' sütunu bulunamadı.")
+            return None
+
+        user_row = df_users[df_users['kullanici_adi'] == username]
+        
+        if user_row.empty:
+            return None # Kullanıcı yok
+            
+        # 4. Şifreyi Doğrula
+        stored_hash = user_row.iloc[0]['sifre_hash']
+        
+        # Hash boşsa hata
+        if pd.isna(stored_hash) or stored_hash == "":
+            return None
+            
+        if check_password_hash(password, stored_hash):
+            # Giriş Başarılı - Kullanıcı bilgilerini sözlük olarak dön
+            user_data = user_row.iloc[0].to_dict()
+            
+            # Sözlük anahtarlarını standartlaştır (main.py beklentisi için)
+            return {
+                "username": user_data['kullanici_adi'],
+                "role": user_data['rol'],
+                "full_name": user_data.get('ad_soyad', user_data['kullanici_adi'])
+            }
+            
+        return None # Şifre yanlış
+
+    except Exception as e:
+        st.error(f"Giriş işlemi hatası: {e}")
+        return None
 
 def do_logout():
     """Kullanıcı çıkış işlemi"""
@@ -106,32 +126,3 @@ def do_logout():
         del st.session_state[key]
     st.session_state.logged_in = False
     st.rerun()
-
-# --- ROL TANIMLARI ---
-ROLES = {
-    "admin": {
-        "sistem": ["Kullanıcı Yönetimi", "Veritabanı Yedekleme","Yedekleme Dashboard","Sistem Logları"],  # YENİ!
-        "buğday": ["Silo Durumu (Dashboard)", "Mal Kabul (Giriş)", "Stok Çıkış (Yıkama)", 
-                  "Tavlı Buğday Analiz", "Paçal Hesaplayıcı", "Paçal Geçmişi (Rapor)", 
-                  "Stok Hareketleri (Log)", "Buğday Giriş Arşivi"],
-        "un": ["Un Analiz Kaydı", "Un Analiz Kayıtları"],
-        "değirmen": ["Üretim Kaydı", "Üretim Arşivi"],
-        "hesaplamalar": ["Un Maliyet Hesaplama", "Katkı Maliyet Hesaplama", 
-                        "Un Geliştirici Enzim Dozajlama Hesaplama"]
-    },
-    "operations": {
-        "buğday": ["Silo Durumu (Dashboard)", "Mal Kabul (Giriş)", "Stok Çıkış (Yıkama)", 
-                  "Tavlı Buğday Analiz", "Paçal Geçmişi (Rapor)", "Stok Hareketleri (Log)"],
-        "un": ["Un Analiz Kaydı", "Un Analiz Kayıtları"],
-        "değirmen": ["Üretim Kaydı", "Üretim Arşivi"],
-        "hesaplamalar": ["Un Maliyet Hesaplama", "Katkı Maliyet Hesaplama", 
-                        "Un Geliştirici Enzim Dozajlama Hesaplama"]
-    },
-    "viewer": {
-        "buğday": ["Silo Durumu (Dashboard)", "Paçal Geçmişi (Rapor)", 
-                  "Stok Hareketleri (Log)", "Buğday Giriş Arşivi"],
-        "un": ["Un Analiz Kayıtları"],
-        "değirmen": ["Üretim Arşivi"],
-        "hesaplamalar": ["Un Maliyet Hesaplama"]
-    }
-}
