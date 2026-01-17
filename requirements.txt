@@ -6,3 +6,4 @@ xlsxwriter
 openpyxl
 altair
 bcrypt
+st-gsheets-connection
