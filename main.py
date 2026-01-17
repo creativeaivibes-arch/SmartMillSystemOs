@@ -295,3 +295,29 @@ elif selected_page == "ADMIN":
             admin.show_debug_panel()
     else:
         st.error("⛔ Bu sayfaya erişim yetkiniz yok!")
+# --- GOOGLE SHEETS TEST ALANI (Main.py En Altına Ekle) ---
+with st.sidebar:
+    st.markdown("---")
+    st.header("🔧 Bağlantı Testi")
+    if st.button("Test Verisi Gönder"):
+        try:
+            # Doğrudan yeni veritabanı dosyasını çağırıyoruz
+            import app.core.database as db
+            
+            # Test verisi paketi
+            test_verisi = {
+                "Tarih": "TEST-2026",
+                "Aciklama": "Baglanti Kontrolu",
+                "Deger": 100
+            }
+            
+            # Un Analiz sayfasına yazmayı dene
+            sonuc = db.add_data("un_analiz", test_verisi)
+            
+            if sonuc:
+                st.success("✅ BAŞARILI! Google Sheets'e veri gitti. Tabloyu kontrol et.")
+            else:
+                st.error("❌ Yazma işlemi başarısız oldu.")
+                
+        except Exception as e:
+            st.error(f"Hata Oluştu: {e}")
