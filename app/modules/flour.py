@@ -194,22 +194,42 @@ def show_un_analiz_kayitlari():
     else: st.info("Kayıt yok")
 
 # --------------------------------------------------------------------------
-# 3. MALİYET HESAPLAMA (PDF HATASI DÜZELTİLDİ)
+# 3. MALİYET HESAPLAMA (PDF FIX + SİLME EKLENDİ)
 # --------------------------------------------------------------------------
 
 def save_un_maliyet_hesaplama(data, kullanici):
     try:
-        # Google Sheets uyumlu kayıt
         row = {
             'tarih': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'kullanici': kullanici,
-            'id': int(time.time()), # ID üret
-            **data # Tüm hesaplama verileri
+            'id': int(time.time()), 
+            **data
         }
-        
-        if add_data("un_maliyet_hesaplamalari", row):
-            return True, "Kayıt Başarılı"
+        if add_data("un_maliyet_hesaplamalari", row): return True, "Kayıt Başarılı"
         return False, "Kayıt Başarısız"
+    except Exception as e: return False, str(e)
+
+def delete_un_maliyet_kaydi(record_id):
+    """Google Sheets üzerinden kaydı ID ile siler"""
+    try:
+        conn = get_conn()
+        df = fetch_data("un_maliyet_hesaplamalari")
+        
+        if df.empty: return False, "Tablo boş"
+        
+        # ID'yi string'e çevirerek karşılaştırma (Güvenlik için)
+        df['id'] = df['id'].astype(str)
+        record_id = str(record_id)
+        
+        if record_id not in df['id'].values:
+            return False, "Kayıt bulunamadı"
+            
+        # O satır hariç diğerlerini al
+        new_df = df[df['id'] != record_id]
+        
+        # Google Sheets'i güncelle (Veriyi ezer)
+        conn.update(worksheet="un_maliyet_hesaplamalari", data=new_df)
+        return True, "Silindi"
     except Exception as e:
         return False, str(e)
 
@@ -221,20 +241,17 @@ def get_un_maliyet_gecmisi():
     return df
 
 def show_un_maliyet_hesaplama():
-    """Un Maliyet Hesaplama Modülü - PDF FIX"""
+    """Un Maliyet Hesaplama Modülü"""
     st.header("🧮 Un Maliyet Hesaplama")
     
     if 'hesaplama_yapildi' not in st.session_state: st.session_state.hesaplama_yapildi = False
     
-    # Filtreler
     c1, c2 = st.columns(2)
     with c1: ay = st.selectbox("Ay", ["OCAK", "ŞUBAT", "MART", "NİSAN", "MAYIS", "HAZİRAN", "TEMMUZ", "AĞUSTOS", "EYLÜL", "EKİM", "KASIM", "ARALIK"], index=datetime.now().month-1)
     with c2: yil = st.selectbox("Yıl", list(range(2026, 2037)))
 
-    # --- 3 KOLONLU GİRİŞ ALANI ---
     col1, col2, col3 = st.columns(3, gap="medium")
     
-    # 1. TEMEL BİLGİLER
     with col1:
         st.markdown("#### 📋 TEMEL BİLGİLER")
         un_cesidi = st.text_input("Un Çeşidi *", value="Ekmeklik")
@@ -244,16 +261,15 @@ def show_un_maliyet_hesaplama():
         satis_fiyat = st.number_input("Un Satış Fiyatı (50KG) *", 980.0, step=1.0)
         belge = st.number_input("Belge Geliri (50KG)", 0.0)
 
-    # 2. YAN ÜRÜNLER
     with col2:
-        st.markdown("#### 📊 YAN ÜRÜN ORANLARI (%)")
+        st.markdown("#### 📊 YAN ÜRÜNLER")
         c_y1, c_y2 = st.columns(2)
         un2_or = c_y1.number_input("2. Un Oranı", 7.0, step=0.1)
         bon_or = c_y2.number_input("Bongalite", 1.5, step=0.1)
         kep_or = c_y1.number_input("Kepek", 9.0, step=0.1)
         raz_or = c_y2.number_input("Razmol", 11.0, step=0.1)
         
-        st.markdown("#### 💰 YAN ÜRÜN FİYATLARI (TL)")
+        st.markdown("#### 💰 FİYATLAR (TL)")
         un2_fy = c_y1.number_input("2. Un Fiyat", 17.00, step=0.1)
         bon_fy = c_y2.number_input("Bongalite Fiyat", 11.60, step=0.1)
         kep_fy = c_y1.number_input("Kepek Fiyat", 8.90, step=0.1)
@@ -266,9 +282,8 @@ def show_un_maliyet_hesaplama():
         kirik_f = c_e1.number_input("Kırık TL", 0.0)
         basak_f = c_e2.number_input("Başak TL", 0.0)
 
-    # 3. GİDERLER
     with col3:
-        st.markdown("#### 🏢 AYLIK SABİT GİDERLER")
+        st.markdown("#### 🏢 SABİT GİDERLER")
         personel = st.number_input("Personel", 1200000.0, step=1000.0)
         bakim = st.number_input("Bakım", 100000.0, step=1000.0)
         mutfak = st.number_input("Mutfak", 50000.0, step=1000.0)
@@ -279,7 +294,7 @@ def show_un_maliyet_hesaplama():
         el_ton = st.number_input("1 Ton Elk. (TL)", 500.0)
         st.caption(f"Aylık: {el_ton * aylik_kirilan:,.0f} TL")
         
-        st.markdown("#### 🛒 ÇUVAL BAŞI GİDER")
+        st.markdown("#### 🛒 ÇUVAL BAŞI")
         c_g1, c_g2 = st.columns(2)
         nakliye = c_g1.number_input("Nakliye", 20.0)
         pazar = c_g2.number_input("Pazarlama", 20.5)
@@ -292,28 +307,23 @@ def show_un_maliyet_hesaplama():
         if not un_cesidi: st.error("Un çeşidi giriniz"); return
         
         try:
-            # HESAPLAMALAR
             un_tonaj = aylik_kirilan * (randiman / 100)
             cuval_say = (un_tonaj * 1000) / 50 if un_tonaj > 0 else 1
             
-            # Gelirler
             g_un = cuval_say * satis_fiyat
             g_yan = (aylik_kirilan * 1000) * ((un2_or*un2_fy + bon_or*bon_fy + kep_or*kep_fy + raz_or*raz_fy)/100)
             g_ek = (kirik_t * kirik_f) + (basak_t * basak_f) + (belge * cuval_say)
             toplam_gelir = g_un + g_yan + g_ek
             
-            # Giderler
             gid_bugday = bugday_pacal * aylik_kirilan * 1000
             gid_cuval = (nakliye + pazar + cuval + katki) * cuval_say
             gid_sabit = personel + bakim + mutfak + finans + diger + (el_ton * aylik_kirilan)
             toplam_gider = gid_bugday + gid_cuval + gid_sabit
             
-            # Karlılık
             kar_toplam = toplam_gelir - toplam_gider
             kar_cuval = kar_toplam / cuval_say if cuval_say > 0 else 0
             fab_cikis = satis_fiyat - kar_cuval
             
-            # Kayıt Paketi (DÜZELTME BURADA YAPILDI)
             res = {
                 'ay': ay, 'yil': yil, 'un_cesidi': un_cesidi,
                 'bugday_pacal_maliyeti': bugday_pacal, 'aylik_kirilan_bugday': aylik_kirilan,
@@ -328,13 +338,12 @@ def show_un_maliyet_hesaplama():
                 'nakliye': nakliye, 'satis_pazarlama': pazar, 'pp_cuval': cuval, 'katki_maliyeti': katki,
                 'net_kar_50kg': kar_cuval, 'fabrika_cikis_maliyet': fab_cikis, 'net_kar_toplam': kar_toplam,
                 'toplam_gelir': toplam_gelir, 'toplam_gider': toplam_gider,
-                'un_tonaj': un_tonaj  # <--- İŞTE EKSİK OLAN PARÇA BU!
+                'un_tonaj': un_tonaj # PDF için eklendi
             }
             
             st.session_state.un_maliyet_hesaplama_verileri = res
             st.session_state.hesaplama_yapildi = True
             
-            # Veritabanına kayıt
             ok, msg = save_un_maliyet_hesaplama(res, st.session_state.get('username', '-'))
             if ok: st.success("✅ Hesaplandı ve Kaydedildi!"); time.sleep(1); st.rerun()
             else: st.warning(f"Hesaplandı ama kaydedilemedi: {msg}")
@@ -356,8 +365,46 @@ def show_un_maliyet_hesaplama():
 def show_un_maliyet_gecmisi():
     st.header("📉 Maliyet Geçmişi")
     df = get_un_maliyet_gecmisi()
-    if not df.empty:
-        disp_cols = ['tarih', 'ay', 'yil', 'un_cesidi', 'net_kar_50kg', 'fabrika_cikis_maliyet']
-        cols = [c for c in disp_cols if c in df.columns]
-        st.dataframe(df[cols], use_container_width=True)
-    else: st.info("Kayıt yok")
+    
+    if df.empty:
+        st.info("Kayıt yok")
+        return
+
+    # Gösterilecek sütunlar
+    disp_cols = ['id', 'tarih', 'ay', 'yil', 'un_cesidi', 'net_kar_50kg', 'fabrika_cikis_maliyet']
+    # Sadece veritabanında var olanları al
+    cols = [c for c in disp_cols if c in df.columns]
+    
+    st.markdown("ℹ️ **Silmek istediğiniz satırın üzerine tıklayın.**")
+    
+    # Selection Modu
+    event = st.dataframe(
+        df[cols],
+        use_container_width=True,
+        hide_index=True,
+        selection_mode="single-row",
+        on_select="rerun",
+        key="maliyet_grid"
+    )
+    
+    # Seçili satırı yakala
+    if event.selection.rows:
+        selected_index = event.selection.rows[0]
+        selected_row = df.iloc[selected_index]
+        rec_id = selected_row['id']
+        
+        st.divider()
+        st.markdown(f"### 🛑 Seçili Kayıt: {selected_row.get('un_cesidi', '')} ({selected_row.get('tarih', '')})")
+        
+        c1, c2 = st.columns([3, 1])
+        with c1:
+            st.info("Bu kaydı silmek istediğinize emin misiniz? Bu işlem geri alınamaz.")
+        with c2:
+            if st.button("🗑️ KAYDI SİL", type="primary", use_container_width=True):
+                ok, msg = delete_un_maliyet_kaydi(rec_id)
+                if ok:
+                    st.success("Kayıt başarıyla silindi!")
+                    time.sleep(1)
+                    st.rerun()
+                else:
+                    st.error(f"Silinemedi: {msg}")
