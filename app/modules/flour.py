@@ -194,7 +194,7 @@ def show_un_analiz_kayitlari():
     else: st.info("Kayıt yok")
 
 # --------------------------------------------------------------------------
-# 3. MALİYET HESAPLAMA (TAM SÜRÜM - GOOGLE SHEETS UYUMLU)
+# 3. MALİYET HESAPLAMA (PDF HATASI DÜZELTİLDİ)
 # --------------------------------------------------------------------------
 
 def save_un_maliyet_hesaplama(data, kullanici):
@@ -221,7 +221,7 @@ def get_un_maliyet_gecmisi():
     return df
 
 def show_un_maliyet_hesaplama():
-    """Un Maliyet Hesaplama Modülü - TAM KAPSAMLI VE UYUMLU"""
+    """Un Maliyet Hesaplama Modülü - PDF FIX"""
     st.header("🧮 Un Maliyet Hesaplama")
     
     if 'hesaplama_yapildi' not in st.session_state: st.session_state.hesaplama_yapildi = False
@@ -231,7 +231,7 @@ def show_un_maliyet_hesaplama():
     with c1: ay = st.selectbox("Ay", ["OCAK", "ŞUBAT", "MART", "NİSAN", "MAYIS", "HAZİRAN", "TEMMUZ", "AĞUSTOS", "EYLÜL", "EKİM", "KASIM", "ARALIK"], index=datetime.now().month-1)
     with c2: yil = st.selectbox("Yıl", list(range(2026, 2037)))
 
-    # --- 3 KOLONLU GİRİŞ ALANI (ARADIĞIN KISIM) ---
+    # --- 3 KOLONLU GİRİŞ ALANI ---
     col1, col2, col3 = st.columns(3, gap="medium")
     
     # 1. TEMEL BİLGİLER
@@ -244,7 +244,7 @@ def show_un_maliyet_hesaplama():
         satis_fiyat = st.number_input("Un Satış Fiyatı (50KG) *", 980.0, step=1.0)
         belge = st.number_input("Belge Geliri (50KG)", 0.0)
 
-    # 2. YAN ÜRÜNLER (Senin istediğin eksik kısımlar)
+    # 2. YAN ÜRÜNLER
     with col2:
         st.markdown("#### 📊 YAN ÜRÜN ORANLARI (%)")
         c_y1, c_y2 = st.columns(2)
@@ -313,7 +313,7 @@ def show_un_maliyet_hesaplama():
             kar_cuval = kar_toplam / cuval_say if cuval_say > 0 else 0
             fab_cikis = satis_fiyat - kar_cuval
             
-            # Kayıt Paketi
+            # Kayıt Paketi (DÜZELTME BURADA YAPILDI)
             res = {
                 'ay': ay, 'yil': yil, 'un_cesidi': un_cesidi,
                 'bugday_pacal_maliyeti': bugday_pacal, 'aylik_kirilan_bugday': aylik_kirilan,
@@ -327,7 +327,8 @@ def show_un_maliyet_hesaplama():
                 'elektrik_gideri': el_ton * aylik_kirilan,
                 'nakliye': nakliye, 'satis_pazarlama': pazar, 'pp_cuval': cuval, 'katki_maliyeti': katki,
                 'net_kar_50kg': kar_cuval, 'fabrika_cikis_maliyet': fab_cikis, 'net_kar_toplam': kar_toplam,
-                'toplam_gelir': toplam_gelir, 'toplam_gider': toplam_gider
+                'toplam_gelir': toplam_gelir, 'toplam_gider': toplam_gider,
+                'un_tonaj': un_tonaj  # <--- İŞTE EKSİK OLAN PARÇA BU!
             }
             
             st.session_state.un_maliyet_hesaplama_verileri = res
