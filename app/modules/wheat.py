@@ -155,7 +155,7 @@ def recalculate_silos_from_logs():
             
             curr_miktar = max(0, toplam_giris - toplam_cikis)
             
-            # Ağırlıklı Ortalama (Sadece Girişlerden Hesaplanır)
+            # AĞIRLIKLI Ortalama (Sadece Girişlerden Hesaplanır)
             if not girisler.empty and toplam_giris > 0:
                 try:
                     avg_prot = (girisler['miktar'] * girisler['protein']).sum() / toplam_giris
@@ -400,7 +400,7 @@ def show_mal_kabul():
     if st.button("💾 Kaydı Tamamla", type="primary", use_container_width=True):
         # 1. Kapasite Kontrolü
         if miktar > kalan:
-            st.error(f"❌ Kapasite Aşımı! Sadece {kalan:.1f} ton yer var.")
+            st.error(f"❌ Kapasite AŞIMI! Sadece {kalan:.1f} ton yer var.")
             return
         
         # 2. Zorunlu Alanlar
@@ -442,7 +442,7 @@ def show_mal_kabul():
             st.error("Stok kaydında hata oluştu.")
 
 def show_stok_cikis():
-    """Stok Çıkış Ekranı"""
+    """Stok Çıkışı Ekranı"""
     st.header("📉 Stok Çıkışı (Üretim/Transfer)")
     df = get_silo_data()
     if df.empty: return
@@ -483,7 +483,7 @@ def show_stok_cikis():
             st.rerun()
 
 def show_tavli_analiz():
-    """Tavlı Buğday Analizi - Tam Parametreler"""
+    """Tavlı Buğday Analizi - TAM VE EKSİKSİZ Parametreler"""
     st.header("🧪 Tavlı Buğday Analiz Kaydı")
     df = get_silo_data()
     if df.empty: return
@@ -503,48 +503,64 @@ def show_tavli_analiz():
         tarih = st.date_input("Tarih", datetime.now())
         notlar = st.text_area("Notlar")
 
-    # Tabs (Orijinal)
+    # Tabs - TAM VERSİYON
     tab1, tab2, tab3 = st.tabs(["🧪 Kimyasal", "📈 Farinograph", "📊 Extensograph"])
     vals = {}
     
     with tab1:
         cc1, cc2 = st.columns(2)
-        vals['protein'] = cc1.number_input("Protein", value=float(row['protein']))
-        vals['rutubet'] = cc1.number_input("Rutubet", value=15.0)
-        vals['gluten'] = cc1.number_input("Gluten", value=float(row['gluten']))
-        vals['gluten_index'] = cc1.number_input("G. Index", value=95.0)
+        vals['protein'] = cc1.number_input("Protein (%)", value=float(row.get('protein', 12.0)), format="%.2f")
+        vals['rutubet'] = cc1.number_input("Rutubet (%)", value=15.0, format="%.2f")
+        vals['gluten'] = cc1.number_input("Gluten (%)", value=float(row.get('gluten', 28.0)), format="%.2f")
+        vals['gluten_index'] = cc1.number_input("Gluten Index", value=95.0, format="%.2f")
         
-        vals['sedim'] = cc2.number_input("Sedim", value=50.0)
-        vals['g_sedim'] = cc2.number_input("G. Sedim", value=60.0)
-        vals['fn'] = cc2.number_input("FN", value=300.0)
-        vals['ffn'] = cc2.number_input("FFN", value=400.0)
+        vals['sedim'] = cc2.number_input("Sedim (ml)", value=50.0, format="%.2f")
+        vals['g_sedim'] = cc2.number_input("G. Sedim (ml)", value=60.0, format="%.2f")
+        vals['fn'] = cc2.number_input("FN", value=300.0, format="%.2f")
+        vals['ffn'] = cc2.number_input("FFN", value=400.0, format="%.2f")
         
     with tab2:
         cc1, cc2 = st.columns(2)
-        vals['su_kaldirma_f'] = cc1.number_input("Su Kaldırma", value=58.0)
-        vals['gelisme_suresi'] = cc1.number_input("Gelişme", value=3.0)
-        vals['stabilite'] = cc2.number_input("Stabilite", value=8.0)
-        vals['yumusama'] = cc2.number_input("Yumuşama", value=70.0)
+        vals['su_kaldirma_f'] = cc1.number_input("Su Kaldırma (Farino) (%)", value=58.0, format="%.2f")
+        vals['gelisme_suresi'] = cc1.number_input("Gelişme Süresi (dk)", value=3.0, format="%.2f")
+        vals['stabilite'] = cc2.number_input("Stabilite (dk)", value=8.0, format="%.2f")
+        vals['yumusama'] = cc2.number_input("Yumuşama (FU)", value=70.0, format="%.2f")
         
     with tab3:
-        vals['su_kaldirma_e'] = st.number_input("Su Kaldırma (E)", value=58.0)
-        # 45-90-135 dk verileri (Orijinaldeki gibi)
-        cols = st.columns(3)
-        vals['enerji45'] = cols[0].number_input("Enerji 45", value=115.0)
-        vals['direnc45'] = cols[1].number_input("Direnç 45", value=550.0)
-        vals['taban45'] = cols[2].number_input("Taban 45", value=180.0)
-        # ... (Diğerleri de aynı mantıkla eklenebilir, yer kazanmak için kısalttım ama veri yapısı hazır)
+        st.subheader("📊 Extensograph Analizleri (Detaylı)")
+        vals['su_kaldirma_e'] = st.number_input("Su Kaldırma (Extenso) (%)", value=58.0, format="%.2f")
+        
+        st.markdown("#### 45. Dakika:")
+        cols45 = st.columns(3)
+        vals['direnc45'] = cols45[0].number_input("Direnç (45)", value=610.0, format="%.2f")
+        vals['taban45'] = cols45[1].number_input("Taban (45)", value=165.0, format="%.2f")
+        vals['enerji45'] = cols45[2].number_input("Enerji (45)", value=110.0, format="%.2f")
+        
+        st.markdown("#### 90. Dakika:")
+        cols90 = st.columns(3)
+        vals['direnc90'] = cols90[0].number_input("Direnç (90)", value=900.0, format="%.2f")
+        vals['taban90'] = cols90[1].number_input("Taban (90)", value=125.0, format="%.2f")
+        vals['enerji90'] = cols90[2].number_input("Enerji (90)", value=120.0, format="%.2f")
+        
+        st.markdown("#### 135. Dakika:")
+        cols135 = st.columns(3)
+        vals['direnc135'] = cols135[0].number_input("Direnç (135)", value=980.0, format="%.2f")
+        vals['taban135'] = cols135[1].number_input("Taban (135)", value=120.0, format="%.2f")
+        vals['enerji135'] = cols135[2].number_input("Enerji (135)", value=126.0, format="%.2f")
 
-    if st.button("💾 Kaydet"):
+    if st.button("💾 Kaydet", type="primary", use_container_width=True):
         if tonaj > kalan + 0.1:
-            st.error("Kapasite hatası")
+            st.error("❌ Kapasite hatası: Siloda yeterli kuru buğday yok!")
             return
+        
         ok, msg = save_tavli_analiz(silo, tonaj, **vals, notlar=notlar)
         if ok:
             update_tavli_bugday_stok(silo, tonaj, "ekle")
-            st.success("Kaydedildi!")
+            st.success("✅ Tavlı analiz kaydedildi!")
             time.sleep(1)
             st.rerun()
+        else:
+            st.error(f"❌ Kayıt hatası: {msg}")
 
 def show_stok_hareketleri():
     """Stok Hareketleri Listesi"""
@@ -552,7 +568,7 @@ def show_stok_hareketleri():
     df = get_movements()
     if not df.empty:
         # Görünümü düzenle
-        cols = ['tarih', 'lot_no', 'hareket_tipi', 'silo_isim', 'miktar', 'tedarikci', 'protein', 'sedim', 'hasere']
+        cols = ['tarih', 'lot_no', 'hareket_tipi', 'silo_isim', 'miktar', 'tedarikci', 'protein', 'sedim']
         # Varsa al, yoksa geç
         cols = [c for c in cols if c in df.columns]
         st.dataframe(df[cols], use_container_width=True)
@@ -566,10 +582,62 @@ def show_bugday_giris_arsivi():
     if not df.empty:
         st.dataframe(df, use_container_width=True)
         # Excel İndir Butonu
-        download_styled_excel(df, "bugday_arsiv.xlsx")
+        try:
+            shared_download(df, "bugday_arsiv.xlsx")
+        except:
+            pass
     else:
         st.info("Kayıt yok")
 
 def show_bugday_spec_yonetimi():
-    """Spec Yönetimi UI"""
-    show_bugday_spec_yonetimi() # Yukarıdaki fonksiyonu çağırır
+    """Buğday Spesifikasyon Yönetimi"""
+    st.header("📐 Buğday Kalite Standartları")
+    
+    tab1, tab2 = st.tabs(["➕ Yeni Standart Ekle", "📋 Mevcut Standartlar"])
+    
+    with tab1:
+        st.subheader("Yeni Standart Tanımla")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            cins = st.text_input("Buğday Cinsi *", placeholder="Örn: Bezostaya-1")
+        
+        with col2:
+            param = st.selectbox("Parametre *", [
+                "protein", "gluten", "rutubet", "hektolitre", 
+                "sedim", "gluten_index", "sune", "kirik_ciliz", "yabanci_tane"
+            ])
+        
+        col3, col4, col5 = st.columns(3)
+        min_val = col3.number_input("Min Değer", 0.0, format="%.2f")
+        max_val = col4.number_input("Max Değer", 0.0, format="%.2f")
+        hedef_val = col5.number_input("Hedef Değer", 0.0, format="%.2f")
+        
+        if st.button("💾 Standart Kaydet", type="primary"):
+            if cins and param:
+                if save_bugday_spec(cins, param, min_val, max_val, hedef_val):
+                    st.success("✅ Standart kaydedildi!")
+                    time.sleep(1)
+                    st.rerun()
+            else:
+                st.error("Lütfen tüm zorunlu alanları doldurun")
+    
+    with tab2:
+        df_specs = get_all_bugday_specs_dataframe()
+        if not df_specs.empty:
+            # Cinslere göre grupla
+            cinsler = df_specs['bugday_cinsi'].unique()
+            
+            for cins in cinsler:
+                with st.expander(f"📦 {cins}", expanded=False):
+                    cins_df = df_specs[df_specs['bugday_cinsi'] == cins]
+                    st.dataframe(cins_df[['parametre', 'min_deger', 'max_deger', 'hedef_deger']], 
+                               use_container_width=True, hide_index=True)
+                    
+                    if st.button(f"🗑️ {cins} Standardını Sil", key=f"del_{cins}"):
+                        if delete_bugday_spec_group(cins):
+                            st.success(f"✅ {cins} silindi")
+                            time.sleep(1)
+                            st.rerun()
+        else:
+            st.info("Henüz standart tanımlanmamış")
