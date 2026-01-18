@@ -1,7 +1,7 @@
 import streamlit as st
 from app.core.utils import init_session_state
 from app.core.auth import login_user, do_logout, show_profile_settings, ROLES
-from app.modules import dashboard, wheat, flour, production, lab, reports
+from app.modules import dashboard, wheat, flour, production, reports # 'lab' modülü buradan çıkarıldı
 
 # 1. Sayfa Ayarları ve Oturum Başlatma
 st.set_page_config(
@@ -47,7 +47,7 @@ with st.sidebar:
         "🧪 Laboratuvar (Un Analizleri)",
         "🏭 Üretim & Valsler",
         "🧮 Hesaplamalar & Maliyet",
-        "👤 Profil Ayarları",  # Yeni Eklenen
+        "👤 Profil Ayarları",
         "🚪 Çıkış Yap"
     ]
     
@@ -65,6 +65,7 @@ elif choice == "🌾 Buğday Kabul & Stok":
         wheat.show_silo_status()
 
 elif choice == "🧪 Laboratuvar (Un Analizleri)":
+    # Laboratuvar fonksiyonları artık flour.py modülü içinde çalışıyor
     tab1, tab2, tab3 = st.tabs(["Un Analiz Kaydı", "Analiz Arşivi", "Spesifikasyon (Spec) Yönetimi"])
     with tab1:
         flour.show_un_analiz_kaydi()
