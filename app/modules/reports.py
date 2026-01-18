@@ -214,7 +214,7 @@ Tavli Stok: {float(silo_data.get('tavli_bugday_stok', 0)):,.1f} Ton
                 ('sedim', 'Sedim', '%.1f ml'),
                 ('g_sedim', 'G.Sedim', '%.1f ml'),
                 ('fn', 'F.N', '%.0f'),
-                ('ffn', 'F.F.N', '%.0f')
+                ('ffn', 'F.F.N', '%.0f'),
                 ('amilograph', 'Amilograph', '%.0f')
             ]
             
@@ -1064,6 +1064,7 @@ def download_styled_excel(df, filename, sheet_name="Rapor"):
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True
     )
+
 
 
 
