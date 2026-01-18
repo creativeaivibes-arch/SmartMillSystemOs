@@ -237,36 +237,88 @@ Tavli Stok: {float(silo_data.get('tavli_bugday_stok', 0)):,.1f} Ton
                     value = tavli_ortalamalari[param_key]
                     farino_text += f"{param_label}: {param_format % value}<br/>"
             
-            # KOLON 3: Extensograph (KOMPAKT)
-            extenso_text = "<b>Extensograph</b><br/>"
-            if tavli_ortalamalari.get('su_kaldirma_e', 0) > 0:
-                extenso_text += f"Su Kald: {tavli_ortalamalari['su_kaldirma_e']:.1f}%<br/>"
-            
-            for dakika in ['45', '90', '135']:
-                enerji_key = f'enerji{dakika}'
-                direnc_key = f'direnc{dakika}'
-                taban_key = f'taban{dakika}'
-                
-                if any([tavli_ortalamalari.get(enerji_key, 0) > 0,
-                       tavli_ortalamalari.get(direnc_key, 0) > 0,
-                       tavli_ortalamalari.get(taban_key, 0) > 0]):
-                    
-                    extenso_text += f"<b>{dakika}'</b> "
-                    
-                    if tavli_ortalamalari.get(enerji_key, 0) > 0:
-                        extenso_text += f"E:{tavli_ortalamalari[enerji_key]:.0f} "
-                    if tavli_ortalamalari.get(direnc_key, 0) > 0:
-                        extenso_text += f"D:{tavli_ortalamalari[direnc_key]:.0f} "
-                    if tavli_ortalamalari.get(taban_key, 0) > 0:
-                        extenso_text += f"T:{tavli_ortalamalari[taban_key]:.0f}"
-                    
-                    extenso_text += "<br/>"
-            
-            analiz_row.append([
-                Paragraph(kimya_text, normal_style),
-                Paragraph(farino_text, normal_style),
-                Paragraph(extenso_text, normal_style)
-            ])
+            # KOLON 3: Extensograph (TABLO FORMATINDA - PROFESYONEL)
+extenso_text = "<b>Extensograph</b><br/>"
+if tavli_ortalamalari.get('su_kaldirma_e', 0) > 0:
+    extenso_text += f"Su Kald: {tavli_ortalamalari['su_kaldirma_e']:.1f}%<br/>"
+
+# Extensograph verilerini tabloya dönüştür
+extenso_data = []
+extenso_data.append(['Dk', 'Enerji', 'Direnc', 'Taban'])  # Başlık
+
+for dakika in ['45', '90', '135']:
+    enerji_key = f'enerji{dakika}'
+    direnc_key = f'direnc{dakika}'
+    taban_key = f'taban{dakika}'
+    
+    if any([tavli_ortalamalari.get(enerji_key, 0) > 0,
+           tavli_ortalamalari.get(direnc_key, 0) > 0,
+           tavli_ortalamalari.get(taban_key, 0) > 0]):
+        
+        row = [f"{dakika}'"]
+        
+        if tavli_ortalamalari.get(enerji_key, 0) > 0:
+            row.append(f"{tavli_ortalamalari[enerji_key]:.0f}")
+        else:
+            row.append("-")
+        
+        if tavli_ortalamalari.get(direnc_key, 0) > 0:
+            row.append(f"{tavli_ortalamalari[direnc_key]:.0f}")
+        else:
+            row.append("-")
+        
+        if tavli_ortalamalari.get(taban_key, 0) > 0:
+            row.append(f"{tavli_ortalamalari[taban_key]:.0f}")
+        else:
+            row.append("-")
+        
+        extenso_data.append(row)
+
+# Eğer extensograph verisi varsa tablo oluştur
+if len(extenso_data) > 1:
+    # Extensograph için VBox (Text + Table)
+    extenso_vbox = []
+    extenso_vbox.append(Paragraph(extenso_text, normal_style))
+    extenso_vbox.append(Spacer(1, 2))
+    
+    # Mini tablo oluştur
+    extenso_mini_table = Table(extenso_data, colWidths=[10*mm, 15*mm, 15*mm, 15*mm])
+    extenso_mini_table.setStyle(TableStyle([
+        # Başlık
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0B4F6C')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 7),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 3),
+        ('TOPPADDING', (0, 0), (-1, 0), 3),
+        
+        # Veri satırları
+        ('ALIGN', (0, 1), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (1, 1), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 1), (-1, -1), 7),
+        ('BOTTOMPADDING', (0, 1), (-1, -1), 2),
+        ('TOPPADDING', (0, 1), (-1, -1), 2),
+        ('GRID', (0, 0), (-1, -1), 0.25, colors.grey),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F0F7FF')]),
+    ]))
+    
+    extenso_vbox.append(extenso_mini_table)
+    
+    # Ana satıra ekle
+    analiz_row.append([
+        Paragraph(kimya_text, normal_style),
+        Paragraph(farino_text, normal_style),
+        KeepTogether(extenso_vbox)
+    ])
+else:
+    # Veri yoksa sadece metin
+    analiz_row.append([
+        Paragraph(kimya_text, normal_style),
+        Paragraph(farino_text, normal_style),
+        Paragraph(extenso_text, normal_style)
+    ])
             
             analiz_table = Table(analiz_row, colWidths=[60*mm, 60*mm, 60*mm])
             analiz_table.setStyle(TableStyle([
@@ -1064,6 +1116,7 @@ def download_styled_excel(df, filename, sheet_name="Rapor"):
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True
     )
+
 
 
 
