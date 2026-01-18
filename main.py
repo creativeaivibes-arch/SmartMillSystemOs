@@ -230,12 +230,3 @@ elif selected_page == "PROFILE":
 
 ---
 
-## 📋 **requirements.txt (Plotly Dahil)**
-```
-streamlit>=1.28.0
-pandas>=2.0.0
-gspread>=5.11.0
-google-auth>=2.23.0
-plotly>=5.17.0
-xlsxwriter>=3.1.0
-openpyxl>=3.1.0
