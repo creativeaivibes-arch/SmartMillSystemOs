@@ -20,6 +20,14 @@ def check_password(password, hashed_password):
     """Şifre doğrulaması yapar"""
     return hash_password(password) == hashed_password
 
+def do_logout():
+    """Kullanıcı çıkış işlemini yapar ve sayfayı yeniler"""
+    st.session_state.logged_in = False
+    st.session_state.username = None
+    st.session_state.user_role = None
+    st.session_state.user_fullname = None
+    st.rerun()
+
 def update_user_password(username, new_password):
     """Kullanıcının şifresini günceller"""
     try:
@@ -37,7 +45,7 @@ def update_user_password(username, new_password):
         # Şifreyi güncelle
         df.loc[mask, 'sifre_hash'] = hash_password(new_password)
         
-        # Google Sheets'i güncelle (Veriyi üzerine yazar)
+        # Google Sheets'i güncelle
         conn.update(worksheet="kullanicilar", data=df)
         return True, "Şifre başarıyla güncellendi."
     except Exception as e:
@@ -80,8 +88,16 @@ def show_profile_settings():
     """Kullanıcının kendi bilgilerini ve şifresini değiştirebileceği ekran"""
     st.subheader("👤 Profil ve Şifre Ayarları")
     
+    # Kullanıcı bilgilerini gösteren küçük bir kart
+    with st.container(border=True):
+        st.write(f"**Ad Soyad:** {st.session_state.user_fullname}")
+        st.write(f"**Kullanıcı Adı:** {st.session_state.username}")
+        st.write(f"**Yetki Seviyesi:** {ROLES.get(st.session_state.user_role, st.session_state.user_role)}")
+
+    st.divider()
+    
     with st.form("password_change_form"):
-        st.write(f"Kullanıcı: **{st.session_state.username}**")
+        st.write("🔑 **Şifre Değiştir**")
         new_pass = st.text_input("Yeni Şifre", type="password")
         confirm_pass = st.text_input("Yeni Şifre (Tekrar)", type="password")
         
