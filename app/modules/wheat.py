@@ -250,7 +250,62 @@ def get_tavli_analizler(silo_isim=None):
         df['tarih'] = pd.to_datetime(df['tarih'])
         df = df.sort_values('tarih', ascending=False)
     return df
-
+def get_kuru_bugday_agirlikli_ortalama(silo_isim):
+    """
+    Bir silodaki KURU BUĞDAY analizlerinin ağırlıklı ortalamasını hesaplar.
+    Mal kabul girişlerinden (hareketler tablosu) veriler alınır.
+    
+    Returns:
+        dict: Ağırlıklı ortalama analiz değerleri
+    """
+    try:
+        # Hareketler tablosundan bu silonun GİRİŞ kayıtlarını al
+        df_hareketler = fetch_data("hareketler")
+        if df_hareketler.empty:
+            return {}
+        
+        # Sadece bu silonun girişleri
+        df_silo = df_hareketler[
+            (df_hareketler['silo_isim'] == silo_isim) & 
+            (df_hareketler['hareket_tipi'] == 'Giriş')
+        ].copy()
+        
+        if df_silo.empty:
+            return {}
+        
+        # Tonaj sütunu kontrolü
+        if 'miktar' not in df_silo.columns:
+            return {}
+        
+        # Numeric dönüşüm
+        numeric_cols = ['miktar', 'hektolitre', 'protein', 'rutubet', 'gluten', 
+                       'gluten_index', 'sedim', 'gecikmeli_sedim']
+        
+        for col in numeric_cols:
+            if col in df_silo.columns:
+                df_silo[col] = pd.to_numeric(df_silo[col], errors='coerce').fillna(0)
+        
+        toplam_tonaj = df_silo['miktar'].sum()
+        
+        if toplam_tonaj == 0:
+            return {}
+        
+        # Ağırlıklı ortalama hesapla
+        ortalama = {}
+        analiz_cols = ['hektolitre', 'protein', 'rutubet', 'gluten', 
+                      'gluten_index', 'sedim', 'gecikmeli_sedim']
+        
+        for col in analiz_cols:
+            if col in df_silo.columns:
+                # (miktar * değer).sum() / toplam_miktar
+                agirlikli_toplam = (df_silo['miktar'] * df_silo[col]).sum()
+                ortalama[col] = agirlikli_toplam / toplam_tonaj if toplam_tonaj > 0 else 0
+        
+        return ortalama
+        
+    except Exception as e:
+        st.error(f"Kuru buğday ortalama hesaplama hatası: {e}")
+        return {}
 # --- SPEC YÖNETİMİ ---
 
 def save_bugday_spec(bugday_cinsi, parametre, min_val, max_val, hedef_val):
