@@ -7,3 +7,4 @@ openpyxl
 altair
 bcrypt
 st-gsheets-connection
+plotly
