@@ -16,11 +16,11 @@ from app.core.database import init_db
 from app.core.auth import check_password, do_logout, ROLES, show_profile_settings
 from app.core.config import SESSION_TIMEOUT_SECONDS
 
-# Modül İmportları (production olarak düzeltildi)
+# Modül İmportları
 import app.modules.dashboard as dashboard
 import app.modules.wheat as wheat
 import app.modules.mixing as mixing
-import app.modules.production as production  # ✅ mill yerine production
+import app.modules.production as production
 import app.modules.flour as flour
 import app.modules.admin as admin
 import app.modules.calculations as calculations
@@ -156,7 +156,6 @@ with st.sidebar:
 
     elif ana_menu == "Değirmen":
         st.sidebar.markdown("### 🏭 Değirmen")
-        # ✅ YÖNETİM DASHBOARD EKLENDİ
         page_raw = st.sidebar.radio("İşlem Seçiniz", ["Üretim Kaydı", "Üretim Arşivi", "Yönetim Dashboard"])
         selected_page = f"PRODUCTION_{page_raw}"
         
@@ -178,38 +177,54 @@ if selected_page == "Dashboard":
     dashboard.show_dashboard()
 
 # WHEAT
-elif selected_page == "WHEAT_Mal Kabul": wheat.show_mal_kabul()
-elif selected_page == "WHEAT_Stok Çıkışı": wheat.show_stok_cikis()
-elif selected_page == "WHEAT_Tavlı Analiz": wheat.show_tavli_analiz()
-elif selected_page == "WHEAT_Stok Hareketleri": wheat.show_stok_hareketleri()
-elif selected_page == "WHEAT_Giriş Arşivi": wheat.show_bugday_giris_arsivi()
-elif selected_page == "WHEAT_🎯 Kalite Hedefleri": wheat.show_bugday_spec_yonetimi()
+elif selected_page == "WHEAT_Mal Kabul": 
+    wheat.show_mal_kabul()
+elif selected_page == "WHEAT_Stok Çıkışı": 
+    wheat.show_stok_cikis()
+elif selected_page == "WHEAT_Tavlı Analiz": 
+    wheat.show_tavli_analiz()
+elif selected_page == "WHEAT_Stok Hareketleri": 
+    wheat.show_stok_hareketleri()
+elif selected_page == "WHEAT_Giriş Arşivi": 
+    wheat.show_bugday_giris_arsivi()
+elif selected_page == "WHEAT_🎯 Kalite Hedefleri": 
+    wheat.show_bugday_spec_yonetimi()
 
 # FLOUR
-elif selected_page == "FLOUR_Un Analiz Kaydı": flour.show_un_analiz_kaydi()
-elif selected_page == "FLOUR_Un Analiz Arşivi": flour.show_un_analiz_kayitlari()
-elif selected_page == "FLOUR_Kalite Hedefleri": flour.show_spec_yonetimi()
+elif selected_page == "FLOUR_Un Analiz Kaydı": 
+    flour.show_un_analiz_kaydi()
+elif selected_page == "FLOUR_Un Analiz Arşivi": 
+    flour.show_un_analiz_kayitlari()
+elif selected_page == "FLOUR_Kalite Hedefleri": 
+    flour.show_spec_yonetimi()
 
-# PRODUCTION (✅ ÜÇ FONKSİYON DA EKLENDİ)
+# PRODUCTION
 elif selected_page == "PRODUCTION_Üretim Kaydı": 
     production.show_uretim_kaydi()
 elif selected_page == "PRODUCTION_Üretim Arşivi": 
     production.show_uretim_arsivi()
-elif selected_page == "PRODUCTION_Yönetim Dashboard":  # ✅ YENİ EKLENEN
+elif selected_page == "PRODUCTION_Yönetim Dashboard": 
     production.show_yonetim_dashboard()
 
 # CALCULATIONS
-elif selected_page == "CALC_Un Maliyet": flour.show_un_maliyet_hesaplama()
-elif selected_page == "CALC_Maliyet Geçmişi": flour.show_un_maliyet_gecmisi()
+elif selected_page == "CALC_Un Maliyet": 
+    flour.show_un_maliyet_hesaplama()
+elif selected_page == "CALC_Maliyet Geçmişi": 
+    flour.show_un_maliyet_gecmisi()
 elif selected_page == "CALC_Stratejik Analiz (BOSS)":
     try:
         from app.modules import strategy
         strategy.show_strategy_module()
-    except ImportError: st.info("Strateji modülü yüklenemedi.")
-elif selected_page == "CALC_Paçal Hesaplayıcı": mixing.show_pacal_hesaplayici()
-elif selected_page == "CALC_Paçal Geçmişi": mixing.show_pacal_gecmisi()
-elif selected_page == "CALC_Katkı Maliyeti": calculations.show_katki_maliyeti_modulu()
-elif selected_page == "CALC_Enzim Dozajlama": calculations.show_enzim_dozajlama()
+    except ImportError: 
+        st.info("Strateji modülü yüklenemedi.")
+elif selected_page == "CALC_Paçal Hesaplayıcı": 
+    mixing.show_pacal_hesaplayici()
+elif selected_page == "CALC_Paçal Geçmişi": 
+    mixing.show_pacal_gecmisi()
+elif selected_page == "CALC_Katkı Maliyeti": 
+    calculations.show_katki_maliyeti_modulu()
+elif selected_page == "CALC_Enzim Dozajlama": 
+    calculations.show_enzim_dozajlama()
 
 # ADMIN
 elif selected_page == "ADMIN":
@@ -226,7 +241,3 @@ elif selected_page == "ADMIN":
 # PROFILE
 elif selected_page == "PROFILE":
     show_profile_settings()
-```
-
----
-
