@@ -104,26 +104,35 @@ def show_silo_card(silo_data):
                     conn.update(worksheet="silolar", data=df_all)
                     st.rerun()
 
-        # SENİN İSTEDİĞİN ORIJINAL PDF RAPOR BUTONU
-        st.divider()
-        safe_name = str(silo_data.get('isim', 'silo')).replace(" ", "_")
-        if st.button("📥 PDF Rapor İndir", key=f"pdf_{safe_name}", use_container_width=True, type="primary"):
-            with st.spinner("Rapor hazırlanıyor..."):
-                try:
-                    from app.modules.mixing import get_tavli_analiz_agirlikli_ortalama
-                    tavli_ort = get_tavli_analiz_agirlikli_ortalama(silo_data['isim'])
-                    pdf_bytes = create_silo_pdf_report(silo_data['isim'], silo_data, tavli_ort)
-                    
-                    if pdf_bytes:
-                        st.download_button(
-                            label="💾 İndirmeyi Başlat",
-                            data=pdf_bytes,
-                            file_name=f"SILO_RAPORU_{turkce_karakter_duzelt_pdf(silo_data['isim'])}.pdf",
-                            mime="application/pdf",
-                            key=f"dl_{safe_name}"
-                        )
-                except Exception as e:
-                    st.error(f"Rapor hatası: {e}")
+        # SENİN İSTEDİĞİN ORİJİNAL PDF RAPOR BUTONU
+st.divider()
+safe_name = str(silo_data.get('isim', 'silo')).replace(" ", "_")
+if st.button("📥 PDF Rapor İndir", key=f"pdf_{safe_name}", use_container_width=True, type="primary"):
+    with st.spinner("Rapor hazırlanıyor..."):
+        try:
+            from app.modules.mixing import get_tavli_analiz_agirlikli_ortalama
+            from app.modules.wheat import get_kuru_bugday_agirlikli_ortalama  # YENİ!
+            
+            tavli_ort = get_tavli_analiz_agirlikli_ortalama(silo_data['isim'])
+            kuru_ort = get_kuru_bugday_agirlikli_ortalama(silo_data['isim'])  # YENİ!
+            
+            pdf_bytes = create_silo_pdf_report(
+                silo_data['isim'], 
+                silo_data, 
+                tavli_ort, 
+                kuru_ort  # YENİ PARAMETRE!
+            )
+            
+            if pdf_bytes:
+                st.download_button(
+                    label="💾 İndirmeyi Başlat",
+                    data=pdf_bytes,
+                    file_name=f"SILO_RAPORU_{turkce_karakter_duzelt_pdf(silo_data['isim'])}.pdf",
+                    mime="application/pdf",
+                    key=f"dl_{safe_name}"
+                )
+        except Exception as e:
+            st.error(f"Rapor hatası: {e}")
 
 # --------------------------------------------------------------------------
 # ANA DASHBOARD
@@ -172,5 +181,6 @@ def show_dashboard():
             if i + j < num_silos:
                 with cols[j]:
                     show_silo_card(df_silo.iloc[i + j])
+
 
 
