@@ -5,6 +5,13 @@ import hashlib
 import time
 from app.core.database import fetch_data, add_data, get_conn
 
+# Sistemin ana menüde ve yetkilendirmede kullandığı roller
+ROLES = {
+    "admin": "Sistem Yöneticisi",
+    "operations": "Operasyon Sorumlusu",
+    "viewer": "İzleyici"
+}
+
 def hash_password(password):
     """Şifreyi güvenli hale getirir"""
     return hashlib.sha256(str.encode(password)).hexdigest()
@@ -30,7 +37,7 @@ def update_user_password(username, new_password):
         # Şifreyi güncelle
         df.loc[mask, 'sifre_hash'] = hash_password(new_password)
         
-        # Google Sheets'i güncelle
+        # Google Sheets'i güncelle (Veriyi üzerine yazar)
         conn.update(worksheet="kullanicilar", data=df)
         return True, "Şifre başarıyla güncellendi."
     except Exception as e:
