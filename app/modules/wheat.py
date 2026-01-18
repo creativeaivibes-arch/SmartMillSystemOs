@@ -579,6 +579,7 @@ def show_tavli_analiz():
         vals['g_sedim'] = cc2.number_input("G. Sedim (ml)", value=60.0, format="%.2f")
         vals['fn'] = cc2.number_input("FN", value=300.0, format="%.2f")
         vals['ffn'] = cc2.number_input("FFN", value=400.0, format="%.2f")
+        vals['amilograph'] = cc2.number_input("Amilograph", value=1100.0, format="%.2f")
         
     with tab2:
         cc1, cc2 = st.columns(2)
@@ -755,3 +756,4 @@ def show_bugday_spec_yonetimi():
                             st.rerun()
         else:
             st.info("Henüz standart tanımlanmamış")
+
