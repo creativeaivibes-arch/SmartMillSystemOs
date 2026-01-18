@@ -13,26 +13,23 @@ st.set_page_config(
 from app.core.utils import init_session_state
 from app.core.styles import load_css
 from app.core.database import init_db
-# show_profile_settings eklendi
 from app.core.auth import check_password, do_logout, ROLES, show_profile_settings
 from app.core.config import SESSION_TIMEOUT_SECONDS
 
-# Modül Importları (Dosya isimlerine sadık kalındı)
+# Modül Importları
 import app.modules.dashboard as dashboard
 import app.modules.wheat as wheat
 import app.modules.mixing as mixing
-import app.modules.mill as mill        # production yerine mill
+import app.modules.mill as mill
 import app.modules.flour as flour
 import app.modules.admin as admin
 import app.modules.calculations as calculations
 
 # --- APP BAŞLANGIÇ ---
 
-# 1. Session State Başlat
 init_session_state()
-load_css() # Lacivert tema ve stilleri geri getiren fonksiyon
+load_css()
 
-# 2. Veritabanı Başlat
 if 'db_initialized' not in st.session_state:
     init_db()
     st.session_state.db_initialized = True
@@ -49,7 +46,7 @@ if st.session_state.get('logged_in', False):
     
     st.session_state.last_activity = current_time
 
-# --- LOGIN EKRANI (Orijinal Tasarım) ---
+# --- LOGIN EKRANI ---
 if not st.session_state.logged_in:
     st.markdown("""
     <style>
@@ -64,7 +61,6 @@ if not st.session_state.logged_in:
     with login_col:
         col_logo, col_text = st.columns([1, 2.5])
         with col_logo:
-             # Logo varsa göster, yoksa hata vermesin diye try-except
              try: st.image("logo.png", use_container_width=True)
              except: st.markdown("🏭")
         with col_text:
@@ -87,7 +83,6 @@ if not st.session_state.logged_in:
                 submit = st.form_submit_button("Sisteme Giriş", type="primary", use_container_width=True)
                 
                 if submit:
-                    # login_user fonksiyonunu auth.py'den çağırıyoruz (daha güvenli)
                     from app.core.auth import login_user
                     if login_user(username, password):
                         st.session_state.last_activity = time.time()
@@ -98,10 +93,9 @@ if not st.session_state.logged_in:
                         st.error("❌ Hatalı kullanıcı adı veya şifre!")
     st.stop()
 
-# --- ANA UYGULAMA (Giriş Yapıldıysa) ---
+# --- ANA UYGULAMA ---
 
 with st.sidebar:
-    # 0. Marka
     col_brand1, col_brand2 = st.columns([1, 4])
     with col_brand1:
         try: st.image("logo.png", width=50)
@@ -112,7 +106,6 @@ with st.sidebar:
         
     st.divider()
 
-    # 1. Kullanıcı Paneli
     with st.container(border=False):
         col_prof1, col_prof2 = st.columns([1, 4])
         with col_prof1:
@@ -130,9 +123,6 @@ with st.sidebar:
     
     st.divider()
     
-    # --- MENÜ YAPISI (Senin Orijinal Yapın) ---
-    
-    # Profil Ayarları seçeneğini buraya ekledim
     ana_menu = st.sidebar.radio(
         "📂 Ana Menü",
         ["Dashboard", "Kalite Kontrol", "Değirmen", "Hesaplamalar", "Yönetim Paneli", "Profil Ayarları"],
@@ -160,7 +150,7 @@ with st.sidebar:
 
     elif ana_menu == "Değirmen":
         st.sidebar.markdown("### 🏭 Değirmen")
-        page_raw = st.sidebar.radio("İşlem Seçiniz", ["Üretim Kaydı", "Üretim Arşivi"])
+        page_raw = st.sidebar.radio("İşlem Seçiniz", ["Üretim Kaydı", "Üretim Arşivi", "📊 Yönetim Dashboard'u"])
         selected_page = f"MILL_{page_raw}"
         
     elif ana_menu == "Hesaplamalar":
@@ -193,9 +183,10 @@ elif selected_page == "FLOUR_Un Analiz Kaydı": flour.show_un_analiz_kaydi()
 elif selected_page == "FLOUR_Un Analiz Arşivi": flour.show_un_analiz_kayitlari()
 elif selected_page == "FLOUR_Kalite Hedefleri": flour.show_spec_yonetimi()
 
-# MILL
+# MILL (YENİ EKLENEN: Yönetim Dashboard'u)
 elif selected_page == "MILL_Üretim Kaydı": mill.show_uretim_kaydi()
 elif selected_page == "MILL_Üretim Arşivi": mill.show_uretim_arsivi()
+elif selected_page == "MILL_📊 Yönetim Dashboard'u": mill.show_yonetim_dashboard()
 
 # CALCULATIONS
 elif selected_page == "CALC_Un Maliyet": flour.show_un_maliyet_hesaplama()
@@ -222,6 +213,6 @@ elif selected_page == "ADMIN":
     else:
         st.error("⛔ Bu sayfaya erişim yetkiniz yok!")
 
-# PROFILE (Şifre Değiştirme)
+# PROFILE
 elif selected_page == "PROFILE":
     show_profile_settings()
