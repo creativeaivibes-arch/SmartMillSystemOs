@@ -10,25 +10,6 @@ try:
     from reportlab.lib import colors
     from reportlab.platypus.flowables import HRFlowable, KeepTogether
     from reportlab.lib.pagesizes import A4
-    PDF_AVAILABLE = True
-except ImportError:
-    PDF_AVAILABLE = False
-
-def turkce_karakter_duzelt_pdf(text):
-    """PDF için Türkçe karakter düzeltme"""
-    return turkce_karakter_duzelt(text)
-import io
-from datetime import datetime
-import pandas as pd
-import streamlit as st
-from app.core.utils import turkce_karakter_duzelt
-
-try:
-    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-    from reportlab.lib import colors
-    from reportlab.platypus.flowables import HRFlowable, KeepTogether
-    from reportlab.lib.pagesizes import A4
     from reportlab.lib.units import mm
     PDF_AVAILABLE = True
 except ImportError:
@@ -338,25 +319,6 @@ Tavli Stok: {float(silo_data.get('tavli_bugday_stok', 0)):,.1f} Ton
         else:
             story.append(Paragraph("TAVLI BUGDAY ANALIZ SONUCLARI", subtitle_style))
             story.append(Paragraph("Bu silo icin henuz tavli bugday analiz kaydi bulunmamaktadir.", normal_style))
-            
-            analiz_table = Table(analiz_row, colWidths=[60*mm, 60*mm, 60*mm])
-            analiz_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (0, 0), colors.HexColor('#F8F9FA')),
-                ('BACKGROUND', (1, 0), (1, 0), colors.HexColor('#FFF3CD')),
-                ('BACKGROUND', (2, 0), (2, 0), colors.HexColor('#E6F3F7')),
-                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                ('LEFTPADDING', (0, 0), (-1, -1), 6),
-                ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-                ('TOPPADDING', (0, 0), (-1, -1), 6),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-                ('BOX', (0, 0), (-1, -1), 0.5, colors.grey),
-                ('INNERGRID', (0, 0), (-1, -1), 0.25, colors.lightgrey),
-            ]))
-            
-            story.append(analiz_table)
-        else:
-            story.append(Paragraph("TAVLI BUGDAY ANALIZ SONUCLARI", subtitle_style))
-            story.append(Paragraph("Bu silo icin henuz tavli bugday analiz kaydi bulunmamaktadir.", normal_style))
         
         # ALT BİLGİ
         story.append(Spacer(1, 8))
@@ -599,7 +561,6 @@ def create_pacal_pdf_report(tarih, urun_adi, oranlar, analizler):
                 (turkce_karakter_duzelt_pdf("F.F.N"), 'ffn', '%.0f'),
                 (turkce_karakter_duzelt_pdf("Kül"), 'kul', '%.2f %%'),
             ]
-            
             # 2'li gruplar halinde düzenle
             for i in range(0, len(kimya_params), 2):
                 row = []
@@ -1135,9 +1096,3 @@ def download_styled_excel(df, filename, sheet_name="Rapor"):
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True
     )
-
-
-
-
-
-
