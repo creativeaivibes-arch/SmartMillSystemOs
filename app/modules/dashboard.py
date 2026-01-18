@@ -44,14 +44,23 @@ def draw_silo(fill_ratio, name):
 @error_handler(context="Dashboard Veri")
 def get_dashboard_data():
     try:
-        df_silo = fetch_data("silolar")
+        # CACHE EKLE - 30 saniyede bir güncelle (API kota optimizasyonu)
+        @st.cache_data(ttl=30)
+        def cached_silo_fetch():
+            return fetch_data("silolar")
+        
+        @st.cache_data(ttl=30)
+        def cached_hareket_fetch():
+            return fetch_data("hareketler")
+        
+        df_silo = cached_silo_fetch()
         if df_silo.empty:
             df_silo = pd.DataFrame(columns=['isim', 'kapasite', 'mevcut_miktar', 'bugday_cinsi', 'maliyet', 'tavli_bugday_stok'])
         
         df_silo = df_silo.fillna(0)
         if 'isim' in df_silo.columns: df_silo = df_silo.sort_values('isim')
         
-        df_hareket = fetch_data("hareketler")
+        df_hareket = cached_hareket_fetch()
         return df_silo, df_hareket
     except Exception as e:
         return pd.DataFrame(), pd.DataFrame()
@@ -163,4 +172,5 @@ def show_dashboard():
             if i + j < num_silos:
                 with cols[j]:
                     show_silo_card(df_silo.iloc[i + j])
+
 
