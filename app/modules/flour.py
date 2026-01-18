@@ -408,3 +408,4 @@ def show_un_maliyet_gecmisi():
                     st.rerun()
                 else:
                     st.error(f"Silinemedi: {msg}")
+
