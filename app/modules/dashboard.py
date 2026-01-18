@@ -141,7 +141,7 @@ def show_dashboard():
             
         with col_sim:
             st.markdown("### ⏳ Stok Ömrü")
-            gunluk = st.number_input("Günlük Kırma (Ton)", value=250, step=10)
+            gunluk = st.number_input("Günlük Kırma (Ton)", value=80, step=10)
             if gunluk > 0:
                 omur = toplam_stok / gunluk
                 st.metric("Kalan Süre", f"{omur:.1f} Gün")
@@ -163,3 +163,4 @@ def show_dashboard():
             if i + j < num_silos:
                 with cols[j]:
                     show_silo_card(df_silo.iloc[i + j])
+
