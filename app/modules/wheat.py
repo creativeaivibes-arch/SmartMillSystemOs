@@ -486,18 +486,24 @@ def show_tavli_analiz():
     """Tavlı Buğday Analizi - TAM VE EKSİKSİZ Parametreler"""
     st.header("🧪 Tavlı Buğday Analiz Kaydı")
     df = get_silo_data()
-    if df.empty: return
+    if df.empty: 
+        st.warning("Silo bulunamadı")
+        return
     
     c1, c2 = st.columns(2)
     with c1:
         silo = st.selectbox("Silo Seç", df['isim'].tolist())
         row = df[df['isim'] == silo].iloc[0]
-        mevcut = float(row['mevcut_miktar'])
-        tavli = float(row.get('tavli_bugday_stok', 0))
+        mevcut = float(row.get('mevcut_miktar', 0))
+        
+        # Tavlı stok kontrolü - Sütun adını kontrol et
+        tavli_col = 'tavli_bugday_stok' if 'tavli_bugday_stok' in df.columns else 'tavli_stok'
+        tavli = float(row.get(tavli_col, 0)) if pd.notnull(row.get(tavli_col, 0)) else 0.0
+        
         kalan = max(0, mevcut - tavli)
         st.info(f"Mevcut: {mevcut:.1f} | Tavlı: {tavli:.1f} | Eklenebilir: {kalan:.1f}")
         
-        tonaj = st.number_input("Analiz Tonajı", 0.1, max_value=kalan if kalan>0 else 1000.0)
+        tonaj = st.number_input("Analiz Tonajı", 0.1, max_value=max(kalan, 1000.0), value=min(kalan, 10.0) if kalan > 0 else 10.0)
     
     with c2:
         tarih = st.date_input("Tarih", datetime.now())
@@ -530,37 +536,72 @@ def show_tavli_analiz():
         st.subheader("📊 Extensograph Analizleri (Detaylı)")
         vals['su_kaldirma_e'] = st.number_input("Su Kaldırma (Extenso) (%)", value=58.0, format="%.2f")
         
-        st.markdown("#### 45. Dakika:")
-        cols45 = st.columns(3)
-        vals['direnc45'] = cols45[0].number_input("Direnç (45)", value=610.0, format="%.2f")
-        vals['taban45'] = cols45[1].number_input("Taban (45)", value=165.0, format="%.2f")
-        vals['enerji45'] = cols45[2].number_input("Enerji (45)", value=110.0, format="%.2f")
+        # 45 DAKİKA
+        with st.expander("📊 45. Dakika:", expanded=True):
+            cols45 = st.columns(3)
+            vals['direnc45'] = cols45[0].number_input("Direnç (45)", value=610.0, format="%.2f", key="d45")
+            vals['taban45'] = cols45[1].number_input("Taban (45)", value=165.0, format="%.2f", key="t45")
+            vals['enerji45'] = cols45[2].number_input("Enerji (45)", value=110.0, format="%.2f", key="e45")
         
-        st.markdown("#### 90. Dakika:")
-        cols90 = st.columns(3)
-        vals['direnc90'] = cols90[0].number_input("Direnç (90)", value=900.0, format="%.2f")
-        vals['taban90'] = cols90[1].number_input("Taban (90)", value=125.0, format="%.2f")
-        vals['enerji90'] = cols90[2].number_input("Enerji (90)", value=120.0, format="%.2f")
+        # 90 DAKİKA
+        with st.expander("📊 90. Dakika:", expanded=True):
+            cols90 = st.columns(3)
+            vals['direnc90'] = cols90[0].number_input("Direnç (90)", value=900.0, format="%.2f", key="d90")
+            vals['taban90'] = cols90[1].number_input("Taban (90)", value=125.0, format="%.2f", key="t90")
+            vals['enerji90'] = cols90[2].number_input("Enerji (90)", value=120.0, format="%.2f", key="e90")
         
-        st.markdown("#### 135. Dakika:")
-        cols135 = st.columns(3)
-        vals['direnc135'] = cols135[0].number_input("Direnç (135)", value=980.0, format="%.2f")
-        vals['taban135'] = cols135[1].number_input("Taban (135)", value=120.0, format="%.2f")
-        vals['enerji135'] = cols135[2].number_input("Enerji (135)", value=126.0, format="%.2f")
+        # 135 DAKİKA
+        with st.expander("📊 135. Dakika:", expanded=True):
+            cols135 = st.columns(3)
+            vals['direnc135'] = cols135[0].number_input("Direnç (135)", value=980.0, format="%.2f", key="d135")
+            vals['taban135'] = cols135[1].number_input("Taban (135)", value=120.0, format="%.2f", key="t135")
+            vals['enerji135'] = cols135[2].number_input("Enerji (135)", value=126.0, format="%.2f", key="e135")
 
+    st.divider()
     if st.button("💾 Kaydet", type="primary", use_container_width=True):
         if tonaj > kalan + 0.1:
-            st.error("❌ Kapasite hatası: Siloda yeterli kuru buğday yok!")
+            st.error(f"❌ Kapasite hatası: Sadece {kalan:.1f} ton eklenebilir!")
             return
         
-        ok, msg = save_tavli_analiz(silo, tonaj, **vals, notlar=notlar)
+        # 1. Tavlı analiz kaydet
+        ok, msg = save_tavli_analiz(silo, tonaj, **vals, notlar=notlar, tarih=str(tarih))
+        
         if ok:
-            update_tavli_bugday_stok(silo, tonaj, "ekle")
-            st.success("✅ Tavlı analiz kaydedildi!")
-            time.sleep(1)
-            st.rerun()
+            # 2. Tavlı stoku güncelle - DÜZELTİLMİŞ VERSİYON
+            try:
+                conn = get_conn()
+                df_update = fetch_data("silolar")
+                
+                if not df_update.empty:
+                    mask = df_update['isim'] == silo
+                    
+                    if mask.any():
+                        # Sütun adını kontrol et
+                        tavli_col = 'tavli_bugday_stok' if 'tavli_bugday_stok' in df_update.columns else 'tavli_stok'
+                        
+                        # Mevcut tavlı stoku al
+                        current_tavli = float(df_update.loc[mask, tavli_col].iloc[0]) if pd.notnull(df_update.loc[mask, tavli_col].iloc[0]) else 0.0
+                        
+                        # Yeni tavlı stok hesapla
+                        yeni_tavli = current_tavli + float(tonaj)
+                        
+                        # Güncelle
+                        df_update.loc[mask, tavli_col] = yeni_tavli
+                        conn.update(worksheet="silolar", data=df_update)
+                        
+                        st.success(f"✅ Tavlı analiz kaydedildi! Tavlı Stok: {current_tavli:.1f} → {yeni_tavli:.1f} Ton")
+                        time.sleep(2)
+                        st.rerun()
+                    else:
+                        st.error("Silo bulunamadı!")
+                else:
+                    st.error("Silo verisi yüklenemedi!")
+                    
+            except Exception as e:
+                st.error(f"❌ Stok güncelleme hatası: {str(e)}")
         else:
             st.error(f"❌ Kayıt hatası: {msg}")
+
 
 def show_stok_hareketleri():
     """Stok Hareketleri Listesi"""
@@ -575,6 +616,7 @@ def show_stok_hareketleri():
     else:
         st.info("Kayıt yok")
 
+
 def show_bugday_giris_arsivi():
     """Arşiv Ekranı"""
     st.header("🗄️ Giriş Arşivi")
@@ -588,6 +630,7 @@ def show_bugday_giris_arsivi():
             pass
     else:
         st.info("Kayıt yok")
+
 
 def show_bugday_spec_yonetimi():
     """Buğday Spesifikasyon Yönetimi"""
