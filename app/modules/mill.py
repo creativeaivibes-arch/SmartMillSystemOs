@@ -65,7 +65,7 @@ def get_uretim_kayitlari():
         return pd.DataFrame()
 
 def show_uretim_kaydi():
-    """Üretim Kaydı Modülü - Yenilenmiş Tasarım"""
+    """Üretim Kaydı Modülü"""
     
     if st.session_state.get('user_role') not in ["admin", "operations"]:
         st.warning("⛔ Bu modüle erişim izniniz yok!")
@@ -156,6 +156,269 @@ def show_uretim_kaydi():
         else:
             st.error(f"❌ {msg}")
 
+def show_yonetim_dashboard():
+    """Yönetim Dashboard'u - Patron Görünümü"""
+    st.header("📊 Yönetim Dashboard'u")
+    st.caption("Üretim performansı, trendler ve karşılaştırmalar")
+    
+    df = get_uretim_kayitlari()
+    
+    if df.empty:
+        st.info("📭 Henüz üretim kaydı bulunmamaktadır.")
+        return
+    
+    col_period1, col_period2 = st.columns([1, 3])
+    
+    with col_period1:
+        period = st.selectbox(
+            "Dönem Seçin",
+            ["Son 7 Gün", "Son 30 Gün", "Son 3 Ay", "Son 6 Ay", "Son 1 Yıl", "Tümü"],
+            index=1
+        )
+    
+    today = datetime.now().date()
+    if period == "Son 7 Gün":
+        start_date = today - timedelta(days=7)
+    elif period == "Son 30 Gün":
+        start_date = today - timedelta(days=30)
+    elif period == "Son 3 Ay":
+        start_date = today - timedelta(days=90)
+    elif period == "Son 6 Ay":
+        start_date = today - timedelta(days=180)
+    elif period == "Son 1 Yıl":
+        start_date = today - timedelta(days=365)
+    else:
+        start_date = None
+    
+    if start_date:
+        df_filtered = df[df['tarih'].dt.date >= start_date].copy()
+    else:
+        df_filtered = df.copy()
+    
+    st.divider()
+    
+    st.subheader("📈 Performans Özeti")
+    
+    col_m1, col_m2, col_m3, col_m4, col_m5 = st.columns(5)
+    
+    with col_m1:
+        toplam_bugday = df_filtered['kirilan_bugday'].sum()
+        st.metric("Toplam Buğday", f"{toplam_bugday/1000:,.1f} Ton")
+    
+    with col_m2:
+        toplam_un = (df_filtered['un_1'].sum() + df_filtered['un_2'].sum())
+        st.metric("Toplam Un", f"{toplam_un/1000:,.1f} Ton")
+    
+    with col_m3:
+        ort_randiman = df_filtered['toplam_randiman'].mean()
+        st.metric("Ort. Randıman", f"%{ort_randiman:.2f}")
+    
+    with col_m4:
+        ort_kayip = df_filtered['kayip'].mean()
+        st.metric("Ort. Kayıp", f"%{ort_kayip:.2f}", delta_color="inverse")
+    
+    with col_m5:
+        uretim_sayisi = len(df_filtered)
+        st.metric("Üretim Sayısı", f"{uretim_sayisi}")
+    
+    st.divider()
+    
+    try:
+        import plotly.graph_objects as go
+        import plotly.express as px
+        
+        st.subheader("📉 Randıman Trend Analizi")
+        
+        df_trend = df_filtered.copy()
+        df_trend['tarih_str'] = df_trend['tarih'].dt.strftime('%d.%m.%Y')
+        
+        fig_trend = go.Figure()
+        
+        fig_trend.add_trace(go.Scatter(
+            x=df_trend['tarih_str'],
+            y=df_trend['toplam_randiman'],
+            mode='lines+markers',
+            name='Toplam Randıman',
+            line=dict(color='#1e3a8a', width=3),
+            marker=dict(size=8)
+        ))
+        
+        fig_trend.add_trace(go.Scatter(
+            x=df_trend['tarih_str'],
+            y=df_trend['kayip'],
+            mode='lines+markers',
+            name='Kayıp',
+            line=dict(color='#dc2626', width=2, dash='dash'),
+            marker=dict(size=6)
+        ))
+        
+        hedef_randiman = 78.0
+        fig_trend.add_hline(y=hedef_randiman, line_dash="dot", line_color="green", 
+                           annotation_text=f"Hedef: %{hedef_randiman}")
+        
+        fig_trend.update_layout(
+            title="Günlük Randıman ve Kayıp Trendi",
+            xaxis_title="Tarih",
+            yaxis_title="Yüzde (%)",
+            hovermode='x unified',
+            height=400
+        )
+        
+        st.plotly_chart(fig_trend, use_container_width=True)
+        
+        st.divider()
+        
+        st.subheader("👥 Vardiya Performans Karşılaştırması")
+        
+        col_g1, col_g2 = st.columns(2)
+        
+        with col_g1:
+            vardiya_stats = df_filtered.groupby('vardiya').agg({
+                'kirilan_bugday': 'sum',
+                'toplam_randiman': 'mean',
+                'kayip': 'mean'
+            }).reset_index()
+            
+            vardiya_stats['kirilan_bugday'] = vardiya_stats['kirilan_bugday'] / 1000
+            
+            fig_vardiya = px.bar(
+                vardiya_stats,
+                x='vardiya',
+                y='kirilan_bugday',
+                title='Vardiyalara Göre Toplam Üretim (Ton)',
+                labels={'kirilan_bugday': 'Toplam (Ton)', 'vardiya': 'Vardiya'},
+                color='kirilan_bugday',
+                color_continuous_scale='Blues'
+            )
+            
+            fig_vardiya.update_layout(height=350, showlegend=False)
+            st.plotly_chart(fig_vardiya, use_container_width=True)
+        
+        with col_g2:
+            fig_vardiya_rand = go.Figure()
+            
+            fig_vardiya_rand.add_trace(go.Bar(
+                x=vardiya_stats['vardiya'],
+                y=vardiya_stats['toplam_randiman'],
+                name='Ortalama Randıman',
+                marker_color='#1e3a8a'
+            ))
+            
+            fig_vardiya_rand.update_layout(
+                title='Vardiyalara Göre Ortalama Randıman',
+                xaxis_title='Vardiya',
+                yaxis_title='Randıman (%)',
+                height=350
+            )
+            
+            st.plotly_chart(fig_vardiya_rand, use_container_width=True)
+        
+        st.divider()
+        
+        st.subheader("🏭 Üretim Hattı Performansı")
+        
+        hat_stats = df_filtered.groupby('uretim_hatti').agg({
+            'kirilan_bugday': 'sum',
+            'toplam_randiman': 'mean',
+            'kayip': 'mean'
+        }).reset_index()
+        
+        hat_stats['kirilan_bugday'] = hat_stats['kirilan_bugday'] / 1000
+        
+        fig_hat = px.bar(
+            hat_stats,
+            x='uretim_hatti',
+            y=['toplam_randiman', 'kayip'],
+            title='Üretim Hatlarına Göre Randıman ve Kayıp Karşılaştırması',
+            labels={'value': 'Yüzde (%)', 'uretim_hatti': 'Üretim Hattı', 'variable': 'Metrik'},
+            barmode='group',
+            color_discrete_map={'toplam_randiman': '#1e3a8a', 'kayip': '#dc2626'}
+        )
+        
+        fig_hat.update_layout(height=400)
+        st.plotly_chart(fig_hat, use_container_width=True)
+        
+        st.divider()
+        
+        st.subheader("📅 Dönemsel Karşılaştırma")
+        
+        df_comp = df_filtered.copy()
+        df_comp['hafta'] = df_comp['tarih'].dt.isocalendar().week
+        df_comp['ay'] = df_comp['tarih'].dt.month
+        
+        col_c1, col_c2 = st.columns(2)
+        
+        with col_c1:
+            comp_type = st.radio("Karşılaştırma Türü", ["Haftalık", "Aylık"], horizontal=True)
+        
+        if comp_type == "Haftalık":
+            group_col = 'hafta'
+            title_suffix = "Hafta"
+        else:
+            group_col = 'ay'
+            title_suffix = "Ay"
+        
+        period_stats = df_comp.groupby(group_col).agg({
+            'kirilan_bugday': 'sum',
+            'toplam_randiman': 'mean'
+        }).reset_index()
+        
+        period_stats['kirilan_bugday'] = period_stats['kirilan_bugday'] / 1000
+        
+        fig_period = go.Figure()
+        
+        fig_period.add_trace(go.Bar(
+            x=period_stats[group_col],
+            y=period_stats['kirilan_bugday'],
+            name='Toplam Üretim (Ton)',
+            marker_color='#60a5fa',
+            yaxis='y'
+        ))
+        
+        fig_period.add_trace(go.Scatter(
+            x=period_stats[group_col],
+            y=period_stats['toplam_randiman'],
+            name='Ortalama Randıman (%)',
+            marker_color='#dc2626',
+            yaxis='y2',
+            mode='lines+markers',
+            line=dict(width=3)
+        ))
+        
+        fig_period.update_layout(
+            title=f'{title_suffix} Bazında Üretim ve Randıman',
+            xaxis_title=title_suffix,
+            yaxis=dict(title='Toplam Üretim (Ton)', side='left'),
+            yaxis2=dict(title='Randıman (%)', overlaying='y', side='right'),
+            height=400,
+            hovermode='x unified'
+        )
+        
+        st.plotly_chart(fig_period, use_container_width=True)
+        
+    except ImportError:
+        st.warning("📊 Grafik gösterimi için Plotly kütüphanesi gereklidir.")
+    
+    st.divider()
+    
+    st.subheader("🏆 Performans Sıralaması")
+    
+    col_top1, col_top2 = st.columns(2)
+    
+    with col_top1:
+        st.markdown("**🟢 En Yüksek Randıman (Top 5)**")
+        top_randiman = df_filtered.nlargest(5, 'toplam_randiman')[['tarih', 'uretim_hatti', 'toplam_randiman', 'vardiya']]
+        top_randiman['tarih'] = top_randiman['tarih'].dt.strftime('%d.%m.%Y')
+        top_randiman.columns = ['Tarih', 'Hat', 'Randıman (%)', 'Vardiya']
+        st.dataframe(top_randiman, use_container_width=True, hide_index=True)
+    
+    with col_top2:
+        st.markdown("**🔴 En Düşük Randıman (Bottom 5)**")
+        bottom_randiman = df_filtered.nsmallest(5, 'toplam_randiman')[['tarih', 'uretim_hatti', 'toplam_randiman', 'vardiya']]
+        bottom_randiman['tarih'] = bottom_randiman['tarih'].dt.strftime('%d.%m.%Y')
+        bottom_randiman.columns = ['Tarih', 'Hat', 'Randıman (%)', 'Vardiya']
+        st.dataframe(bottom_randiman, use_container_width=True, hide_index=True)
+
 def show_uretim_arsivi():
     """Üretim Arşivi - Geliştirilmiş Versiyon"""
     st.header("🗄️ Üretim Arşivi ve Raporlama")
@@ -166,7 +429,6 @@ def show_uretim_arsivi():
         st.info("📭 Henüz üretim kaydı bulunmamaktadır.")
         return
     
-    # ÖZET KARTLAR
     st.subheader("📊 Genel Özet")
     
     col_s1, col_s2, col_s3, col_s4 = st.columns(4)
@@ -189,13 +451,11 @@ def show_uretim_arsivi():
     
     st.divider()
     
-    # FİLTRELEME BÖLÜMÜ
     st.subheader("🔍 Filtreleme")
     
     col_f1, col_f2, col_f3 = st.columns(3)
     
     with col_f1:
-        # Tarih aralığı filtresi
         today = datetime.now().date()
         date_options = {
             "Bugün": (today, today),
@@ -211,7 +471,6 @@ def show_uretim_arsivi():
         start_date, end_date = date_options[date_filter]
     
     with col_f2:
-        # Üretim hattı filtresi
         if 'uretim_hatti' in df.columns:
             hat_list = ["Tümü"] + sorted(df['uretim_hatti'].unique().tolist())
             hat_filter = st.selectbox("Üretim Hattı", hat_list)
@@ -219,14 +478,12 @@ def show_uretim_arsivi():
             hat_filter = "Tümü"
     
     with col_f3:
-        # Vardiya filtresi
         if 'vardiya' in df.columns:
             vardiya_list = ["Tümü"] + sorted(df['vardiya'].unique().tolist())
             vardiya_filter = st.selectbox("Vardiya", vardiya_list)
         else:
             vardiya_filter = "Tümü"
     
-    # FİLTRELEMEYİ UYGULA
     filtered_df = df.copy()
     
     if start_date and end_date:
@@ -242,7 +499,6 @@ def show_uretim_arsivi():
     
     st.divider()
     
-    # TÜRKÇE KOLON BAŞLIKLARI
     column_mapping = {
         'tarih': 'Tarih',
         'uretim_hatti': 'Üretim Hattı',
@@ -264,10 +520,8 @@ def show_uretim_arsivi():
         'parti_no': 'Parti No'
     }
     
-    # Tabloyu Türkçeleştir
     display_df = filtered_df.rename(columns=column_mapping)
     
-    # Tarih formatını düzenle
     if 'Tarih' in display_df.columns:
         display_df['Tarih'] = display_df['Tarih'].dt.strftime('%d.%m.%Y %H:%M')
     
@@ -279,7 +533,6 @@ def show_uretim_arsivi():
     
     st.divider()
     
-    # EXCEL RAPORU
     def create_excel_report(df):
         try:
             import io
@@ -288,7 +541,6 @@ def show_uretim_arsivi():
             workbook = xlsxwriter.Workbook(output)
             worksheet = workbook.add_worksheet("Üretim Raporu")
             
-            # Formatlar
             header_format = workbook.add_format({
                 'bold': True,
                 'text_wrap': True,
@@ -302,18 +554,15 @@ def show_uretim_arsivi():
             number_format = workbook.add_format({'num_format': '#,##0.00'})
             date_format = workbook.add_format({'num_format': 'dd.mm.yyyy hh:mm'})
             
-            # Başlıkları yaz
             for col_num, value in enumerate(df.columns.values):
                 worksheet.write(0, col_num, value, header_format)
                 worksheet.set_column(col_num, col_num, 15)
             
-            # Verileri yaz
             for row_num, row_data in enumerate(df.values):
                 for col_num, value in enumerate(row_data):
                     if pd.isna(value):
                         value = ""
                     
-                    # Tarih kolonunu formatla
                     if col_num == 0 and isinstance(value, str):
                         worksheet.write(row_num + 1, col_num, value)
                     elif isinstance(value, (int, float)):
