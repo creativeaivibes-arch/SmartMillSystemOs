@@ -15,6 +15,12 @@ def init_session_state():
         st.session_state.pdf_bytes = None
     if 'pdf_dosya_adi' not in st.session_state:
         st.session_state.pdf_dosya_adi = None
+    
+    # ✅ DATABASE CACHE STATE (YENİ!)
+    if 'db_cache' not in st.session_state:
+        st.session_state.db_cache = {}
+    if 'db_cache_time' not in st.session_state:
+        st.session_state.db_cache_time = {}
 
 def turkce_karakter_duzelt(text):
     """Türkçe karakterleri düzelt"""
