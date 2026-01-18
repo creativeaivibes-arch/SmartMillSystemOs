@@ -1,7 +1,12 @@
 import streamlit as st
 from app.core.utils import init_session_state
 from app.core.auth import login_user, do_logout, show_profile_settings, ROLES
-from app.modules import dashboard, wheat, flour, production, reports # 'lab' modülü buradan çıkarıldı
+
+# Modülleri klasör bazlı değil, dosya bazlı direkt çağırıyoruz (Daha güvenli yöntem)
+import app.modules.dashboard as dashboard
+import app.modules.wheat as wheat
+import app.modules.flour as flour
+import app.modules.production as production
 
 # 1. Sayfa Ayarları ve Oturum Başlatma
 st.set_page_config(
@@ -16,7 +21,6 @@ init_session_state()
 # 2. Giriş Kontrolü
 if not st.session_state.get('logged_in', False):
     st.markdown("<h1 style='text-align: center;'>🏭 SmartMill System OS</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center;'>Lütfen devam etmek için giriş yapın.</p>", unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
@@ -27,21 +31,19 @@ if not st.session_state.get('logged_in', False):
             
             if submit:
                 if login_user(username, password):
-                    st.success("Giriş başarılı! Yönlendiriliyorsunuz...")
+                    st.success("Giriş başarılı!")
                     st.rerun()
                 else:
                     st.error("Hatalı kullanıcı adı veya şifre!")
     st.stop()
 
-# 3. Kenar Çubuğu (Sidebar) Menüsü
+# 3. Kenar Çubuğu Menüsü
 with st.sidebar:
     st.title("🏗️ SmartMill")
     st.write(f"Hoş geldin, **{st.session_state.user_fullname}**")
-    st.caption(f"Yetki: {ROLES.get(st.session_state.user_role, st.session_state.user_role)}")
     st.divider()
     
-    # Menü Seçenekleri
-    menu_options = [
+    choice = st.radio("Ana Menü", [
         "📊 Dashboard",
         "🌾 Buğday Kabul & Stok",
         "🧪 Laboratuvar (Un Analizleri)",
@@ -49,40 +51,30 @@ with st.sidebar:
         "🧮 Hesaplamalar & Maliyet",
         "👤 Profil Ayarları",
         "🚪 Çıkış Yap"
-    ]
-    
-    choice = st.radio("Ana Menü", menu_options)
+    ])
 
 # 4. Sayfa Yönlendirmeleri
 if choice == "📊 Dashboard":
     dashboard.show_dashboard()
 
 elif choice == "🌾 Buğday Kabul & Stok":
-    tab1, tab2 = st.tabs(["Kamyon Giriş Kaydı", "Silo Durumları"])
-    with tab1:
-        wheat.show_wheat_entry()
-    with tab2:
-        wheat.show_silo_status()
+    tab1, tab2 = st.tabs(["Kamyon Giriş", "Silo Durumları"])
+    with tab1: wheat.show_wheat_entry()
+    with tab2: wheat.show_silo_status()
 
 elif choice == "🧪 Laboratuvar (Un Analizleri)":
-    # Laboratuvar fonksiyonları artık flour.py modülü içinde çalışıyor
-    tab1, tab2, tab3 = st.tabs(["Un Analiz Kaydı", "Analiz Arşivi", "Spesifikasyon (Spec) Yönetimi"])
-    with tab1:
-        flour.show_un_analiz_kaydi()
-    with tab2:
-        flour.show_un_analiz_kayitlari()
-    with tab3:
-        flour.show_spec_yonetimi()
+    tab1, tab2, tab3 = st.tabs(["Un Analiz Kaydı", "Analiz Arşivi", "Spec Yönetimi"])
+    with tab1: flour.show_un_analiz_kaydi()
+    with tab2: flour.show_un_analiz_kayitlari()
+    with tab3: flour.show_spec_yonetimi()
 
 elif choice == "🏭 Üretim & Valsler":
     production.show_production_main()
 
 elif choice == "🧮 Hesaplamalar & Maliyet":
     tab1, tab2 = st.tabs(["Un Maliyet Hesaplama", "Maliyet Geçmişi"])
-    with tab1:
-        flour.show_un_maliyet_hesaplama()
-    with tab2:
-        flour.show_un_maliyet_gecmisi()
+    with tab1: flour.show_un_maliyet_hesaplama()
+    with tab2: flour.show_un_maliyet_gecmisi()
 
 elif choice == "👤 Profil Ayarları":
     show_profile_settings()
