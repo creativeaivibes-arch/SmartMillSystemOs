@@ -1,60 +1,58 @@
 import streamlit as st
-from streamlit_gsheets import GSheetsConnection
 import pandas as pd
-from datetime import datetime
-
-# --- AYARLAR ---
-TTL_SECONDS = 0 
+from streamlit_gsheets import GSheetsConnection
 
 def get_conn():
+    """Google Sheets bağlantısını kurar"""
+    try:
+        return st.connection("gsheets", type=GSheetsConnection)
+    except Exception as e:
+        st.error(f"Bağlantı Hatası: {str(e)}")
+        return None
+
+def init_db():
     """
-    Google Sheets bağlantısını kurar.
-    ÖZEL DÜZELTME: Private Key format hatasını otomatik giderir.
+    Main.py tarafından çağrılan başlatma fonksiyonu.
+    Google Sheets sisteminde tabloların varlığını kontrol eder.
     """
     try:
-        # 1. Secrets içindeki ham veriyi al (Hata vermemesi için try içinde)
-        if "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
-            secrets = st.secrets["connections"]["gsheets"]
-            
-            # 2. Private Key var mı bak
-            if "private_key" in secrets:
-                pk = secrets["private_key"]
-                # Eğer \n karakterleri "yazı" olarak geldiyse, onları gerçek satır başı yap
-                if "\\n" in pk:
-                    pk = pk.replace("\\n", "\n")
-                
-                # 3. Düzeltilmiş şifre ile bağlanmayı zorla
-                return st.connection("gsheets", type=GSheetsConnection, private_key=pk)
-    except Exception:
-        # Bir sorun olursa varsayılan yöntemi dene
+        # Bağlantıyı test et
+        conn = get_conn()
+        if conn:
+            # Örnek bir tabloyu çekerek bağlantıyı doğrula
+            conn.read(worksheet="kullanicilar", ttl=0)
+            return True
+    except:
+        # Tablo yoksa veya bağlantı kurulamazsa sessizce geç veya logla
         pass
+    return False
+
+def fetch_data(worksheet_name):
+    """Belirtilen sekmedeki tüm verileri çeker"""
+    try:
+        conn = get_conn()
+        if conn:
+            # ttl=0 verinin her seferinde güncel gelmesini sağlar
+            return conn.read(worksheet=worksheet_name, ttl=0)
+    except Exception as e:
+        st.error(f"Veri çekme hatası ({worksheet_name}): {str(e)}")
+    return pd.DataFrame()
+
+def add_data(worksheet_name, data_dict):
+    """Google Sheets'e yeni bir satır ekler"""
+    try:
+        conn = get_conn()
+        df = fetch_data(worksheet_name)
         
-    return st.connection("gsheets", type=GSheetsConnection)
-
-def fetch_data(sheet_name):
-    """Veri okuma"""
-    conn = get_conn()
-    try:
-        df = conn.read(worksheet=sheet_name, ttl=TTL_SECONDS)
-        if df is None: return pd.DataFrame()
-        return df
-    except Exception:
-        return pd.DataFrame()
-
-def add_data(sheet_name, data_dict):
-    """Veri ekleme"""
-    conn = get_conn()
-    try:
-        existing_data = fetch_data(sheet_name)
+        # Yeni veriyi DataFrame'e dönüştür
         new_row = pd.DataFrame([data_dict])
         
-        if existing_data.empty:
-            updated_data = new_row
-        else:
-            updated_data = pd.concat([existing_data, new_row], ignore_index=True)
-            
-        conn.update(worksheet=sheet_name, data=updated_data)
+        # Mevcut verinin altına ekle
+        updated_df = pd.concat([df, new_row], ignore_index=True)
+        
+        # Sayfayı güncelle
+        conn.update(worksheet=worksheet_name, data=updated_df)
         return True
     except Exception as e:
-        st.error(f"Kayıt eklenirken hata: {e}")
+        st.error(f"Veri ekleme hatası: {str(e)}")
         return False
