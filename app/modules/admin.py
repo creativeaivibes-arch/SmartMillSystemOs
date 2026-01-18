@@ -5,7 +5,7 @@ import time
 
 # --- GÜNCELLENMİŞ IMPORTLAR ---
 from app.core.database import fetch_data, add_data, get_conn
-from app.core.auth import ROLES, hash_password
+from app.core.auth import ROLES, hash_password, update_user_password
 
 # --- YEDEKLEME SİSTEMİ (Bulut Uyumlu) ---
 def show_backup_management():
@@ -105,7 +105,7 @@ def show_user_management():
                 else:
                     st.warning("⚠️ Kullanıcı adı ve şifre zorunludur!")
 
-    # 2. Kullanıcı Listesi ve Düzenleme
+    # 2. Kullanıcı Listesi
     st.write("### 📋 Mevcut Kullanıcılar")
     
     try:
@@ -121,14 +121,54 @@ def show_user_management():
                 hide_index=True
             )
             
-            # Not: GSheets üzerinde edit yapmak karmaşık olabileceği için 
-            # şimdilik sadece Ekleme ve Silme özelliklerini aktif tutuyoruz.
-            # İleride data_editor ile update eklenebilir.
-            
     except Exception as e:
         st.error(f"Kullanıcı listesi yüklenemedi: {e}")
+        users_df = pd.DataFrame()  # Boş DataFrame oluştur hata durumunda
 
-    # 3. Kullanıcı Silme
+    # 3. ŞİFRE SIFIRLAMA (YENİ EKLENEN BÖLÜM)
+    with st.expander("🔑 Kullanıcı Şifre Sıfırlama", expanded=False):
+        st.warning("⚠️ **Uyarı:** Bu bölüm unutulan şifreleri sıfırlamak içindir. Kullanıcıya yeni şifresini bildirmeyi unutmayın!")
+        
+        if not users_df.empty and 'kullanici_adi' in users_df.columns:
+            # Admin kendi şifresini buradan değiştiremez (güvenlik)
+            user_list = [u for u in users_df['kullanici_adi'].tolist() if u != st.session_state.get('username')]
+            
+            if not user_list:
+                st.info("Şifresi sıfırlanabilecek başka kullanıcı yok.")
+            else:
+                with st.form("reset_password_form"):
+                    col_r1, col_r2 = st.columns(2)
+                    
+                    with col_r1:
+                        user_to_reset = st.selectbox("Kullanıcı Seçin", user_list)
+                    
+                    with col_r2:
+                        new_temp_password = st.text_input("Yeni Geçici Şifre", type="password", 
+                                                          help="Kullanıcıya vereceğiniz geçici şifre")
+                    
+                    reset_btn = st.form_submit_button("Şifreyi Sıfırla", type="primary")
+                    
+                    if reset_btn:
+                        if not new_temp_password:
+                            st.error("❌ Lütfen yeni bir şifre girin!")
+                        elif len(new_temp_password) < 6:
+                            st.warning("⚠️ Şifre en az 6 karakter olmalıdır.")
+                        else:
+                            # Şifreyi sıfırla
+                            success, msg = update_user_password(user_to_reset, new_temp_password)
+                            
+                            if success:
+                                st.success(f"✅ **{user_to_reset}** kullanıcısının şifresi başarıyla sıfırlandı!")
+                                st.info(f"💡 Yeni geçici şifreyi kullanıcıya bildirin: `{new_temp_password}`")
+                                st.caption("Kullanıcı, giriş yaptıktan sonra 'Profil Ayarları' bölümünden kendi şifresini değiştirebilir.")
+                                time.sleep(2)
+                                st.rerun()
+                            else:
+                                st.error(f"❌ {msg}")
+        else:
+            st.info("Henüz kullanıcı kaydı bulunmuyor.")
+
+    # 4. Kullanıcı Silme
     with st.expander("🗑️ Kullanıcı Sil", expanded=False):
         if not users_df.empty and 'kullanici_adi' in users_df.columns:
             user_list = users_df['kullanici_adi'].tolist()
@@ -208,6 +248,7 @@ def show_silo_management():
                 st.warning("Tanımlı silo yok.")
         except:
             st.error("Veri alınamadı.")
+            silos_df = pd.DataFrame()
 
         # 3. Silo Silme
         with st.expander("🗑️ Buğday Silosu Sil"):
@@ -260,6 +301,7 @@ def show_silo_management():
                 st.info("Kayıt yok.")
         except:
             st.error("Veri okunamadı.")
+            df_un = pd.DataFrame()
             
         # 3. Silme
         with st.expander("🗑️ Un Silosu Sil"):
