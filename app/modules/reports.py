@@ -51,7 +51,7 @@ def create_silo_pdf_report(silo_name, silo_data, tavli_ortalamalari=None, kuru_o
         # Stiller
         styles = getSampleStyleSheet()
         
-        # Başlık stili - KOMPAKT
+        # Başlık stili
         title_style = ParagraphStyle(
             'CustomTitle',
             parent=styles['Heading1'],
@@ -59,20 +59,20 @@ def create_silo_pdf_report(silo_name, silo_data, tavli_ortalamalari=None, kuru_o
             fontSize=16,
             textColor=colors.HexColor('#0B4F6C'),
             alignment=1,
-            spaceAfter=8,
+            spaceAfter=6,
             spaceBefore=0
         )
         
-        # Alt başlık stili - KOMPAKT
+        # Alt başlık stili
         subtitle_style = ParagraphStyle(
             'CustomSubtitle',
             parent=styles['Heading2'],
             fontName='Helvetica-Bold',
-            fontSize=10,
+            fontSize=9,
             textColor=colors.HexColor('#1E2A3A'),
             alignment=0,
-            spaceAfter=4,
-            spaceBefore=6
+            spaceAfter=3,
+            spaceBefore=4
         )
         
         # Normal metin stili
@@ -94,7 +94,7 @@ def create_silo_pdf_report(silo_name, silo_data, tavli_ortalamalari=None, kuru_o
         silo_name_fixed = turkce_karakter_duzelt_pdf(silo_name)
         story.append(Paragraph(f"SILO KALITE KONTROL RAPORU", title_style))
         story.append(Paragraph(f"<b>{silo_name_fixed}</b> | {datetime.now().strftime('%d/%m/%Y %H:%M')}", normal_style))
-        story.append(Spacer(1, 6))
+        story.append(Spacer(1, 4))
         
         # ========== GENEL BİLGİLER + KURU BUGDAY (YAN YANA 2 KOLON) ==========
         col_data = []
@@ -145,82 +145,65 @@ Tavli Stok: {float(silo_data.get('tavli_bugday_stok', 0)):,.1f} Ton"""
             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
             ('LEFTPADDING', (0, 0), (-1, -1), 6),
             ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-            ('TOPPADDING', (0, 0), (-1, -1), 6),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
             ('BOX', (0, 0), (-1, -1), 0.5, colors.grey),
         ]))
         
         story.append(col_table)
-        story.append(Spacer(1, 6))
+        story.append(Spacer(1, 5))
         
-        # ========== TAVLI BUGDAY ANALIZLERI ==========
+        # ========== TAVLI BUGDAY ANALIZLERI - 3 AYRI BÖLÜM ==========
         if tavli_ortalamalari and tavli_ortalamalari.get('toplam_tonaj', 0) > 0:
             
             story.append(Paragraph("TAVLI BUGDAY ANALIZ SONUCLARI", subtitle_style))
             
-            # BASIT TABLO YAKLAŞIMI - Tüm parametreleri tek tabloda göster
-            tavli_data = []
+            # ===== 1. KİMYASAL ANALİZLER =====
+            kimya_data = []
+            kimya_data.append(['KIMYASAL ANALIZLER', '', '', ''])
             
-            # Başlık
-            tavli_data.append([
-                'Parametre', 'Deger', 'Parametre', 'Deger'
-            ])
-            
-            # Tüm parametreleri topla
-            all_params = [
+            kimya_params = [
                 ('protein', 'Protein', '%.1f%%'),
                 ('rutubet', 'Rutubet', '%.1f%%'),
                 ('gluten', 'Gluten', '%.1f%%'),
-                ('gluten_index', 'G.Index', '%.0f'),
-                ('sedim', 'Sedim', '%.1f ml'),
-                ('g_sedim', 'G.Sedim', '%.1f ml'),
-                ('fn', 'F.N', '%.0f'),
+                ('gluten_index', 'Gluten Index', '%.0f'),
+                ('sedim', 'Sedimantasyon', '%.1f ml'),
+                ('g_sedim', 'Gec. Sedim', '%.1f ml'),
+                ('fn', 'Falling Number', '%.0f'),
                 ('ffn', 'F.F.N', '%.0f'),
-                ('su_kaldirma_f', 'Su K.(F)', '%.1f%%'),
-                ('gelisme_suresi', 'Gelisme', '%.1f dk'),
-                ('stabilite', 'Stabilite', '%.1f dk'),
-                ('yumusama', 'Yumusama', '%.0f FU'),
-                ('su_kaldirma_e', 'Su K.(E)', '%.1f%%'),
-                ('enerji45', 'Enerji 45', '%.0f'),
-                ('direnc45', 'Direnc 45', '%.0f'),
-                ('taban45', 'Taban 45', '%.0f'),
-                ('enerji90', 'Enerji 90', '%.0f'),
-                ('direnc90', 'Direnc 90', '%.0f'),
-                ('taban90', 'Taban 90', '%.0f'),
-                ('enerji135', 'Enerji 135', '%.0f'),
-                ('direnc135', 'Direnc 135', '%.0f'),
-                ('taban135', 'Taban 135', '%.0f'),
+                ('kul', 'Kul', '%.2f%%'),
+                ('amilograph', 'Amilograph', '%.0f'),
             ]
             
-            # Sadece dolu parametreleri al
-            filled_params = []
-            for param_key, param_label, param_format in all_params:
+            kimya_filled = []
+            for param_key, param_label, param_format in kimya_params:
                 if tavli_ortalamalari.get(param_key, 0) > 0:
                     value = param_format % tavli_ortalamalari[param_key]
-                    filled_params.append((param_label, value))
+                    kimya_filled.append((param_label, value))
             
-            # 2'li gruplar halinde düzenle
-            for i in range(0, len(filled_params), 2):
+            # 4 kolonlu düzen (2 parametre yan yana)
+            for i in range(0, len(kimya_filled), 2):
                 row = []
                 for j in range(2):
-                    if i + j < len(filled_params):
-                        param_label, param_value = filled_params[i + j]
+                    if i + j < len(kimya_filled):
+                        param_label, param_value = kimya_filled[i + j]
                         row.extend([param_label, param_value])
                     else:
                         row.extend(['', ''])
-                tavli_data.append(row)
+                kimya_data.append(row)
             
-            if len(tavli_data) > 1:
-                tavli_table = Table(tavli_data, colWidths=[45*mm, 45*mm, 45*mm, 45*mm])
-                tavli_table.setStyle(TableStyle([
+            if len(kimya_data) > 1:
+                kimya_table = Table(kimya_data, colWidths=[45*mm, 45*mm, 45*mm, 45*mm])
+                kimya_table.setStyle(TableStyle([
                     # Başlık satırı
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0B4F6C')),
-                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-                    ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
-                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                    ('FONTSIZE', (0, 0), (-1, 0), 8),
-                    ('BOTTOMPADDING', (0, 0), (-1, 0), 4),
-                    ('TOPPADDING', (0, 0), (-1, 0), 4),
+                    ('SPAN', (0, 0), (3, 0)),
+                    ('BACKGROUND', (0, 0), (3, 0), colors.HexColor('#0B4F6C')),
+                    ('TEXTCOLOR', (0, 0), (3, 0), colors.white),
+                    ('ALIGN', (0, 0), (3, 0), 'CENTER'),
+                    ('FONTNAME', (0, 0), (3, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (3, 0), 8),
+                    ('BOTTOMPADDING', (0, 0), (3, 0), 3),
+                    ('TOPPADDING', (0, 0), (3, 0), 3),
                     
                     # Veri satırları
                     ('FONTSIZE', (0, 1), (-1, -1), 7),
@@ -229,20 +212,131 @@ Tavli Stok: {float(silo_data.get('tavli_bugday_stok', 0)):,.1f} Ton"""
                     ('ALIGN', (0, 1), (-2, -1), 'LEFT'),
                     ('ALIGN', (1, 1), (-1, -1), 'CENTER'),
                     ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
-                    ('TOPPADDING', (0, 1), (-1, -1), 3),
-                    ('BOTTOMPADDING', (0, 1), (-1, -1), 3),
-                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F0F7FF')]),
+                    ('TOPPADDING', (0, 1), (-1, -1), 2),
+                    ('BOTTOMPADDING', (0, 1), (-1, -1), 2),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8F9FA')]),
                 ]))
+                story.append(kimya_table)
+                story.append(Spacer(1, 4))
+            
+            # ===== 2. FARINOGRAPH ANALİZLERİ =====
+            farino_params = [
+                ('su_kaldirma_f', 'Su Kaldirma', '%.1f%%'),
+                ('gelisme_suresi', 'Gelisme Suresi', '%.1f dk'),
+                ('stabilite', 'Stabilite', '%.1f dk'),
+                ('yumusama', 'Yumusama Derecesi', '%.0f FU'),
+            ]
+            
+            farino_filled = []
+            for param_key, param_label, param_format in farino_params:
+                if tavli_ortalamalari.get(param_key, 0) > 0:
+                    value = param_format % tavli_ortalamalari[param_key]
+                    farino_filled.append((param_label, value))
+            
+            if farino_filled:
+                farino_data = []
+                farino_data.append(['FARINOGRAPH ANALIZLERI', '', '', ''])
                 
-                story.append(tavli_table)
-            else:
-                story.append(Paragraph("Analiz verisi bulunamadi.", normal_style))
+                for i in range(0, len(farino_filled), 2):
+                    row = []
+                    for j in range(2):
+                        if i + j < len(farino_filled):
+                            param_label, param_value = farino_filled[i + j]
+                            row.extend([param_label, param_value])
+                        else:
+                            row.extend(['', ''])
+                    farino_data.append(row)
+                
+                farino_table = Table(farino_data, colWidths=[45*mm, 45*mm, 45*mm, 45*mm])
+                farino_table.setStyle(TableStyle([
+                    # Başlık satırı
+                    ('SPAN', (0, 0), (3, 0)),
+                    ('BACKGROUND', (0, 0), (3, 0), colors.HexColor('#E67E22')),
+                    ('TEXTCOLOR', (0, 0), (3, 0), colors.white),
+                    ('ALIGN', (0, 0), (3, 0), 'CENTER'),
+                    ('FONTNAME', (0, 0), (3, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (3, 0), 8),
+                    ('BOTTOMPADDING', (0, 0), (3, 0), 3),
+                    ('TOPPADDING', (0, 0), (3, 0), 3),
+                    
+                    # Veri satırları
+                    ('FONTSIZE', (0, 1), (-1, -1), 7),
+                    ('FONTNAME', (0, 1), (-2, -1), 'Helvetica-Bold'),
+                    ('FONTNAME', (1, 1), (-1, -1), 'Helvetica'),
+                    ('ALIGN', (0, 1), (-2, -1), 'LEFT'),
+                    ('ALIGN', (1, 1), (-1, -1), 'CENTER'),
+                    ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
+                    ('TOPPADDING', (0, 1), (-1, -1), 2),
+                    ('BOTTOMPADDING', (0, 1), (-1, -1), 2),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#FFF3E0')]),
+                ]))
+                story.append(farino_table)
+                story.append(Spacer(1, 4))
+            
+            # ===== 3. EXTENSOGRAPH ANALİZLERİ =====
+            extenso_params = [
+                ('su_kaldirma_e', 'Su Kaldirma (E)', '%.1f%%'),
+                ('enerji45', 'Enerji 45 dk', '%.0f'),
+                ('direnc45', 'Direnc 45 dk', '%.0f'),
+                ('taban45', 'Taban 45 dk', '%.0f'),
+                ('enerji90', 'Enerji 90 dk', '%.0f'),
+                ('direnc90', 'Direnc 90 dk', '%.0f'),
+                ('taban90', 'Taban 90 dk', '%.0f'),
+                ('enerji135', 'Enerji 135 dk', '%.0f'),
+                ('direnc135', 'Direnc 135 dk', '%.0f'),
+                ('taban135', 'Taban 135 dk', '%.0f'),
+            ]
+            
+            extenso_filled = []
+            for param_key, param_label, param_format in extenso_params:
+                if tavli_ortalamalari.get(param_key, 0) > 0:
+                    value = param_format % tavli_ortalamalari[param_key]
+                    extenso_filled.append((param_label, value))
+            
+            if extenso_filled:
+                extenso_data = []
+                extenso_data.append(['EXTENSOGRAPH ANALIZLERI', '', '', ''])
+                
+                for i in range(0, len(extenso_filled), 2):
+                    row = []
+                    for j in range(2):
+                        if i + j < len(extenso_filled):
+                            param_label, param_value = extenso_filled[i + j]
+                            row.extend([param_label, param_value])
+                        else:
+                            row.extend(['', ''])
+                    extenso_data.append(row)
+                
+                extenso_table = Table(extenso_data, colWidths=[45*mm, 45*mm, 45*mm, 45*mm])
+                extenso_table.setStyle(TableStyle([
+                    # Başlık satırı
+                    ('SPAN', (0, 0), (3, 0)),
+                    ('BACKGROUND', (0, 0), (3, 0), colors.HexColor('#27AE60')),
+                    ('TEXTCOLOR', (0, 0), (3, 0), colors.white),
+                    ('ALIGN', (0, 0), (3, 0), 'CENTER'),
+                    ('FONTNAME', (0, 0), (3, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (3, 0), 8),
+                    ('BOTTOMPADDING', (0, 0), (3, 0), 3),
+                    ('TOPPADDING', (0, 0), (3, 0), 3),
+                    
+                    # Veri satırları
+                    ('FONTSIZE', (0, 1), (-1, -1), 7),
+                    ('FONTNAME', (0, 1), (-2, -1), 'Helvetica-Bold'),
+                    ('FONTNAME', (1, 1), (-1, -1), 'Helvetica'),
+                    ('ALIGN', (0, 1), (-2, -1), 'LEFT'),
+                    ('ALIGN', (1, 1), (-1, -1), 'CENTER'),
+                    ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
+                    ('TOPPADDING', (0, 1), (-1, -1), 2),
+                    ('BOTTOMPADDING', (0, 1), (-1, -1), 2),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#E8F8F5')]),
+                ]))
+                story.append(extenso_table)
         else:
             story.append(Paragraph("TAVLI BUGDAY ANALIZ SONUCLARI", subtitle_style))
             story.append(Paragraph("Bu silo icin henuz tavli bugday analiz kaydi bulunmamaktadir.", normal_style))
         
         # ALT BİLGİ
-        story.append(Spacer(1, 8))
+        story.append(Spacer(1, 6))
         story.append(HRFlowable(width="100%", thickness=0.5, color=colors.grey))
         
         footer_style = ParagraphStyle(
@@ -1016,6 +1110,7 @@ def download_styled_excel(df, filename, sheet_name="Rapor"):
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True
     )
+
 
 
 
