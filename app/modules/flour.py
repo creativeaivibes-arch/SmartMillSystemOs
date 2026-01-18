@@ -5,117 +5,81 @@ from datetime import datetime
 import plotly.express as px
 import plotly.graph_objects as go
 
-# --- DATABASE VE CORE IMPORTLARI ---
 from app.core.database import fetch_data, add_data, get_conn
 from app.core.utils import turkce_karakter_duzelt
 from app.core.config import INPUT_LIMITS, TERMS, get_limit
 
-# Raporlama modülü (Hata önleyici import)
 try:
     from app.modules.reports import create_un_maliyet_pdf_report, download_styled_excel
 except ImportError:
     def create_un_maliyet_pdf_report(*args): return None
     def download_styled_excel(*args): pass
 
-# -----------------------------------------------------------------------------
-# 0. YENİ: MALİYET GEÇMİŞİ ÇEKME FONKSİYONU (STRATEGY İÇİN GEREKLİ)
-# -----------------------------------------------------------------------------
-
 def get_un_maliyet_gecmisi():
-    """Maliyet geçmişini tarihe göre sıralı şekilde döndürür"""
+    """Maliyet geçmişini döndür"""
     df = fetch_data("un_maliyet_hesaplamalari")
     if df.empty:
         return pd.DataFrame()
-    
-    # Tarih dönüşümü ve sıralama
     if 'tarih' in df.columns:
         df['tarih'] = pd.to_datetime(df['tarih'], errors='coerce')
         df = df.sort_values('tarih', ascending=False)
-    
     return df
 
-# -----------------------------------------------------------------------------
-# 1. SPESİFİKASYON (SPEC) YÖNETİMİ
-# -----------------------------------------------------------------------------
-
 def save_spec(un_cinsi, parametre, min_val, max_val, hedef_val, tolerans):
-    """Spesifikasyon kaydet/güncelle (Google Sheets)"""
     try:
         conn = get_conn()
         df = fetch_data("un_spekleri")
-        
-        # Yeni kayıt verisi
         new_row = {
             'un_cinsi': un_cinsi, 'parametre': parametre, 
             'min_deger': float(min_val), 'max_deger': float(max_val), 
             'hedef_deger': float(hedef_val), 'tolerans': float(tolerans), 'aktif': 1
         }
-        
         if df.empty:
             return add_data("un_spekleri", new_row)
-        
-        # Var mı kontrol et (Un Cinsi + Parametre eşleşmesi)
         mask = (df['un_cinsi'] == un_cinsi) & (df['parametre'] == parametre)
-        
         if mask.any():
-            # Güncelle
             df.loc[mask, ['min_deger', 'max_deger', 'hedef_deger', 'tolerans', 'aktif']] = \
                 [float(min_val), float(max_val), float(hedef_val), float(tolerans), 1]
             conn.update(worksheet="un_spekleri", data=df)
             return True
         else:
-            # Ekle
             return add_data("un_spekleri", new_row)
-            
     except Exception as e:
         st.error(f"Kayıt Hatası: {e}")
         return False
 
 def delete_spec_group(un_cinsi):
-    """Bir un cinsine ait tüm spekleri sil"""
     try:
         conn = get_conn()
         df = fetch_data("un_spekleri")
         if df.empty: return True
-        
-        # Silinecek olanlar dışındakileri tut
         df_new = df[df['un_cinsi'] != un_cinsi]
         conn.update(worksheet="un_spekleri", data=df_new)
         return True
     except: return False
 
 def get_all_specs_dataframe():
-    """Tüm spekleri rapor için çek"""
     df = fetch_data("un_spekleri")
     if df.empty: return pd.DataFrame()
-    
-    # Kolon isimlendirme (Görsel uyum için)
     return df.rename(columns={
         'un_cinsi': 'Un Cinsi', 'parametre': 'Parametre',
         'min_deger': 'Min', 'hedef_deger': 'Hedef', 'max_deger': 'Max'
     })
 
 def show_spec_yonetimi():
-    """Un Kalite Spesifikasyon Yönetimi (Tam Kapsamlı)"""
     st.markdown("### 🎯 Un Kalite Spesifikasyonları (Spec)")
-    
-    # 1. Un Cinsi Listesini Hazırla
     df_analiz = fetch_data("un_analizleri")
     df_spek = fetch_data("un_spekleri")
-    
     un_listesi = set()
     if not df_analiz.empty and 'un_cinsi_marka' in df_analiz.columns:
         un_listesi.update(df_analiz['un_cinsi_marka'].dropna().unique())
     if not df_spek.empty and 'un_cinsi' in df_spek.columns:
         un_listesi.update(df_spek['un_cinsi'].dropna().unique())
-        
     all_types = sorted(list(un_listesi))
 
-    # Üst Bar: Seçim
     col_sel, col_add = st.columns([2, 1])
     with col_sel:
         secilen_urun = st.selectbox("Düzenlenecek Un Cinsini Seçiniz", ["(Seçiniz/Yeni Ekle)"] + all_types)
-    
     if secilen_urun == "(Seçiniz/Yeni Ekle)":
         with col_add:
             yeni_isim = st.text_input("➕ Yeni Un Tanımla", placeholder="Örn: Tam Buğday Unu").strip()
@@ -131,15 +95,12 @@ def show_spec_yonetimi():
         return
 
     st.divider()
-    
-    # Mevcut Spekleri Çek (Dictionary Formatına Çevir)
     current_specs = {}
     if not df_spek.empty:
         df_filtered = df_spek[df_spek['un_cinsi'] == secilen_urun]
         for _, row in df_filtered.iterrows():
             current_specs[row['parametre']] = row
 
-    # --- Orijinal Kodundaki Parametre Grupları ---
     param_groups = {
         "Kimyasal Analizler": [
             ("protein", "Protein (%)"), ("rutubet", "Rutubet (%)"), ("kul", "Kül (%)"),
@@ -160,13 +121,10 @@ def show_spec_yonetimi():
         ]
     }
 
-    # --- DÜZENLEME FORMU ---
     st.markdown(f"### 🛠️ Düzenleme: {secilen_urun}")
-    
     with st.form("spec_editor_comprehensive"):
         tabs = st.tabs(list(param_groups.keys()))
-        input_keys = [] 
-        
+        input_keys = []
         for idx, (group_name, params) in enumerate(param_groups.items()):
             with tabs[idx]:
                 for p_key, p_label in params:
@@ -174,15 +132,12 @@ def show_spec_yonetimi():
                     val_min = float(cur.get('min_deger', 0.0))
                     val_tgt = float(cur.get('hedef_deger', 0.0))
                     val_max = float(cur.get('max_deger', 0.0))
-                    
                     c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
                     with c1: st.markdown(f"**{p_label}**")
                     with c2: st.number_input("Min", value=val_min, key=f"min_{p_key}", step=0.1, format="%.2f", label_visibility="collapsed")
                     with c3: st.number_input("Hedef", value=val_tgt, key=f"tgt_{p_key}", step=0.1, format="%.2f", label_visibility="collapsed")
                     with c4: st.number_input("Max", value=val_max, key=f"max_{p_key}", step=0.1, format="%.2f", label_visibility="collapsed")
-                    
                     input_keys.append(p_key)
-        
         st.divider()
         if st.form_submit_button("💾 Kaydet / Güncelle", type="primary", use_container_width=True):
             saved_count = 0
@@ -190,11 +145,9 @@ def show_spec_yonetimi():
                 s_min = st.session_state.get(f"min_{p_key}", 0.0)
                 s_tgt = st.session_state.get(f"tgt_{p_key}", 0.0)
                 s_max = st.session_state.get(f"max_{p_key}", 0.0)
-                
                 if s_min > 0 or s_tgt > 0 or s_max > 0:
                     if save_spec(secilen_urun, p_key, s_min, s_max, s_tgt, 0):
                         saved_count += 1
-            
             if saved_count > 0:
                 st.success(f"✅ {saved_count} parametre güncellendi.")
                 time.sleep(1)
@@ -202,18 +155,15 @@ def show_spec_yonetimi():
             else:
                 st.warning("⚠️ Değer girilmedi.")
 
-    # --- ÖZET VE SİLME ---
     st.divider()
     col_h, col_d = st.columns([3, 1])
     col_h.subheader(f"📋 '{secilen_urun}' Tanımlı Spekleri")
-    
     if st.session_state.get("user_role") == "admin":
         if col_d.button("🗑️ Bu Tanımı Sil", key="del_spec_main", type="secondary"):
             if delete_spec_group(secilen_urun):
                 st.success("Silindi!")
                 time.sleep(1)
                 st.rerun()
-    
     if not df_spek.empty:
         df_view = df_spek[df_spek['un_cinsi'] == secilen_urun][['parametre', 'min_deger', 'hedef_deger', 'max_deger']]
         if not df_view.empty:
@@ -221,27 +171,18 @@ def show_spec_yonetimi():
         else:
             st.info("Kayıtlı değer yok.")
 
-# -----------------------------------------------------------------------------
-# 2. ANALİZ KAYDI (GÜVENLİ VE TAM SÜRÜM)
-# -----------------------------------------------------------------------------
-
 def save_un_analiz(lot_no, islem_tipi, **analiz_degerleri):
-    """Un analizini kaydet - Google Sheets"""
     try:
-        # Lot kontrolü
         df_check = fetch_data("un_analizleri")
         if not df_check.empty and 'lot_no' in df_check.columns:
             if lot_no in df_check['lot_no'].values:
                 return False, f"Bu lot numarası zaten kayıtlı: {lot_no}"
-
-        # Veri Paketi Hazırla
         data = {
             'lot_no': str(lot_no),
             'islem_tipi': islem_tipi,
             'tarih': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            **analiz_degerleri # Tüm dinamik parametreleri ekle
+            **analiz_degerleri
         }
-        
         if add_data("un_analizleri", data):
             return True, "Kayıt Başarılı"
         return False, "Kayıt Başarısız"
@@ -249,44 +190,33 @@ def save_un_analiz(lot_no, islem_tipi, **analiz_degerleri):
         return False, f"Hata: {str(e)}"
 
 def show_un_analiz_kaydi():
-    """Un Analiz Kaydı (Orijinal Kodundaki Tüm Alanlar Korundu)"""
-    
     if st.session_state.get('user_role') not in ["admin", "operations"]:
         st.warning("⛔ Yetkisiz Erişim")
         return
-        
     st.header("📝 Un Analiz Kaydı")
     col1, col2 = st.columns([1, 1], gap="large")
-    
     with col1:
         st.subheader("📋 Numune Bilgileri")
         auto_lot = f"UN-{datetime.now().strftime('%y%m%d%H%M%S')}"
         st.info(f"**Otomatik Lot:** `{auto_lot}`")
-        
         lot_no = st.text_input("Lot Numarası *", value=auto_lot)
         analiz_tarihi = st.date_input("Analiz Tarihi", datetime.now())
         islem_tipi = st.selectbox("İşlem Tipi *", ["ÜRETİM", "SEVKİYAT", "NUMUNE", "ŞİKAYET", "İADE"])
         un_markasi = st.text_input("Un Markası (Ticari)", placeholder="Örn: Pırlanta")
-        
-        # Un Cinsi Seçimi
         df_spek = fetch_data("un_spekleri")
         if not df_spek.empty:
             type_list = sorted(df_spek['un_cinsi'].unique().tolist())
         else:
             type_list = []
-            
         c_sel, c_new = st.columns([2, 1])
         with c_sel:
             selected_type = st.selectbox("Un Cinsi (Spec) *", ["(Seçiniz)"] + type_list + ["(Yeni)"])
-        
         if selected_type == "(Yeni)":
             un_cinsi_marka = c_new.text_input("Yeni Cins").strip()
         elif selected_type != "(Seçiniz)":
             un_cinsi_marka = selected_type
         else:
             un_cinsi_marka = ""
-
-        # Üretim Silosu Yönetimi (Google Sheets Uyumlu)
         uretim_silosu = None
         if islem_tipi == "ÜRETİM":
             df_silo = fetch_data("uretim_silolari")
@@ -295,20 +225,14 @@ def show_un_analiz_kaydi():
                 uretim_silosu = st.selectbox("Üretim Silosu *", silo_list)
             else:
                 st.warning("Tanımlı üretim silosu yok.")
-                
         notlar = st.text_area("Notlar")
-    
     with col2:
         st.subheader("🧪 Analiz Değerleri")
-        
-        # Spec Kontrolü için Veri Çekme
         current_specs = {}
         if un_cinsi_marka and not df_spek.empty:
             df_s = df_spek[df_spek['un_cinsi'] == un_cinsi_marka]
             for _, row in df_s.iterrows():
                 current_specs[row['parametre']] = row
-
-        # Validasyon Fonksiyonu
         def validate_input(key, label, val):
             if key in current_specs:
                 spec = current_specs[key]
@@ -317,9 +241,6 @@ def show_un_analiz_kaydi():
                 if val < s_min or (s_max > 0 and val > s_max):
                     st.error(f"❌ Limit Dışı!")
             return val
-
-        # --- ORİJİNAL EXPANDER YAPISI ---
-        
         with st.expander("🧪 KİMYASAL ANALİZLER (Zorunlu)", expanded=True):
             k1, k2 = st.columns(2)
             with k1:
@@ -332,7 +253,6 @@ def show_un_analiz_kaydi():
                 g_sedim = validate_input("gecikmeli_sedim", "G.Sedim", st.number_input("Gecikmeli Sedim", 0.0, 100.0, 50.0, 1.0))
                 fn = validate_input("fn", "FN", st.number_input("Düşme Sayısı (FN)", 0.0, 999.0, 350.0, 1.0))
                 ffn = st.number_input("F.F.N", 0.0, 999.0, 380.0, 1.0)
-
         with st.expander("🔬 DİĞER KİMYASAL ANALİZLER", expanded=False):
             k3, k4 = st.columns(2)
             with k3:
@@ -340,7 +260,6 @@ def show_un_analiz_kaydi():
                 nisasta = st.number_input("Nişasta Zedelenmesi", 0.0, value=15.0)
             with k4:
                 kul = validate_input("kul", "Kül", st.number_input("Kül (%)", 0.0, value=0.720, step=0.001, format="%.3f"))
-
         with st.expander("📈 FARINOGRAPH ANALİZLERİ", expanded=False):
             f1, f2 = st.columns(2)
             with f1:
@@ -349,39 +268,28 @@ def show_un_analiz_kaydi():
             with f2:
                 f_stab = st.number_input("Stabilite (dk)", 0.0, value=2.3)
                 f_yumus = st.number_input("Yumuşama (FU)", 0.0, value=100.0)
-
         with st.expander("📊 EXTENSOGRAPH ANALİZLERİ (Detaylı)", expanded=False):
-            st.info("Bu veriler senin orijinal kodundan korunmuştur.")
-            # 45 dk
             st.write("**45. Dakika:**")
             e1, e2, e3 = st.columns(3)
             e45_d = e1.number_input("Direnç (45)", value=610.0)
             e45_t = e2.number_input("Taban (45)", value=165.0)
             e45_e = e3.number_input("Enerji (45)", value=110.0)
-            
-            # 90 dk
             st.write("**90. Dakika:**")
             e1, e2, e3 = st.columns(3)
             e90_d = e1.number_input("Direnç (90)", value=900.0)
             e90_t = e2.number_input("Taban (90)", value=125.0)
             e90_e = e3.number_input("Enerji (90)", value=120.0)
-            
-            # 135 dk
             st.write("**135. Dakika:**")
             e1, e2, e3 = st.columns(3)
             e135_d = e1.number_input("Direnç (135)", value=980.0)
             e135_t = e2.number_input("Taban (135)", value=120.0)
             e135_e = e3.number_input("Enerji (135)", value=126.0)
-            
             su_e = st.number_input("Su Kaldırma (Extenso) (%)", value=54.3)
-
-    # --- KAYDET ---
     st.divider()
     if st.button("✅ Un Analizini Kaydet", type="primary", use_container_width=True):
         if not lot_no or not un_cinsi_marka:
             st.error("Lot No ve Un Cinsi zorunludur.")
             return
-            
         analiz_data = {
             'un_cinsi_marka': un_cinsi_marka, 'un_markasi': un_markasi, 'uretim_silosu': uretim_silosu,
             'protein': protein, 'rutubet': rutubet, 'gluten': gluten, 'gluten_index': gluten_index,
@@ -394,7 +302,6 @@ def show_un_analiz_kaydi():
             'direnc135': e135_d, 'taban135': e135_t, 'enerji135': e135_e,
             'notlar': notlar
         }
-        
         ok, msg = save_un_analiz(lot_no, islem_tipi, **analiz_data)
         if ok:
             st.success("✅ Kayıt Başarılı!")
@@ -403,26 +310,17 @@ def show_un_analiz_kaydi():
         else:
             st.error(f"❌ {msg}")
 
-# -----------------------------------------------------------------------------
-# 3. ANALİZ ARŞİVİ (GELİŞTİRİLMİŞ VERSİYON)
-# -----------------------------------------------------------------------------
-
 def show_un_analiz_kayitlari():
-    """Un Analiz Arşivi - Dashboard Tasarımı"""
     st.header("📚 Un Analiz Kayıtları")
     df = fetch_data("un_analizleri")
-    
     if df.empty:
         st.info("📭 Henüz kayıtlı analiz bulunmamaktadır.")
         return
-
-    # --- Üretim Silosu Yönetimi (Expander) ---
     if st.session_state.get('user_role') in ["admin", "operations"]:
         with st.expander("⚙️ Üretim Siloları Yönetimi", expanded=False):
             df_silo = fetch_data("uretim_silolari")
             if not df_silo.empty:
                 st.dataframe(df_silo[['silo_adi']], use_container_width=True, hide_index=True)
-            
             c1, c2 = st.columns([2, 1])
             yeni_silo = c1.text_input("Yeni Silo Adı", key="new_silo_name")
             if c2.button("➕ Ekle", key="add_silo_btn"):
@@ -431,21 +329,249 @@ def show_un_analiz_kayitlari():
                     st.success("Eklendi")
                     time.sleep(0.5)
                     st.rerun()
-
-    # --- TABLO GÖSTERİMİ ---
     st.subheader(f"📊 Toplam Kayıt: {len(df)}")
-    
-    # Tarih Dönüşümü (Güvenli)
     if 'tarih' in df.columns:
         df['tarih'] = pd.to_datetime(df['tarih'], errors='coerce')
         df = df.sort_values('tarih', ascending=False)
         df['DisplayTarih'] = df['tarih'].dt.strftime('%d/%m/%Y')
-    
-    # Sütun seçimi
     cols = ['DisplayTarih', 'lot_no', 'islem_tipi', 'un_cinsi_marka', 'protein', 'gluten', 'sedim', 'kul']
     cols = [c for c in cols if c in df.columns]
-    
     st.dataframe(df[cols], use_container_width=True, hide_index=True, height=400)
+    st.divider()
+    if st.button("📥 Excel Olarak İndir"):
+        filename = f"un_analiz_{datetime.now().strftime('%Y%m%d')}.xlsx"
+        download_styled_excel(df, filename, "Un Analizleri")
+
+def save_un_maliyet(data):
+    try:
+        data['tarih'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        data['kullanici'] = st.session_state.get('username', 'Sistem')
+        return add_data("un_maliyet_hesaplamalari", data)
+    except: return False
+def show_un_maliyet_hesaplama():
+    """Un Maliyet Hesaplama - Orijinal Mantık"""
+    st.header("🧮 Un Maliyet Hesaplama")
+    
+    col1, col2, col3 = st.columns(3, gap="medium")
+    
+    with col1:
+        st.markdown("#### 📋 TEMEL BİLGİLER")
+        un_cesidi = st.text_input("Un Çeşidi", value="Ekmeklik")
+        bugday_maliyet = st.number_input("Buğday Paçal (TL/KG)", value=14.60)
+        aylik_kirilan = st.number_input("Aylık Kırılan (Ton)", value=3000.0)
+        randiman = st.number_input("Randıman (%)", value=70.0)
+        satis_fiyati = st.number_input("Satış Fiyatı (50kg)", value=980.00)
+        belge = st.number_input("Belge Geliri", value=0.0)
+
+    with col2:
+        st.markdown("#### 📊 ORANLAR & FİYATLAR")
+        c1, c2 = st.columns(2)
+        with c1:
+            r_un2 = st.number_input("2. Un %", value=7.0)
+            r_bon = st.number_input("Bongalite %", value=1.5)
+            r_kep = st.number_input("Kepek %", value=9.0)
+            r_raz = st.number_input("Razmol %", value=11.0)
+        with c2:
+            p_un2 = st.number_input("2. Un TL", value=17.00)
+            p_bon = st.number_input("Bon. TL", value=11.60)
+            p_kep = st.number_input("Kepek TL", value=8.90)
+            p_raz = st.number_input("Razmol TL", value=9.10)
+            
+        st.markdown("#### 🌾 EK GELİR")
+        ek_ton = st.number_input("Kırık/Başak (Kg)", value=0.0)
+        ek_fiyat = st.number_input("Ek Gelir (TL)", value=0.0)
+
+    with col3:
+        st.markdown("#### 🏢 GİDERLER")
+        g_personel = st.number_input("Personel", value=1200000.0)
+        g_bakim = st.number_input("Bakım", value=100000.0)
+        g_elektrik_birim = st.number_input("1 Ton Elektrik", value=500.0)
+        g_cuval = st.number_input("Çuval Başı Gider (Nakliye+Çuval+Katkı)", value=64.5)
+
+    st.divider()
+    if st.button("🧮 HESAPLA VE KAYDET", type="primary", use_container_width=True):
+        # Hesaplama Mantığı
+        un_tonaj = aylik_kirilan * (randiman / 100)
+        cuval_sayisi = (un_tonaj * 1000) / 50
+        
+        # Gelirler
+        gelir_un = cuval_sayisi * satis_fiyati
+        gelir_yan = (aylik_kirilan * 1000) * (
+            (r_un2/100 * p_un2) + (r_bon/100 * p_bon) + 
+            (r_kep/100 * p_kep) + (r_raz/100 * p_raz)
+        )
+        gelir_ek = ek_ton * ek_fiyat
+        toplam_gelir = gelir_un + gelir_yan + gelir_ek + (belge * cuval_sayisi)
+        
+        # Giderler
+        gider_bugday = bugday_maliyet * aylik_kirilan * 1000
+        gider_elektrik = g_elektrik_birim * aylik_kirilan
+        gider_sabit = g_personel + g_bakim
+        gider_degisken = g_cuval * cuval_sayisi
+        toplam_gider = gider_bugday + gider_elektrik + gider_sabit + gider_degisken
+        
+        net_kar = toplam_gelir - toplam_gider
+        net_kar_cuval = net_kar / cuval_sayisi if cuval_sayisi > 0 else 0
+        maliyet_fabrika = satis_fiyati - net_kar_cuval
+        
+        # Sonuç Gösterimi
+        st.success("Hesaplama Tamamlandı!")
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Net Kar (50kg)", f"{net_kar_cuval:.2f} TL")
+        m2.metric("Fabrika Maliyet", f"{maliyet_fabrika:.2f} TL")
+        m3.metric("Toplam Kar", f"{net_kar:,.0f} TL")
+        
+        # Kayıt
+        data = {
+            'ay': datetime.now().strftime('%B'), 'yil': datetime.now().year,
+            'un_cesidi': un_cesidi, 'net_kar_50kg': net_kar_cuval,
+            'fabrika_cikis_maliyet': maliyet_fabrika, 'net_kar_toplam': net_kar,
+            'aylik_kirilan_bugday': aylik_kirilan, 'un_randimani': randiman,
+            'un_satis_fiyati': satis_fiyati, 'elektrik_gideri': gider_elektrik,
+            'personel_maasi': g_personel, 'bakim_maliyeti': g_bakim,
+            'bugday_pacal_maliyeti': bugday_maliyet, 'toplam_gider': toplam_gider
+        }
+        save_un_maliyet(data)
+
+
+def show_un_maliyet_gecmisi():
+    """Maliyet Geçmişi - Profesyonel Dashboard Tasarımı"""
+    st.header("📊 Un Maliyet Geçmişi & Trendler")
+    
+    df = get_un_maliyet_gecmisi()
+    
+    if df.empty:
+        st.info("📭 Henüz maliyet hesaplaması kaydı bulunmamaktadır.")
+        st.info("💡 İlk hesaplamayı yapmak için 'Un Maliyet Hesaplama' menüsüne gidin.")
+        return
+    
+    # --- ÜST KPI KARTLARI ---
+    st.subheader("📈 Özet Göstergeler")
+    
+    # Son kayıt
+    son_kayit = df.iloc[0]
+    
+    # Ortalamalar (tüm kayıtlar)
+    ort_kar = df['net_kar_50kg'].mean() if 'net_kar_50kg' in df.columns else 0
+    ort_maliyet = df['fabrika_cikis_maliyet'].mean() if 'fabrika_cikis_maliyet' in df.columns else 0
+    
+    # KPI Kartları
+    kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+    
+    with kpi1:
+        st.metric(
+            label="Son Kayıt: Net Kar (50kg)",
+            value=f"{son_kayit.get('net_kar_50kg', 0):.2f} TL",
+            delta=f"{son_kayit.get('net_kar_50kg', 0) - ort_kar:.2f} TL" if ort_kar > 0 else None
+        )
+    
+    with kpi2:
+        st.metric(
+            label="Son Kayıt: Fabrika Maliyet",
+            value=f"{son_kayit.get('fabrika_cikis_maliyet', 0):.2f} TL",
+            delta=f"{son_kayit.get('fabrika_cikis_maliyet', 0) - ort_maliyet:.2f} TL" if ort_maliyet > 0 else None,
+            delta_color="inverse"
+        )
+    
+    with kpi3:
+        st.metric(
+            label="Son Kayıt: Toplam Kar",
+            value=f"{son_kayit.get('net_kar_toplam', 0):,.0f} TL"
+        )
+    
+    with kpi4:
+        st.metric(
+            label="Toplam Kayıt Sayısı",
+            value=f"{len(df)} Hesaplama"
+        )
     
     st.divider()
-    if st.button("📥 Excel
+    
+    # --- GRAFİKLER ---
+    st.subheader("📉 Trend Grafikleri")
+    
+    # Tarih formatını düzelt (grafik için)
+    if 'tarih' in df.columns:
+        df['tarih_str'] = df['tarih'].dt.strftime('%d/%m/%Y')
+    
+    tab1, tab2, tab3 = st.tabs(["💰 Karlılık Trendi", "📊 Maliyet-Satış Karşılaştırma", "📈 Aylık Performans"])
+    
+    with tab1:
+        if 'net_kar_50kg' in df.columns and 'tarih_str' in df.columns:
+            fig1 = px.line(
+                df, 
+                x='tarih_str', 
+                y='net_kar_50kg',
+                title="Çuval Başına Net Kar Trendi",
+                labels={'tarih_str': 'Tarih', 'net_kar_50kg': 'Net Kar (TL/50kg)'},
+                markers=True
+            )
+            fig1.update_layout(hovermode='x unified')
+            st.plotly_chart(fig1, use_container_width=True)
+        else:
+            st.warning("Grafik için yeterli veri yok.")
+    
+    with tab2:
+        if 'fabrika_cikis_maliyet' in df.columns and 'un_satis_fiyati' in df.columns:
+            fig2 = go.Figure()
+            fig2.add_trace(go.Scatter(
+                x=df['tarih_str'], 
+                y=df['fabrika_cikis_maliyet'],
+                mode='lines+markers',
+                name='Fabrika Maliyet',
+                line=dict(color='red')
+            ))
+            fig2.add_trace(go.Scatter(
+                x=df['tarih_str'], 
+                y=df['un_satis_fiyati'],
+                mode='lines+markers',
+                name='Satış Fiyatı',
+                line=dict(color='green')
+            ))
+            fig2.update_layout(
+                title="Maliyet vs Satış Fiyatı",
+                xaxis_title="Tarih",
+                yaxis_title="Fiyat (TL/50kg)",
+                hovermode='x unified'
+            )
+            st.plotly_chart(fig2, use_container_width=True)
+    
+    with tab3:
+        if 'net_kar_toplam' in df.columns and 'tarih_str' in df.columns:
+            fig3 = px.bar(
+                df,
+                x='tarih_str',
+                y='net_kar_toplam',
+                title="Dönemsel Toplam Kar",
+                labels={'tarih_str': 'Tarih', 'net_kar_toplam': 'Toplam Kar (TL)'},
+                color='net_kar_toplam',
+                color_continuous_scale='RdYlGn'
+            )
+            st.plotly_chart(fig3, use_container_width=True)
+    
+    st.divider()
+    
+    # --- DETAYLI TABLO ---
+    st.subheader("📋 Detaylı Kayıtlar")
+    
+    # Görüntülenecek sütunları seç
+    display_cols = [
+        'tarih_str', 'un_cesidi', 'net_kar_50kg', 'fabrika_cikis_maliyet',
+        'un_satis_fiyati', 'net_kar_toplam', 'aylik_kirilan_bugday', 'kullanici'
+    ]
+    display_cols = [c for c in display_cols if c in df.columns]
+    
+    # Sütun isimlerini Türkçeleştir
+    df_display = df[display_cols].copy()
+    df_display.columns = [
+        'Tarih', 'Un Çeşidi', 'Net Kar (50kg)', 'Fabrika Maliyet',
+        'Satış Fiyatı', 'Toplam Kar', 'Kırılan Buğday (Ton)', 'Kullanıcı'
+    ][:len(display_cols)]
+    
+    st.dataframe(df_display, use_container_width=True, hide_index=True, height=400)
+    
+    # --- EXCEL İNDİRME ---
+    st.divider()
+    if st.button("📥 Tüm Geçmişi Excel Olarak İndir", type="primary"):
+        filename = f"un_maliyet_gecmisi_{datetime.now().strftime('%Y%m%d')}.xlsx"
+        download_styled_excel(df, filename, "Maliyet Geçmişi")
