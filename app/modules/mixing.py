@@ -8,13 +8,38 @@ import io
 # ESKİ IMPORTLAR KALDIRILDI, YENİLERİ EKLENDİ
 from app.core.database import fetch_data, add_data, get_conn
 from app.core.utils import turkce_karakter_duzelt
-from app.modules.dashboard import get_silo_data
+
+# HATAYI GİDERMEK İÇİN DASHBOARD IMPORT'U KALDIRILDI
+# from app.modules.dashboard import get_silo_data 
+
 # Rapor modülü yoksa hata vermemesi için try-except bloğu
 try:
     from app.modules.reports import create_pacal_pdf_report, turkce_karakter_duzelt_pdf
 except ImportError:
     def create_pacal_pdf_report(*args, **kwargs): return None
     def turkce_karakter_duzelt_pdf(text): return text
+
+# --- YENİ EKLENEN FONKSİYON (BAĞIMLILIĞI KALDIRMAK İÇİN) ---
+def get_silo_data():
+    """Silo verilerini getir (Dashboard'dan bağımsız çalışması için buraya eklendi)"""
+    try:
+        df = fetch_data("silolar")
+        if df.empty:
+            return pd.DataFrame(columns=['isim', 'kapasite', 'mevcut_miktar', 'bugday_cinsi', 'maliyet'])
+
+        # NaN temizliği ve Tip Dönüşümü
+        df = df.fillna({
+            'protein': 0, 'gluten': 0, 'rutubet': 0, 'hektolitre': 0,
+            'sedim': 0, 'maliyet': 0, 'bugday_cinsi': '', 'mevcut_miktar': 0, 'kapasite': 100
+        })
+        
+        if 'isim' in df.columns:
+            df = df.sort_values('isim')
+
+        return df
+    except Exception as e:
+        st.error(f"Silo verisi çekme hatası: {e}")
+        return pd.DataFrame()
 
 def get_pacal_history():
     """Paçal geçmişini getir - GOOGLE SHEETS UYUMLU"""
@@ -249,9 +274,11 @@ def show_pacal_hesaplayici():
                             c1.metric("Protein", f"{analiz_sonuclari['protein']:.1f}%")
                             c1.metric("Rutubet", f"{analiz_sonuclari['rutubet']:.1f}%")
                             c1.metric("Gluten", f"{analiz_sonuclari['gluten']:.1f}%")
+                            
                             c2.metric("Gluten Index", f"{analiz_sonuclari['gluten_index']:.0f}")
                             c2.metric("Sedim", f"{analiz_sonuclari['sedim']:.1f} ml")
                             c2.metric("G. Sedim", f"{analiz_sonuclari['g_sedim']:.1f} ml")
+                            
                             c3.metric("F.N", f"{analiz_sonuclari['fn']:.0f}")
                             c3.metric("F.F.N", f"{analiz_sonuclari['ffn']:.0f}")
                             c3.metric("Kül", f"{analiz_sonuclari['kul']:.2f}%")
@@ -283,7 +310,7 @@ def show_pacal_hesaplayici():
                                 st.write(f"Uzama: {analiz_sonuclari['taban135']:.0f}")
                         
                         st.divider()
-                        st.subheader("💾 Paçalı Kaydet")
+                        
                         urun_adi = st.text_input("Üretim Adı / Kod")
                         
                         if st.button("✅ Paçalı Kaydet", type="primary"):
