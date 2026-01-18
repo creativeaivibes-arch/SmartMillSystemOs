@@ -2,10 +2,10 @@ import streamlit as st
 import pandas as pd
 import time
 from datetime import datetime
-import json
+import plotly.express as px
+import plotly.graph_objects as go
 
 # --- DATABASE VE CORE IMPORTLARI ---
-# SQLite yerine Google Sheets fonksiyonlarını kullanıyoruz
 from app.core.database import fetch_data, add_data, get_conn
 from app.core.utils import turkce_karakter_duzelt
 from app.core.config import INPUT_LIMITS, TERMS, get_limit
@@ -16,6 +16,23 @@ try:
 except ImportError:
     def create_un_maliyet_pdf_report(*args): return None
     def download_styled_excel(*args): pass
+
+# -----------------------------------------------------------------------------
+# 0. YENİ: MALİYET GEÇMİŞİ ÇEKME FONKSİYONU (STRATEGY İÇİN GEREKLİ)
+# -----------------------------------------------------------------------------
+
+def get_un_maliyet_gecmisi():
+    """Maliyet geçmişini tarihe göre sıralı şekilde döndürür"""
+    df = fetch_data("un_maliyet_hesaplamalari")
+    if df.empty:
+        return pd.DataFrame()
+    
+    # Tarih dönüşümü ve sıralama
+    if 'tarih' in df.columns:
+        df['tarih'] = pd.to_datetime(df['tarih'], errors='coerce')
+        df = df.sort_values('tarih', ascending=False)
+    
+    return df
 
 # -----------------------------------------------------------------------------
 # 1. SPESİFİKASYON (SPEC) YÖNETİMİ
@@ -387,16 +404,16 @@ def show_un_analiz_kaydi():
             st.error(f"❌ {msg}")
 
 # -----------------------------------------------------------------------------
-# 3. ANALİZ ARŞİVİ VE RAPORLAMA
+# 3. ANALİZ ARŞİVİ (GELİŞTİRİLMİŞ VERSİYON)
 # -----------------------------------------------------------------------------
 
 def show_un_analiz_kayitlari():
-    """Un Analiz Arşivi - Tarih Hatası Giderildi"""
+    """Un Analiz Arşivi - Dashboard Tasarımı"""
     st.header("📚 Un Analiz Kayıtları")
     df = fetch_data("un_analizleri")
     
     if df.empty:
-        st.info("Kayıt yok.")
+        st.info("📭 Henüz kayıtlı analiz bulunmamaktadır.")
         return
 
     # --- Üretim Silosu Yönetimi (Expander) ---
@@ -416,126 +433,19 @@ def show_un_analiz_kayitlari():
                     st.rerun()
 
     # --- TABLO GÖSTERİMİ ---
-    st.subheader(f"📋 Kayıtlar ({len(df)})")
+    st.subheader(f"📊 Toplam Kayıt: {len(df)}")
     
     # Tarih Dönüşümü (Güvenli)
     if 'tarih' in df.columns:
         df['tarih'] = pd.to_datetime(df['tarih'], errors='coerce')
         df = df.sort_values('tarih', ascending=False)
-        # Tablo gösterimi için string'e çevir
         df['DisplayTarih'] = df['tarih'].dt.strftime('%d/%m/%Y')
     
-    # Sütun seçimi (Karmaşıklığı önlemek için)
+    # Sütun seçimi
     cols = ['DisplayTarih', 'lot_no', 'islem_tipi', 'un_cinsi_marka', 'protein', 'gluten', 'sedim', 'kul']
     cols = [c for c in cols if c in df.columns]
     
-    st.dataframe(df[cols], use_container_width=True, hide_index=True)
+    st.dataframe(df[cols], use_container_width=True, hide_index=True, height=400)
     
     st.divider()
-    if st.button("📥 Excel Olarak İndir"):
-        filename = f"un_analiz_{datetime.now().strftime('%Y%m%d')}.xlsx"
-        download_styled_excel(df, filename, "Un Analizleri")
-
-# -----------------------------------------------------------------------------
-# 4. MALİYET HESAPLAMA (ORİJİNAL ALGORİTMA)
-# -----------------------------------------------------------------------------
-
-def save_un_maliyet(data):
-    """Maliyet kaydet"""
-    try:
-        data['tarih'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        data['kullanici'] = st.session_state.get('username', 'Sistem')
-        return add_data("un_maliyet_hesaplamalari", data)
-    except: return False
-
-def show_un_maliyet_hesaplama():
-    """Un Maliyet Hesaplama - Orijinal Mantık"""
-    st.header("🧮 Un Maliyet Hesaplama")
-    
-    col1, col2, col3 = st.columns(3, gap="medium")
-    
-    with col1:
-        st.markdown("#### 📋 TEMEL BİLGİLER")
-        un_cesidi = st.text_input("Un Çeşidi", value="Ekmeklik")
-        bugday_maliyet = st.number_input("Buğday Paçal (TL/KG)", value=14.60)
-        aylik_kirilan = st.number_input("Aylık Kırılan (Ton)", value=3000.0)
-        randiman = st.number_input("Randıman (%)", value=70.0)
-        satis_fiyati = st.number_input("Satış Fiyatı (50kg)", value=980.00)
-        belge = st.number_input("Belge Geliri", value=0.0)
-
-    with col2:
-        st.markdown("#### 📊 ORANLAR & FİYATLAR")
-        c1, c2 = st.columns(2)
-        with c1:
-            r_un2 = st.number_input("2. Un %", value=7.0)
-            r_bon = st.number_input("Bongalite %", value=1.5)
-            r_kep = st.number_input("Kepek %", value=9.0)
-            r_raz = st.number_input("Razmol %", value=11.0)
-        with c2:
-            p_un2 = st.number_input("2. Un TL", value=17.00)
-            p_bon = st.number_input("Bon. TL", value=11.60)
-            p_kep = st.number_input("Kepek TL", value=8.90)
-            p_raz = st.number_input("Razmol TL", value=9.10)
-            
-        st.markdown("#### 🌾 EK GELİR")
-        ek_ton = st.number_input("Kırık/Başak (Kg)", value=0.0)
-        ek_fiyat = st.number_input("Ek Gelir (TL)", value=0.0)
-
-    with col3:
-        st.markdown("#### 🏢 GİDERLER")
-        g_personel = st.number_input("Personel", value=1200000.0)
-        g_bakim = st.number_input("Bakım", value=100000.0)
-        g_elektrik_birim = st.number_input("1 Ton Elektrik", value=500.0)
-        g_cuval = st.number_input("Çuval Başı Gider (Nakliye+Çuval+Katkı)", value=64.5)
-
-    st.divider()
-    if st.button("🧮 HESAPLA VE KAYDET", type="primary", use_container_width=True):
-        # Hesaplama Mantığı (Orijinalden)
-        un_tonaj = aylik_kirilan * (randiman / 100)
-        cuval_sayisi = (un_tonaj * 1000) / 50
-        
-        # Gelirler
-        gelir_un = cuval_sayisi * satis_fiyati
-        gelir_yan = (aylik_kirilan * 1000) * (
-            (r_un2/100 * p_un2) + (r_bon/100 * p_bon) + 
-            (r_kep/100 * p_kep) + (r_raz/100 * p_raz)
-        )
-        gelir_ek = ek_ton * ek_fiyat
-        toplam_gelir = gelir_un + gelir_yan + gelir_ek + (belge * cuval_sayisi)
-        
-        # Giderler
-        gider_bugday = bugday_maliyet * aylik_kirilan * 1000
-        gider_elektrik = g_elektrik_birim * aylik_kirilan
-        gider_sabit = g_personel + g_bakim
-        gider_degisken = g_cuval * cuval_sayisi
-        toplam_gider = gider_bugday + gider_elektrik + gider_sabit + gider_degisken
-        
-        net_kar = toplam_gelir - toplam_gider
-        net_kar_cuval = net_kar / cuval_sayisi if cuval_sayisi > 0 else 0
-        maliyet_fabrika = satis_fiyati - net_kar_cuval
-        
-        # Sonuç Gösterimi
-        st.success("Hesaplama Tamamlandı!")
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Net Kar (50kg)", f"{net_kar_cuval:.2f} TL")
-        m2.metric("Fabrika Maliyet", f"{maliyet_fabrika:.2f} TL")
-        m3.metric("Toplam Kar", f"{net_kar:,.0f} TL")
-        
-        # Kayıt
-        data = {
-            'ay': datetime.now().strftime('%B'), 'yil': datetime.now().year,
-            'un_cesidi': un_cesidi, 'net_kar_50kg': net_kar_cuval,
-            'fabrika_cikis_maliyet': maliyet_fabrika, 'net_kar_toplam': net_kar,
-            'aylik_kirilan_bugday': aylik_kirilan, 'un_randimani': randiman,
-            'un_satis_fiyati': satis_fiyati, 'elektrik_gideri': gider_elektrik,
-            'personel_maasi': g_personel, 'bakim_maliyeti': g_bakim
-        }
-        save_un_maliyet(data)
-
-def show_un_maliyet_gecmisi():
-    st.header("📉 Maliyet Geçmişi")
-    df = fetch_data("un_maliyet_hesaplamalari")
-    if not df.empty:
-        st.dataframe(df, use_container_width=True)
-    else:
-        st.info("Kayıt yok.")
+    if st.button("📥 Excel
