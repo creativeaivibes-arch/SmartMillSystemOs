@@ -95,7 +95,8 @@ def create_silo_pdf_report(silo_name, silo_data, tavli_ortalamalari=None, kuru_o
             fontSize=8,
             textColor=colors.black,
             alignment=0,
-            spaceAfter=2
+            spaceAfter=2,
+            leading=10  # Satır yüksekliği
         )
         
         # Bold metin stili
@@ -106,7 +107,8 @@ def create_silo_pdf_report(silo_name, silo_data, tavli_ortalamalari=None, kuru_o
             fontSize=8,
             textColor=colors.black,
             alignment=0,
-            spaceAfter=2
+            spaceAfter=2,
+            leading=10
         )
         
         # İçerik oluştur
@@ -127,15 +129,13 @@ def create_silo_pdf_report(silo_name, silo_data, tavli_ortalamalari=None, kuru_o
         mevcut = float(silo_data.get('mevcut_miktar', 0))
         doluluk = (mevcut / kapasite * 100) if kapasite > 0 else 0
         
-        genel_text = f"""
-<b>GENEL BILGILER</b><br/>
+        genel_text = f"""<b>GENEL BILGILER</b><br/>
 Bugday Cinsi: {bugday_cinsi}<br/>
 Toplam Miktar: {mevcut:,.1f} Ton<br/>
 Kapasite: {kapasite:,.0f} Ton<br/>
 Doluluk: %{doluluk:.1f}<br/>
 Maliyet: {float(silo_data.get('maliyet', 0)):,.2f} TL/KG<br/>
-Tavli Stok: {float(silo_data.get('tavli_bugday_stok', 0)):,.1f} Ton
-"""
+Tavli Stok: {float(silo_data.get('tavli_bugday_stok', 0)):,.1f} Ton"""
         
         # SAĞ KOLON: Kuru Buğday
         kuru_text = "<b>KURU BUGDAY ANALIZI</b><br/>"
@@ -186,7 +186,7 @@ Tavli Stok: {float(silo_data.get('tavli_bugday_stok', 0)):,.1f} Ton
             analiz_row = []
             
             # KOLON 1: Kimyasal
-            kimya_text = "<b>Kimyasal</b><br/>"
+            kimya_lines = ["<b>Kimyasal</b>"]
             kimya_params = [
                 ('protein', 'Protein', '%.1f%%'),
                 ('rutubet', 'Rutubet', '%.1f%%'),
@@ -202,10 +202,12 @@ Tavli Stok: {float(silo_data.get('tavli_bugday_stok', 0)):,.1f} Ton
             for param_key, param_label, param_format in kimya_params:
                 if tavli_ortalamalari.get(param_key, 0) > 0:
                     value = tavli_ortalamalari[param_key]
-                    kimya_text += f"{param_label}: {param_format % value}<br/>"
+                    kimya_lines.append(f"{param_label}: {param_format % value}")
+            
+            kimya_text = "<br/>".join(kimya_lines)
             
             # KOLON 2: Farinograph
-            farino_text = "<b>Farinograph</b><br/>"
+            farino_lines = ["<b>Farinograph</b>"]
             farino_params = [
                 ('su_kaldirma_f', 'Su Kald.', '%.1f%%'),
                 ('gelisme_suresi', 'Gelisme', '%.1f dk'),
@@ -216,12 +218,16 @@ Tavli Stok: {float(silo_data.get('tavli_bugday_stok', 0)):,.1f} Ton
             for param_key, param_label, param_format in farino_params:
                 if tavli_ortalamalari.get(param_key, 0) > 0:
                     value = tavli_ortalamalari[param_key]
-                    farino_text += f"{param_label}: {param_format % value}<br/>"
+                    farino_lines.append(f"{param_label}: {param_format % value}")
+            
+            farino_text = "<br/>".join(farino_lines)
             
             # KOLON 3: Extensograph (TABLO FORMATINDA - PROFESYONEL)
-            extenso_text = "<b>Extensograph</b><br/>"
+            extenso_lines = ["<b>Extensograph</b>"]
             if tavli_ortalamalari.get('su_kaldirma_e', 0) > 0:
-                extenso_text += f"Su Kald: {tavli_ortalamalari['su_kaldirma_e']:.1f}%<br/>"
+                extenso_lines.append(f"Su Kald: {tavli_ortalamalari['su_kaldirma_e']:.1f}%")
+            
+            extenso_text = "<br/>".join(extenso_lines)
             
             # Extensograph verilerini tabloya dönüştür
             extenso_data = []
@@ -349,7 +355,6 @@ Tavli Stok: {float(silo_data.get('tavli_bugday_stok', 0)):,.1f} Ton
         import traceback
         st.code(traceback.format_exc())
         return None
-
 
 def create_pacal_pdf_report(tarih, urun_adi, oranlar, analizler):
     """
@@ -1096,3 +1101,4 @@ def download_styled_excel(df, filename, sheet_name="Rapor"):
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True
     )
+
