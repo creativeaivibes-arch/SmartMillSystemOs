@@ -572,12 +572,27 @@ def show_tavli_analiz():
                 conn = get_conn()
                 df_update = fetch_data("silolar")
                 
+                # DEBUG: Mevcut sütunları göster
+                st.info(f"📊 Silolar tablosundaki sütunlar: {list(df_update.columns)}")
+                
                 if not df_update.empty:
                     mask = df_update['isim'] == silo
                     
                     if mask.any():
-                        # Sütun adını kontrol et
-                        tavli_col = 'tavli_bugday_stok' if 'tavli_bugday_stok' in df_update.columns else 'tavli_stok'
+                        # Sütun adını kontrol et - TÜM OLASILIKLARı KAPSAYAN VERSİYON
+                        tavli_col = None
+                        for col_name in ['tavli_bugday_stok', 'tavli_stok', 'tavli_bugday', 'tavlı_stok']:
+                            if col_name in df_update.columns:
+                                tavli_col = col_name
+                                break
+                        
+                        # Eğer sütun yoksa oluştur
+                        if tavli_col is None:
+                            st.warning("⚠️ Tavlı stok sütunu bulunamadı, 'tavli_bugday_stok' oluşturuluyor...")
+                            df_update['tavli_bugday_stok'] = 0.0
+                            tavli_col = 'tavli_bugday_stok'
+                        
+                        st.info(f"🔍 Kullanılan sütun adı: **{tavli_col}**")
                         
                         # Mevcut tavlı stoku al
                         current_tavli = float(df_update.loc[mask, tavli_col].iloc[0]) if pd.notnull(df_update.loc[mask, tavli_col].iloc[0]) else 0.0
@@ -599,6 +614,7 @@ def show_tavli_analiz():
                     
             except Exception as e:
                 st.error(f"❌ Stok güncelleme hatası: {str(e)}")
+                st.error(f"🔍 Debug: {type(e).__name__}")
         else:
             st.error(f"❌ Kayıt hatası: {msg}")
 
