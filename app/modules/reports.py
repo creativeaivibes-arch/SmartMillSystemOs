@@ -58,7 +58,7 @@ def create_silo_pdf_report(silo_name, silo_data, tavli_ortalamalari=None, kuru_o
             fontName='Helvetica-Bold',
             fontSize=16,
             textColor=colors.HexColor('#0B4F6C'),
-            alignment=1,  # ORTALANMIŞ
+            alignment=1,
             spaceAfter=8,
             spaceBefore=0
         )
@@ -75,7 +75,7 @@ def create_silo_pdf_report(silo_name, silo_data, tavli_ortalamalari=None, kuru_o
             spaceBefore=6
         )
         
-        # Normal metin stili - DÜZELTME
+        # Normal metin stili
         normal_style = ParagraphStyle(
             'CustomNormal',
             parent=styles['Normal'],
@@ -84,21 +84,7 @@ def create_silo_pdf_report(silo_name, silo_data, tavli_ortalamalari=None, kuru_o
             textColor=colors.black,
             alignment=0,
             leading=9,
-            wordWrap='CJK',
-            splitLongWords=1
-        )
-        
-        # Bold metin stili - DÜZELTME
-        bold_style = ParagraphStyle(
-            'CustomBold',
-            parent=styles['Normal'],
-            fontName='Helvetica-Bold',
-            fontSize=7,
-            textColor=colors.black,
-            alignment=0,
-            leading=9,
-            wordWrap='CJK',
-            splitLongWords=1
+            wordWrap='CJK'
         )
         
         # İçerik oluştur
@@ -167,157 +153,90 @@ Tavli Stok: {float(silo_data.get('tavli_bugday_stok', 0)):,.1f} Ton"""
         story.append(col_table)
         story.append(Spacer(1, 6))
         
-        # ========== TAVLI BUGDAY ANALIZLERI (3 KOLON) ==========
+        # ========== TAVLI BUGDAY ANALIZLERI ==========
         if tavli_ortalamalari and tavli_ortalamalari.get('toplam_tonaj', 0) > 0:
             
             story.append(Paragraph("TAVLI BUGDAY ANALIZ SONUCLARI", subtitle_style))
             
-            # 3 KOLON DATA
-            kimya_data = []
-            farino_data = []
-            extenso_data = []
+            # BASIT TABLO YAKLAŞIMI - Tüm parametreleri tek tabloda göster
+            tavli_data = []
             
-            # KOLON 1: Kimyasal - TABLO FORMATINDA
-            kimya_data.append(['<b>Kimyasal</b>', ''])
-            kimya_params = [
+            # Başlık
+            tavli_data.append([
+                'Parametre', 'Deger', 'Parametre', 'Deger'
+            ])
+            
+            # Tüm parametreleri topla
+            all_params = [
                 ('protein', 'Protein', '%.1f%%'),
                 ('rutubet', 'Rutubet', '%.1f%%'),
                 ('gluten', 'Gluten', '%.1f%%'),
                 ('gluten_index', 'G.Index', '%.0f'),
-                ('sedim', 'Sedim', '%.1f'),
-                ('g_sedim', 'G.Sedim', '%.1f'),
+                ('sedim', 'Sedim', '%.1f ml'),
+                ('g_sedim', 'G.Sedim', '%.1f ml'),
                 ('fn', 'F.N', '%.0f'),
                 ('ffn', 'F.F.N', '%.0f'),
-            ]
-            
-            for param_key, param_label, param_format in kimya_params:
-                if tavli_ortalamalari.get(param_key, 0) > 0:
-                    value = tavli_ortalamalari[param_key]
-                    kimya_data.append([param_label, param_format % value])
-            
-            kimya_table = Table(kimya_data, colWidths=[30*mm, 25*mm])
-            kimya_table.setStyle(TableStyle([
-                ('SPAN', (0, 0), (1, 0)),
-                ('BACKGROUND', (0, 0), (1, 0), colors.HexColor('#F8F9FA')),
-                ('FONTNAME', (0, 0), (1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (1, 0), 8),
-                ('ALIGN', (0, 0), (1, 0), 'CENTER'),
-                ('FONTSIZE', (0, 1), (-1, -1), 7),
-                ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
-                ('FONTNAME', (1, 1), (1, -1), 'Helvetica'),
-                ('ALIGN', (0, 1), (0, -1), 'LEFT'),
-                ('ALIGN', (1, 1), (1, -1), 'RIGHT'),
-                ('GRID', (0, 0), (-1, -1), 0.25, colors.lightgrey),
-                ('TOPPADDING', (0, 0), (-1, -1), 2),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
-            ]))
-            
-            # KOLON 2: Farinograph - TABLO FORMATINDA
-            farino_data.append(['<b>Farinograph</b>', ''])
-            farino_params = [
-                ('su_kaldirma_f', 'Su K.', '%.1f%%'),
+                ('su_kaldirma_f', 'Su K.(F)', '%.1f%%'),
                 ('gelisme_suresi', 'Gelisme', '%.1f dk'),
                 ('stabilite', 'Stabilite', '%.1f dk'),
-                ('yumusama', 'Yumusama', '%.0f FU')
+                ('yumusama', 'Yumusama', '%.0f FU'),
+                ('su_kaldirma_e', 'Su K.(E)', '%.1f%%'),
+                ('enerji45', 'Enerji 45', '%.0f'),
+                ('direnc45', 'Direnc 45', '%.0f'),
+                ('taban45', 'Taban 45', '%.0f'),
+                ('enerji90', 'Enerji 90', '%.0f'),
+                ('direnc90', 'Direnc 90', '%.0f'),
+                ('taban90', 'Taban 90', '%.0f'),
+                ('enerji135', 'Enerji 135', '%.0f'),
+                ('direnc135', 'Direnc 135', '%.0f'),
+                ('taban135', 'Taban 135', '%.0f'),
             ]
             
-            for param_key, param_label, param_format in farino_params:
+            # Sadece dolu parametreleri al
+            filled_params = []
+            for param_key, param_label, param_format in all_params:
                 if tavli_ortalamalari.get(param_key, 0) > 0:
-                    value = tavli_ortalamalari[param_key]
-                    farino_data.append([param_label, param_format % value])
+                    value = param_format % tavli_ortalamalari[param_key]
+                    filled_params.append((param_label, value))
             
-            farino_table = Table(farino_data, colWidths=[30*mm, 25*mm])
-            farino_table.setStyle(TableStyle([
-                ('SPAN', (0, 0), (1, 0)),
-                ('BACKGROUND', (0, 0), (1, 0), colors.HexColor('#FFF3CD')),
-                ('FONTNAME', (0, 0), (1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (1, 0), 8),
-                ('ALIGN', (0, 0), (1, 0), 'CENTER'),
-                ('FONTSIZE', (0, 1), (-1, -1), 7),
-                ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
-                ('FONTNAME', (1, 1), (1, -1), 'Helvetica'),
-                ('ALIGN', (0, 1), (0, -1), 'LEFT'),
-                ('ALIGN', (1, 1), (1, -1), 'RIGHT'),
-                ('GRID', (0, 0), (-1, -1), 0.25, colors.lightgrey),
-                ('TOPPADDING', (0, 0), (-1, -1), 2),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
-            ]))
+            # 2'li gruplar halinde düzenle
+            for i in range(0, len(filled_params), 2):
+                row = []
+                for j in range(2):
+                    if i + j < len(filled_params):
+                        param_label, param_value = filled_params[i + j]
+                        row.extend([param_label, param_value])
+                    else:
+                        row.extend(['', ''])
+                tavli_data.append(row)
             
-            # KOLON 3: Extensograph - TABLO FORMATINDA
-            extenso_data.append(['<b>Extensograph</b>', ''])
-            
-            if tavli_ortalamalari.get('su_kaldirma_e', 0) > 0:
-                extenso_data.append(['Su K.', f"{tavli_ortalamalari['su_kaldirma_e']:.1f}%"])
-            
-            # Mini tablo için
-            extenso_mini = []
-            extenso_mini.append(['Dk', 'E', 'D', 'T'])
-            
-            for dakika in ['45', '90', '135']:
-                enerji_key = f'enerji{dakika}'
-                direnc_key = f'direnc{dakika}'
-                taban_key = f'taban{dakika}'
-                
-                if any([tavli_ortalamalari.get(enerji_key, 0) > 0,
-                       tavli_ortalamalari.get(direnc_key, 0) > 0,
-                       tavli_ortalamalari.get(taban_key, 0) > 0]):
-                    
-                    row = [f"{dakika}'"]
-                    row.append(f"{tavli_ortalamalari.get(enerji_key, 0):.0f}" if tavli_ortalamalari.get(enerji_key, 0) > 0 else "-")
-                    row.append(f"{tavli_ortalamalari.get(direnc_key, 0):.0f}" if tavli_ortalamalari.get(direnc_key, 0) > 0 else "-")
-                    row.append(f"{tavli_ortalamalari.get(taban_key, 0):.0f}" if tavli_ortalamalari.get(taban_key, 0) > 0 else "-")
-                    extenso_mini.append(row)
-            
-            # Extenso tablosu oluştur
-            extenso_table_main = Table(extenso_data, colWidths=[30*mm, 25*mm])
-            extenso_table_main.setStyle(TableStyle([
-                ('SPAN', (0, 0), (1, 0)),
-                ('BACKGROUND', (0, 0), (1, 0), colors.HexColor('#E6F3F7')),
-                ('FONTNAME', (0, 0), (1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (1, 0), 8),
-                ('ALIGN', (0, 0), (1, 0), 'CENTER'),
-                ('FONTSIZE', (0, 1), (-1, -1), 7),
-                ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
-                ('FONTNAME', (1, 1), (1, -1), 'Helvetica'),
-                ('ALIGN', (0, 1), (0, -1), 'LEFT'),
-                ('ALIGN', (1, 1), (1, -1), 'RIGHT'),
-                ('GRID', (0, 0), (-1, -1), 0.25, colors.lightgrey),
-                ('TOPPADDING', (0, 0), (-1, -1), 2),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
-            ]))
-            
-            if len(extenso_mini) > 1:
-                extenso_table_mini = Table(extenso_mini, colWidths=[10*mm, 12*mm, 12*mm, 12*mm])
-                extenso_table_mini.setStyle(TableStyle([
+            if len(tavli_data) > 1:
+                tavli_table = Table(tavli_data, colWidths=[45*mm, 45*mm, 45*mm, 45*mm])
+                tavli_table.setStyle(TableStyle([
+                    # Başlık satırı
                     ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0B4F6C')),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
                     ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                    ('FONTSIZE', (0, 0), (-1, -1), 6),
-                    ('GRID', (0, 0), (-1, -1), 0.25, colors.grey),
-                    ('TOPPADDING', (0, 0), (-1, -1), 1),
-                    ('BOTTOMPADDING', (0, 0), (-1, -1), 1),
+                    ('FONTSIZE', (0, 0), (-1, 0), 8),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 4),
+                    ('TOPPADDING', (0, 0), (-1, 0), 4),
+                    
+                    # Veri satırları
+                    ('FONTSIZE', (0, 1), (-1, -1), 7),
+                    ('FONTNAME', (0, 1), (-2, -1), 'Helvetica-Bold'),
+                    ('FONTNAME', (1, 1), (-1, -1), 'Helvetica'),
+                    ('ALIGN', (0, 1), (-2, -1), 'LEFT'),
+                    ('ALIGN', (1, 1), (-1, -1), 'CENTER'),
+                    ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
+                    ('TOPPADDING', (0, 1), (-1, -1), 3),
+                    ('BOTTOMPADDING', (0, 1), (-1, -1), 3),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F0F7FF')]),
                 ]))
                 
-                # Extenso combo: Ana tablo + mini tablo
-                extenso_combo = [extenso_table_main, Spacer(1, 2), extenso_table_mini]
-                extenso_final = KeepTogether(extenso_combo)
+                story.append(tavli_table)
             else:
-                extenso_final = extenso_table_main
-            
-            # 3 KOLONU YAN YANA KOY
-            analiz_row = [[kimya_table, farino_table, extenso_final]]
-            
-            analiz_table = Table(analiz_row, colWidths=[60*mm, 60*mm, 60*mm])
-            analiz_table.setStyle(TableStyle([
-                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                ('LEFTPADDING', (0, 0), (-1, -1), 3),
-                ('RIGHTPADDING', (0, 0), (-1, -1), 3),
-                ('TOPPADDING', (0, 0), (-1, -1), 3),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
-            ]))
-            
-            story.append(analiz_table)
+                story.append(Paragraph("Analiz verisi bulunamadi.", normal_style))
         else:
             story.append(Paragraph("TAVLI BUGDAY ANALIZ SONUCLARI", subtitle_style))
             story.append(Paragraph("Bu silo icin henuz tavli bugday analiz kaydi bulunmamaktadir.", normal_style))
@@ -1097,5 +1016,6 @@ def download_styled_excel(df, filename, sheet_name="Rapor"):
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True
     )
+
 
 
