@@ -20,7 +20,7 @@ from app.core.config import SESSION_TIMEOUT_SECONDS
 import app.modules.dashboard as dashboard
 import app.modules.wheat as wheat
 import app.modules.mixing as mixing
-import app.modules.production as production
+import app.modules.mill as production
 import app.modules.flour as flour
 import app.modules.admin as admin
 import app.modules.calculations as calculations
@@ -241,3 +241,4 @@ elif selected_page == "ADMIN":
 # PROFILE
 elif selected_page == "PROFILE":
     show_profile_settings()
+
