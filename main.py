@@ -245,3 +245,15 @@ elif selected_page == "ADMIN":
 # PROFILE
 elif selected_page == "PROFILE":
     show_profile_settings()
+    # main.py'nin EN ALTINA (geçici test için)
+    if st.session_state.get('user_role') == "admin":
+        with st.sidebar.expander("🧪 Test: Yeni DB Fonksiyonları"):
+            if st.button("Test Update"):
+                from app.core.database import update_row_by_filter
+                success, msg = update_row_by_filter(
+                'silolar',
+                {'isim': 'CELIK SILO 1'},  # Bu silonuz varsa
+                {'bugday_cinsi': 'TEST'}
+            )
+            st.write(f"Sonuç: {msg}")
+
