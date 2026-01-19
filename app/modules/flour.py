@@ -351,14 +351,13 @@ def save_un_maliyet(data):
     except: 
         return False
 
+
 def show_un_maliyet_hesaplama():
     """Un Maliyet Hesaplama - SADECE HESAPLAMA"""
     st.header("🧮 Un Maliyet Hesaplama")
     
-    # Para birimi
     currency = "TL"
     
-    # AY/YIL FİLTRELEME
     col_filter1, col_filter2 = st.columns(2)    
     with col_filter1:
         ay_listesi = ["OCAK", "ŞUBAT", "MART", "NİSAN", "MAYIS", "HAZİRAN", 
@@ -372,7 +371,6 @@ def show_un_maliyet_hesaplama():
     st.divider()
     st.subheader(f"Un Maliyeti Hesapla - {secilen_ay} {secilen_yil}")
     
-    # ÜÇ KOLONLU LAYOUT
     col1, col2, col3 = st.columns(3, gap="medium")
     
     with col1:
@@ -455,7 +453,6 @@ def show_un_maliyet_hesaplama():
         un_tonaj = aylik_kirilan * (randiman / 100)
         cuval_sayisi = (un_tonaj * 1000) / 50
         
-        # Gelirler
         gelir_un = cuval_sayisi * satis_fiyati
         gelir_un2 = (aylik_kirilan * 1000) * (r_un2 / 100) * p_un2
         gelir_bon = (aylik_kirilan * 1000) * (r_bon / 100) * p_bon
@@ -466,7 +463,6 @@ def show_un_maliyet_hesaplama():
         gelir_basak = basak_tonaj * basak_fiyat
         toplam_gelir = gelir_un + gelir_un2 + gelir_bon + gelir_kep + gelir_raz + gelir_belge + gelir_kirik + gelir_basak
         
-        # Giderler
         gider_bugday = bugday_maliyet * aylik_kirilan * 1000
         gider_elektrik = elektrik_aylik
         gider_sabit = g_personel + g_bakim + g_mutfak + g_finans + g_diger
@@ -476,7 +472,6 @@ def show_un_maliyet_hesaplama():
         gider_katki = g_katki * cuval_sayisi
         toplam_gider = gider_bugday + gider_elektrik + gider_sabit + gider_nakliye + gider_pazarlama + gider_cuval + gider_katki
         
-        # Kar
         net_kar = toplam_gelir - toplam_gider
         net_kar_cuval = net_kar / cuval_sayisi if cuval_sayisi > 0 else 0
         maliyet_fabrika = satis_fiyati - net_kar_cuval
@@ -509,9 +504,10 @@ def show_un_maliyet_hesaplama():
             st.rerun()
         else:
             st.error("❌ Kayıt Başarısız!")
-    
-    def show_un_maliyet_gecmisi():
-    """Maliyet Geçmişi - Dashboard Tasarımı"""
+
+
+def show_un_maliyet_gecmisi():
+    """Maliyet Geçmişi - Dashboard"""
     st.header("📊 Un Maliyet Geçmişi & Trendler")
     
     df = get_un_maliyet_gecmisi()
@@ -521,7 +517,6 @@ def show_un_maliyet_hesaplama():
         st.info("💡 İlk hesaplamayı yapmak için 'Un Maliyet Hesaplama' menüsüne gidin.")
         return
     
-    # Özet Göstergeler
     st.subheader("📈 Özet Göstergeler")
     son_kayit = df.iloc[0]
     ort_kar = df['net_kar_50kg'].mean() if 'net_kar_50kg' in df.columns else 0
@@ -541,55 +536,51 @@ def show_un_maliyet_hesaplama():
         st.metric("Toplam Kayıt Sayısı", f"{len(df)} Hesaplama")
     
     st.divider()
-    
-    # Grafikler
     st.subheader("📉 Trend Grafikleri")
+    
     if 'tarih' in df.columns:
         df['tarih_str'] = df['tarih'].dt.strftime('%d/%m/%Y')
     
-    tab1, tab2, tab3 = st.tabs(["💰 Karlılık Trendi", "📊 Maliyet-Satış Karşılaştırma", "📈 Aylık Performans"])
+    tab1, tab2, tab3 = st.tabs(["💰 Karlılık Trendi", "📊 Maliyet-Satış", "📈 Aylık Performans"])
     
     with tab1:
         if 'net_kar_50kg' in df.columns and 'tarih_str' in df.columns:
-            fig1 = px.line(df, x='tarih_str', y='net_kar_50kg', title="Çuval Başına Net Kar Trendi",
-                          labels={'tarih_str': 'Tarih', 'net_kar_50kg': 'Net Kar (TL/50kg)'}, markers=True)
-            fig1.update_layout(hovermode='x unified')
+            fig1 = px.line(df, x='tarih_str', y='net_kar_50kg', title="Çuval Başına Net Kar",
+                          labels={'tarih_str': 'Tarih', 'net_kar_50kg': 'Net Kar (TL)'}, markers=True)
             st.plotly_chart(fig1, use_container_width=True)
     
     with tab2:
         if 'fabrika_cikis_maliyet' in df.columns and 'un_satis_fiyati' in df.columns:
             fig2 = go.Figure()
             fig2.add_trace(go.Scatter(x=df['tarih_str'], y=df['fabrika_cikis_maliyet'], mode='lines+markers',
-                                     name='Fabrika Maliyet', line=dict(color='red')))
+                                     name='Maliyet', line=dict(color='red')))
             fig2.add_trace(go.Scatter(x=df['tarih_str'], y=df['un_satis_fiyati'], mode='lines+markers',
-                                     name='Satış Fiyatı', line=dict(color='green')))
-            fig2.update_layout(title="Maliyet vs Satış Fiyatı", xaxis_title="Tarih", yaxis_title="Fiyat (TL/50kg)", hovermode='x unified')
+                                     name='Satış', line=dict(color='green')))
+            fig2.update_layout(title="Maliyet vs Satış", xaxis_title="Tarih", yaxis_title="Fiyat (TL)")
             st.plotly_chart(fig2, use_container_width=True)
     
     with tab3:
         if 'net_kar_toplam' in df.columns and 'tarih_str' in df.columns:
-            fig3 = px.bar(df, x='tarih_str', y='net_kar_toplam', title="Dönemsel Toplam Kar",
-                         labels={'tarih_str': 'Tarih', 'net_kar_toplam': 'Toplam Kar (TL)'},
+            fig3 = px.bar(df, x='tarih_str', y='net_kar_toplam', title="Toplam Kar",
                          color='net_kar_toplam', color_continuous_scale='RdYlGn')
             st.plotly_chart(fig3, use_container_width=True)
     
     st.divider()
-    
-    # Detaylı Tablo
     st.subheader("📋 Detaylı Kayıtlar")
+    
     display_cols = ['tarih_str', 'un_cesidi', 'net_kar_50kg', 'fabrika_cikis_maliyet',
                     'un_satis_fiyati', 'net_kar_toplam', 'aylik_kirilan_bugday', 'kullanici']
     display_cols = [c for c in display_cols if c in df.columns]
     
     df_display = df[display_cols].copy()
     df_display.columns = ['Tarih', 'Un Çeşidi', 'Net Kar (50kg)', 'Fabrika Maliyet',
-                          'Satış Fiyatı', 'Toplam Kar', 'Kırılan Buğday (Ton)', 'Kullanıcı'][:len(display_cols)]
+                          'Satış Fiyatı', 'Toplam Kar', 'Kırılan (Ton)', 'Kullanıcı'][:len(display_cols)]
     
     st.dataframe(df_display, use_container_width=True, hide_index=True, height=400)
     
     st.divider()
-    if st.button("📥 Tüm Geçmişi Excel Olarak İndir", type="primary"):
-        filename = f"un_maliyet_gecmisi_{datetime.now().strftime('%Y%m%d')}.xlsx"
+    if st.button("📥 Excel İndir", type="primary"):
+        filename = f"un_maliyet_{datetime.now().strftime('%Y%m%d')}.xlsx"
         download_styled_excel(df, filename, "Maliyet Geçmişi")
 
 
