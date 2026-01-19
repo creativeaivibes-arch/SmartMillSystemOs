@@ -143,3 +143,119 @@ def clear_cache(worksheet_name=None):
         # Tüm cache'i temizle
         st.session_state.db_cache = {}
         st.session_state.db_cache_time = {}
+
+def update_data(worksheet_name, df_updated):
+    """
+    Worksheet'in tamamını günceller ve cache'i temizler
+    
+    Args:
+        worksheet_name: Google Sheets sekme adı
+        df_updated: Güncellenmiş DataFrame
+    
+    Returns:
+        bool: Başarı durumu
+    """
+    try:
+        conn = get_conn()
+        if conn:
+            conn.update(worksheet=worksheet_name, data=df_updated)
+            
+            # Cache'i temizle
+            clear_cache(worksheet_name)
+            
+            return True
+        return False
+    except Exception as e:
+        st.error(f"Güncelleme hatası ({worksheet_name}): {str(e)}")
+        return False
+
+
+def update_row_by_filter(worksheet_name, filter_dict, update_dict):
+    """
+    Belirli bir satırı filtre ile bulup günceller
+    
+    Args:
+        worksheet_name: Sekme adı
+        filter_dict: Filtreleme kriteri (örn: {'lot_no': 'UN-123'})
+        update_dict: Güncellenecek değerler (örn: {'protein': 12.5})
+    
+    Returns:
+        tuple: (başarı: bool, mesaj: str)
+    
+    Örnek:
+        update_row_by_filter('un_analizleri', 
+                            {'lot_no': 'UN-123'}, 
+                            {'protein': 12.5, 'gluten': 28.0})
+    """
+    try:
+        df = fetch_data(worksheet_name, force_refresh=True)
+        
+        if df.empty:
+            return False, f"{worksheet_name} tablosu boş!"
+        
+        # Filtre uygula
+        mask = pd.Series([True] * len(df))
+        for key, value in filter_dict.items():
+            if key not in df.columns:
+                return False, f"'{key}' sütunu bulunamadı!"
+            mask &= (df[key] == value)
+        
+        # Eşleşen satır var mı?
+        if not mask.any():
+            return False, "Eşleşen kayıt bulunamadı!"
+        
+        # Güncelle
+        for key, value in update_dict.items():
+            if key not in df.columns:
+                return False, f"'{key}' sütunu bulunamadı!"
+            df.loc[mask, key] = value
+        
+        # Kaydet
+        if update_data(worksheet_name, df):
+            return True, "Güncelleme başarılı!"
+        else:
+            return False, "Güncelleme sırasında hata oluştu!"
+        
+    except Exception as e:
+        return False, f"Hata: {str(e)}"
+
+
+def delete_rows_by_filter(worksheet_name, filter_dict):
+    """
+    Belirli satırları filtre ile bulup siler
+    
+    Args:
+        worksheet_name: Sekme adı
+        filter_dict: Silinecek satırların kriteri
+    
+    Returns:
+        tuple: (başarı: bool, mesaj: str, silinen_satir_sayisi: int)
+    """
+    try:
+        df = fetch_data(worksheet_name, force_refresh=True)
+        
+        if df.empty:
+            return False, "Tablo zaten boş!", 0
+        
+        # Filtre uygula
+        mask = pd.Series([True] * len(df))
+        for key, value in filter_dict.items():
+            if key not in df.columns:
+                return False, f"'{key}' sütunu bulunamadı!", 0
+            mask &= (df[key] == value)
+        
+        silinen_sayi = mask.sum()
+        
+        if silinen_sayi == 0:
+            return False, "Silinecek kayıt bulunamadı!", 0
+        
+        # Sil
+        df_new = df[~mask]
+        
+        if update_data(worksheet_name, df_new):
+            return True, f"{silinen_sayi} kayıt silindi!", silinen_sayi
+        else:
+            return False, "Silme işlemi başarısız!", 0
+        
+    except Exception as e:
+        return False, f"Hata: {str(e)}", 0
