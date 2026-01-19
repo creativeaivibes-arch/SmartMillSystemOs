@@ -350,8 +350,9 @@ def save_un_maliyet(data):
         return add_data("un_maliyet_hesaplamalari", data)
     except: 
         return False
+
 def show_un_maliyet_hesaplama():
-    """Un Maliyet Hesaplama - EKSİKSİZ VERSİYON"""
+    """Un Maliyet Hesaplama - EKSİKSİZ VERSİYON (flour_eski.py mantığı)"""
     st.header("🧮 Un Maliyet Hesaplama")
     
     # Para birimi
@@ -371,7 +372,7 @@ def show_un_maliyet_hesaplama():
     st.divider()
     st.subheader(f"Un Maliyeti Hesapla - {secilen_ay} {secilen_yil}")
     
-    # ÜÇ KOLONLU LAYOUT
+    # ÜÇ KOLONLU LAYOUT (Ekran görüntüsündeki gibi)
     col1, col2, col3 = st.columns(3, gap="medium")
     
     # ========== KOLON 1: TEMEL BİLGİLER ==========
@@ -385,7 +386,7 @@ def show_un_maliyet_hesaplama():
         )
         
         bugday_maliyet = st.number_input(
-            "Buğday Paçal (TL/KG) *",
+            "Buğday Paçal Maliyeti (TL/KG) *",
             min_value=0.0,
             value=14.60,
             step=0.01,
@@ -393,7 +394,7 @@ def show_un_maliyet_hesaplama():
         )
         
         aylik_kirilan = st.number_input(
-            "Aylık Kırılan (Ton) *",
+            "Aylık Kırılan Buğday (Ton) *",
             min_value=0.0,
             value=3000.0,
             step=0.1,
@@ -401,7 +402,7 @@ def show_un_maliyet_hesaplama():
         )
         
         randiman = st.number_input(
-            "Randıman (%) *",
+            "Un Randımanı (%) *",
             min_value=0.0,
             max_value=100.0,
             value=70.0,
@@ -410,7 +411,7 @@ def show_un_maliyet_hesaplama():
         )
         
         satis_fiyati = st.number_input(
-            "Satış Fiyatı (50kg) *",
+            "Un Satış Fiyatı (50 KG) *",
             min_value=0.0,
             value=980.00,
             step=0.01,
@@ -418,7 +419,7 @@ def show_un_maliyet_hesaplama():
         )
         
         belge = st.number_input(
-            "Belge Geliri (50kg)",
+            "Belge Geliri (50 KG)",
             min_value=0.0,
             value=0.00,
             step=0.01,
@@ -427,78 +428,119 @@ def show_un_maliyet_hesaplama():
 
     # ========== KOLON 2: YAN ÜRÜNLER & EK GELİRLER ==========
     with col2:
-        st.markdown("#### 📊 ORANLAR & FİYATLAR")
+        st.markdown("#### 📊 YAN ÜRÜN ORANLARI (%)")
         
-        # Yan Ürün Oranları
-        c1, c2 = st.columns(2)
-        with c1:
-            r_un2 = st.number_input("2. Un %", min_value=0.0, value=7.0, step=0.1, format="%.1f")
-            r_bon = st.number_input("Bongalite %", min_value=0.0, value=1.5, step=0.1, format="%.1f")
-            r_kep = st.number_input("Kepek %", min_value=0.0, value=9.0, step=0.1, format="%.1f")
-            r_raz = st.number_input("Razmol %", min_value=0.0, value=11.0, step=0.1, format="%.1f")
+        # Yan Ürün Oranları (2 kolon)
+        col_oran1, col_oran2 = st.columns(2)
+        with col_oran1:
+            st.caption("Un Oranı")
+            r_un2 = st.number_input("2. Un", min_value=0.0, value=7.0, step=0.1, format="%.1f", label_visibility="collapsed", key="r_un2")
+            st.caption("Bongalite")
+            r_bon = st.number_input("Bongalite %", min_value=0.0, value=1.5, step=0.1, format="%.1f", label_visibility="collapsed", key="r_bon")
         
-        with c2:
-            p_un2 = st.number_input("2. Un TL", min_value=0.0, value=17.00, step=0.01, format="%.2f")
-            p_bon = st.number_input("Bon. TL", min_value=0.0, value=11.60, step=0.01, format="%.2f")
-            p_kep = st.number_input("Kepek TL", min_value=0.0, value=8.90, step=0.01, format="%.2f")
-            p_raz = st.number_input("Razmol TL", min_value=0.0, value=9.10, step=0.01, format="%.2f")
+        with col_oran2:
+            st.caption("Kepek Oranı")
+            r_kep = st.number_input("Kepek", min_value=0.0, value=9.0, step=0.1, format="%.1f", label_visibility="collapsed", key="r_kep")
+            st.caption("Razmol Oranı")
+            r_raz = st.number_input("Razmol", min_value=0.0, value=11.0, step=0.1, format="%.1f", label_visibility="collapsed", key="r_raz")
+        
+        st.markdown("#### 💰 YAN ÜRÜN FİYATLARI")
+        
+        # Yan Ürün Fiyatları (2 kolon)
+        col_fiyat1, col_fiyat2 = st.columns(2)
+        with col_fiyat1:
+            st.caption("Un Fiyat")
+            p_un2 = st.number_input("2. Un TL", min_value=0.0, value=17.00, step=0.01, format="%.2f", label_visibility="collapsed", key="p_un2")
+            st.caption("Bongalite Fiyat")
+            p_bon = st.number_input("Bon. TL", min_value=0.0, value=11.60, step=0.01, format="%.2f", label_visibility="collapsed", key="p_bon")
+        
+        with col_fiyat2:
+            st.caption("Kepek Fiyat")
+            p_kep = st.number_input("Kepek TL", min_value=0.0, value=8.90, step=0.01, format="%.2f", label_visibility="collapsed", key="p_kep")
+            st.caption("Razmol Fiyat")
+            p_raz = st.number_input("Razmol TL", min_value=0.0, value=9.10, step=0.01, format="%.2f", label_visibility="collapsed", key="p_raz")
         
         st.markdown("#### 🌾 EK GELİRLER")
+        
         col_ek1, col_ek2 = st.columns(2)
         with col_ek1:
-            ek_ton = st.number_input("Kırık/Başak (Kg)", min_value=0.0, value=0.0, step=10.0)
+            st.caption("Satılan Kırık (Kg)")
+            kirik_tonaj = st.number_input("Kırık Kg", min_value=0.0, value=0.0, step=10.0, label_visibility="collapsed", key="kirik_tonaj")
+            st.caption("Satılan Başak (Kg)")
+            basak_tonaj = st.number_input("Başak Kg", min_value=0.0, value=0.0, step=10.0, label_visibility="collapsed", key="basak_tonaj")
+        
         with col_ek2:
-            ek_fiyat = st.number_input("Ek Gelir (TL/Kg)", min_value=0.0, value=0.0, step=0.01)
+            st.caption("Kırık Fiyat (TL)")
+            kirik_fiyat = st.number_input("Kırık TL", min_value=0.0, value=0.0, step=0.01, label_visibility="collapsed", key="kirik_fiyat")
+            st.caption("Başak Fiyat (TL)")
+            basak_fiyat = st.number_input("Başak TL", min_value=0.0, value=0.0, step=0.01, label_visibility="collapsed", key="basak_fiyat")
 
     # ========== KOLON 3: GİDERLER ==========
     with col3:
-        st.markdown("#### 🏢 GİDERLER")
+        st.markdown("#### 🏢 AYLIK SABİT GİDERLER")
         
-        g_personel = st.number_input("Personel", min_value=0.0, value=1200000.0, step=1000.0, format="%.2f")
-        g_bakim = st.number_input("Bakım", min_value=0.0, value=100000.0, step=1000.0, format="%.2f")
+        g_personel = st.number_input("Personel Maaşı", min_value=0.0, value=1200000.0, step=1000.0, format="%.2f")
+        g_bakim = st.number_input("Bakım Maliyeti", min_value=0.0, value=100000.0, step=1000.0, format="%.2f")
         g_mutfak = st.number_input("Mutfak (Kantin)", min_value=0.0, value=50000.0, step=1000.0, format="%.2f")
         g_finans = st.number_input("Finans (Banka)", min_value=0.0, value=0.0, step=1000.0, format="%.2f")
         g_diger = st.number_input("Diğer Giderler", min_value=0.0, value=0.0, step=1000.0, format="%.2f")
         
         st.markdown("#### ⚡ ELEKTRİK")
-        g_elektrik_birim = st.number_input("1 Ton Elektrik (TL)", min_value=0.0, value=500.00, step=0.01)
+        g_elektrik_birim = st.number_input("1 Ton Buğday Elektrik (TL)", min_value=0.0, value=500.00, step=0.01)
         elektrik_aylik = g_elektrik_birim * aylik_kirilan
         st.caption(f"Aylık Elektrik: {elektrik_aylik:,.0f} {currency}")
         
         st.markdown("#### 🛒 ÇUVAL BAŞI GİDERLER")
+        
+        # ÇUVAL BAŞI GİDERLER - 2 KOLON (Ekran görüntüsündeki gibi)
         col_cg1, col_cg2 = st.columns(2)
         with col_cg1:
-            g_nakliye = st.number_input("Nakliye", min_value=0.0, value=20.00, step=0.5)
-            g_pazarlama = st.number_input("Pazarlama", min_value=0.0, value=20.50, step=0.5)
+            st.caption("Nakliye")
+            g_nakliye = st.number_input("Nakliye Gider", min_value=0.0, value=20.00, step=0.5, label_visibility="collapsed", key="g_nakliye")
+            st.caption("Pazarlama")
+            g_pazarlama = st.number_input("Pazarlama Gider", min_value=0.0, value=20.50, step=0.5, label_visibility="collapsed", key="g_pazarlama")
+        
         with col_cg2:
-            g_cuval = st.number_input("PP Çuval", min_value=0.0, value=15.00, step=0.5)
-            g_katki = st.number_input("Enzim/Katkı", min_value=0.0, value=9.00, step=0.5)
+            st.caption("PP Çuval")
+            g_cuval = st.number_input("PP Çuval Gider", min_value=0.0, value=15.00, step=0.5, label_visibility="collapsed", key="g_cuval")
+            st.caption("Enzim/Katkı")
+            g_katki = st.number_input("Katkı Gider", min_value=0.0, value=9.00, step=0.5, label_visibility="collapsed", key="g_katki")
 
     # ========== HESAPLAMA ==========
     st.divider()
     if st.button("🧮 HESAPLA VE KAYDET", type="primary", use_container_width=True):
-        # Hesaplama Mantığı
+        # 1. Un Tonajı
         un_tonaj = aylik_kirilan * (randiman / 100)
+        
+        # 2. Çuval Sayısı
         cuval_sayisi = (un_tonaj * 1000) / 50
         
-        # Gelirler
+        # 3. GELİRLER
         gelir_un = cuval_sayisi * satis_fiyati
-        gelir_yan = (aylik_kirilan * 1000) * (
-            (r_un2/100 * p_un2) + (r_bon/100 * p_bon) + 
-            (r_kep/100 * p_kep) + (r_raz/100 * p_raz)
-        )
-        gelir_ek = ek_ton * ek_fiyat
+        gelir_un2 = (aylik_kirilan * 1000) * (r_un2 / 100) * p_un2
+        gelir_bon = (aylik_kirilan * 1000) * (r_bon / 100) * p_bon
+        gelir_kep = (aylik_kirilan * 1000) * (r_kep / 100) * p_kep
+        gelir_raz = (aylik_kirilan * 1000) * (r_raz / 100) * p_raz
         gelir_belge = belge * cuval_sayisi
-        toplam_gelir = gelir_un + gelir_yan + gelir_ek + gelir_belge
+        gelir_kirik = kirik_tonaj * kirik_fiyat
+        gelir_basak = basak_tonaj * basak_fiyat
         
-        # Giderler
+        toplam_gelir = gelir_un + gelir_un2 + gelir_bon + gelir_kep + gelir_raz + gelir_belge + gelir_kirik + gelir_basak
+        
+        # 4. GİDERLER
         gider_bugday = bugday_maliyet * aylik_kirilan * 1000
         gider_elektrik = elektrik_aylik
         gider_sabit = g_personel + g_bakim + g_mutfak + g_finans + g_diger
-        gider_cuval_bazli = (g_nakliye + g_pazarlama + g_cuval + g_katki) * cuval_sayisi
-        toplam_gider = gider_bugday + gider_elektrik + gider_sabit + gider_cuval_bazli
         
-        # Net Kar
+        # Çuval Bazlı Giderler (AYRI AYRI)
+        gider_nakliye = g_nakliye * cuval_sayisi
+        gider_pazarlama = g_pazarlama * cuval_sayisi
+        gider_cuval = g_cuval * cuval_sayisi
+        gider_katki = g_katki * cuval_sayisi
+        
+        toplam_gider = gider_bugday + gider_elektrik + gider_sabit + gider_nakliye + gider_pazarlama + gider_cuval + gider_katki
+        
+        # 5. NET KAR
         net_kar = toplam_gelir - toplam_gider
         net_kar_cuval = net_kar / cuval_sayisi if cuval_sayisi > 0 else 0
         maliyet_fabrika = satis_fiyati - net_kar_cuval
@@ -510,9 +552,10 @@ def show_un_maliyet_hesaplama():
         m2.metric("Fabrika Maliyet", f"{maliyet_fabrika:.2f} TL")
         m3.metric("Toplam Kar", f"{net_kar:,.0f} TL")
         
-        # Kayıt Verisi
+        # Kayıt Verisi (EKRAN GÖRÜNTÜSÜNDEKİ GİBI TÜM ALANLAR)
         data = {
-            'ay': secilen_ay, 'yil': secilen_yil,
+            'ay': secilen_ay, 
+            'yil': secilen_yil,
             'un_cesidi': un_cesidi, 
             'bugday_pacal_maliyeti': bugday_maliyet,
             'aylik_kirilan_bugday': aylik_kirilan,
@@ -520,12 +563,19 @@ def show_un_maliyet_hesaplama():
             'un_satis_fiyati': satis_fiyati,
             'belge_geliri': belge,
             # Yan Ürünler
-            'un2_orani': r_un2, 'un2_fiyati': p_un2,
-            'bongalite_orani': r_bon, 'bongalite_fiyati': p_bon,
-            'kepek_orani': r_kep, 'kepek_fiyati': p_kep,
-            'razmol_orani': r_raz, 'razmol_fiyati': p_raz,
+            'un2_orani': r_un2, 
+            'un2_fiyati': p_un2,
+            'bongalite_orani': r_bon, 
+            'bongalite_fiyati': p_bon,
+            'kepek_orani': r_kep, 
+            'kepek_fiyati': p_kep,
+            'razmol_orani': r_raz, 
+            'razmol_fiyati': p_raz,
             # Ek Gelirler
-            'kirik_tonaj': ek_ton, 'kirik_fiyat': ek_fiyat,
+            'kirik_tonaj': kirik_tonaj, 
+            'kirik_fiyat': kirik_fiyat,
+            'basak_tonaj': basak_tonaj, 
+            'basak_fiyat': basak_fiyat,
             # Giderler
             'ton_bugday_elektrik': g_elektrik_birim,
             'elektrik_gideri': gider_elektrik,
@@ -534,12 +584,14 @@ def show_un_maliyet_hesaplama():
             'mutfak_gideri': g_mutfak,
             'finans_gideri': g_finans,
             'diger_giderler': g_diger,
+            # Çuval Başı Giderler (AYRI AYRI)
             'nakliye': g_nakliye,
             'satis_pazarlama': g_pazarlama,
             'pp_cuval': g_cuval,
             'katki_maliyeti': g_katki,
             # Sonuçlar
             'net_kar_50kg': net_kar_cuval,
+            'net_kar_kg': net_kar_cuval / 50,
             'fabrika_cikis_maliyet': maliyet_fabrika,
             'net_kar_toplam': net_kar,
             'toplam_gelir': toplam_gelir,
@@ -690,5 +742,6 @@ def show_un_maliyet_hesaplama():
     if st.button("📥 Tüm Geçmişi Excel Olarak İndir", type="primary"):
         filename = f"un_maliyet_gecmisi_{datetime.now().strftime('%Y%m%d')}.xlsx"
         download_styled_excel(df, filename, "Maliyet Geçmişi")
+
 
 
