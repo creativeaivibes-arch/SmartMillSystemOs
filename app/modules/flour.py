@@ -343,11 +343,13 @@ def show_un_analiz_kayitlari():
         download_styled_excel(df, filename, "Un Analizleri")
 
 def save_un_maliyet(data):
+    """Maliyet hesaplamasını kaydet"""
     try:
         data['tarih'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         data['kullanici'] = st.session_state.get('username', 'Sistem')
         return add_data("un_maliyet_hesaplamalari", data)
-    except: return False
+    except: 
+        return False
 def show_un_maliyet_hesaplama():
     """Un Maliyet Hesaplama - Orijinal Mantık"""
     st.header("🧮 Un Maliyet Hesaplama")
@@ -575,3 +577,4 @@ def show_un_maliyet_gecmisi():
     if st.button("📥 Tüm Geçmişi Excel Olarak İndir", type="primary"):
         filename = f"un_maliyet_gecmisi_{datetime.now().strftime('%Y%m%d')}.xlsx"
         download_styled_excel(df, filename, "Maliyet Geçmişi")
+
