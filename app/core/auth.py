@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import datetime
 import hashlib
 import time
+import bcrypt
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -236,3 +237,81 @@ def show_profile_settings():
                     st.success("✅ Şifreniz başarıyla değiştirildi! Bir sonraki girişte yeni şifrenizi kullanın.")
                 else:
                     st.error(msg)
+def hash_password_bcrypt(password):
+    """
+    Güvenli şifre hash'leme (bcrypt ile)
+    
+    Args:
+        password: Düz metin şifre
+    
+    Returns:
+        str: Bcrypt hash'i
+    """
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+
+def check_password_bcrypt(password, hashed_password):
+    """
+    Bcrypt hash ile şifre doğrulama
+    
+    Args:
+        password: Düz metin şifre
+        hashed_password: Bcrypt hash'i
+    
+    Returns:
+        bool: Şifre doğru mu?
+    """
+    try:
+        return bcrypt.checkpw(password.encode('utf-8'), hashed_password.encode('utf-8'))
+    except:
+        return False
+
+
+def is_bcrypt_hash(hash_string):
+    """
+    Bir hash'in bcrypt formatında olup olmadığını kontrol eder
+    
+    Bcrypt hash'leri "$2b$" ile başlar
+    
+    Args:
+        hash_string: Kontrol edilecek hash
+    
+    Returns:
+        bool: Bcrypt hash'i mi?
+    """
+    return hash_string.startswith('$2b$') or hash_string.startswith('$2a$')
+
+
+def migrate_user_to_bcrypt(username, plain_password):
+    """
+    Kullanıcının şifresini SHA256'dan bcrypt'e geçirir
+    
+    Args:
+        username: Kullanıcı adı
+        plain_password: Doğru şifre (giriş sırasında alınır)
+    
+    Returns:
+        bool: Geçiş başarılı mı?
+    """
+    try:
+        conn = get_conn()
+        df = fetch_data("kullanicilar")
+        
+        if df.empty:
+            return False
+        
+        mask = df['kullanici_adi'] == username
+        if not mask.any():
+            return False
+        
+        # Yeni bcrypt hash oluştur
+        new_hash = hash_password_bcrypt(plain_password)
+        
+        # Güncelle
+        df.loc[mask, 'sifre_hash'] = new_hash
+        conn.update(worksheet="kullanicilar", data=df)
+        
+        return True
+    except Exception as e:
+        st.error(f"Bcrypt geçiş hatası: {e}")
+        return False
