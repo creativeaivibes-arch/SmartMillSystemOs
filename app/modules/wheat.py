@@ -692,7 +692,9 @@ def show_stok_cikis():
                                  maliyet=float(row['maliyet']), notlar=f"Transfer: {silo}")
                 update_tavli_bugday_stok(hedef, miktar, "ekle")
             
+            # ===== KRİTİK: SİLO STOKLARINI YENİDEN HESAPLA =====
             recalculate_silos_from_logs()
+            
             st.success("İşlem Başarılı")
             time.sleep(1)
             st.rerun()
@@ -916,6 +918,7 @@ def show_bugday_spec_yonetimi():
                             st.rerun()
         else:
             st.info("Henüz standart tanımlanmamış")
+
 
 
 
