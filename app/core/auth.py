@@ -117,15 +117,7 @@ def send_password_email(recipient_email, recipient_name, username, new_password)
 
 def update_user_password(username, new_password, send_email=False):
     """
-    Kullanıcının şifresini günceller ve isteğe bağlı olarak mail gönderir.
-    
-    Args:
-        username: Kullanıcı adı
-        new_password: Yeni şifre
-        send_email: True ise kullanıcıya mail gönderilir
-    
-    Returns:
-        tuple: (başarı durumu: bool, mesaj: str, email: str veya None)
+    Kullanıcının şifresini günceller (bcrypt ile)
     """
     try:
         conn = get_conn()
@@ -143,13 +135,13 @@ def update_user_password(username, new_password, send_email=False):
         user_email = df.loc[mask, 'email'].iloc[0] if 'email' in df.columns else None
         user_fullname = df.loc[mask, 'ad_soyad'].iloc[0] if 'ad_soyad' in df.columns else username
         
-        # Şifreyi güncelle
-        df.loc[mask, 'sifre_hash'] = hash_password(new_password)
+        # Şifreyi güncelle (BCRYPT İLE)
+        df.loc[mask, 'sifre_hash'] = hash_password_bcrypt(new_password)  # ← DEĞİŞTİ
         
         # Google Sheets'i güncelle
         conn.update(worksheet="kullanicilar", data=df)
         
-        # Mail gönderme işlemi
+        # Mail gönderme işlemi (değişmedi)
         if send_email and user_email and user_email.strip():
             mail_success, mail_msg = send_password_email(user_email, user_fullname, username, new_password)
             if mail_success:
@@ -343,4 +335,5 @@ def migrate_user_to_bcrypt(username, plain_password):
     except Exception as e:
         st.error(f"Bcrypt geçiş hatası: {e}")
         return False
+
 
