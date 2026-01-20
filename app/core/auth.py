@@ -163,22 +163,24 @@ def update_user_password(username, new_password, send_email=False):
         return False, f"Hata oluştu: {str(e)}", None
 
 def login_user(username, password):
-    """Kullanıcı giriş işlemi"""
+    """
+    Kullanıcı giriş işlemi (SHA256 ve bcrypt destekli - geriye uyumlu)
+    """
     df = fetch_data("kullanicilar")
     
     if df.empty:
-        # Tablo boşsa varsayılan admin oluştur
+        # Tablo boşsa varsayılan admin oluştur (bcrypt ile)
         st.warning("⚠️ Kullanıcı tablosu boş! Varsayılan yönetici oluşturuluyor...")
         admin_data = {
             'kullanici_adi': 'admin',
-            'sifre_hash': hash_password('admin123'),
+            'sifre_hash': hash_password_bcrypt('admin123'),  # ← BCRYPT İLE
             'rol': 'admin',
             'ad_soyad': 'Sistem Yöneticisi',
             'email': '',
             'olusturma_tarihi': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
         if add_data("kullanicilar", admin_data):
-            st.success("✅ Varsayılan admin oluşturuldu. Lütfen tekrar giriş yapın.")
+            st.success("✅ Varsayılan admin oluşturuldu (Şifre: admin123). Lütfen tekrar giriş yapın.")
             time.sleep(2)
             st.rerun()
         return False
@@ -187,13 +189,39 @@ def login_user(username, password):
     user = df[df['kullanici_adi'] == username]
     if not user.empty:
         stored_hash = user.iloc[0]['sifre_hash']
-        if check_password(password, stored_hash):
-            st.session_state.logged_in = True
-            st.session_state.username = username
-            st.session_state.user_role = user.iloc[0]['rol']
-            st.session_state.user_fullname = user.iloc[0]['ad_soyad']
-            return True
-            
+        
+        # ===== GERİYE UYUMLU ŞİFRE KONTROLÜ =====
+        
+        # 1. Önce bcrypt ile dene
+        if is_bcrypt_hash(stored_hash):
+            # Bcrypt hash - modern yöntem
+            if check_password_bcrypt(password, stored_hash):
+                # Başarılı giriş
+                st.session_state.logged_in = True
+                st.session_state.username = username
+                st.session_state.user_role = user.iloc[0]['rol']
+                st.session_state.user_fullname = user.iloc[0]['ad_soyad']
+                return True
+            else:
+                return False
+        
+        # 2. Eski SHA256 hash ise kontrol et ve otomatik geçir
+        else:
+            # Eski yöntemle kontrol et
+            if check_password(password, stored_hash):  # ESKİ FONKSİYON
+                # Şifre doğru! Otomatik bcrypt'e geçir
+                if migrate_user_to_bcrypt(username, password):
+                    st.info("🔒 Güvenlik: Şifreniz yeni güvenlik standardına yükseltildi.")
+                
+                # Başarılı giriş
+                st.session_state.logged_in = True
+                st.session_state.username = username
+                st.session_state.user_role = user.iloc[0]['rol']
+                st.session_state.user_fullname = user.iloc[0]['ad_soyad']
+                return True
+            else:
+                return False
+    
     return False
 
 def show_profile_settings():
@@ -315,3 +343,4 @@ def migrate_user_to_bcrypt(username, plain_password):
     except Exception as e:
         st.error(f"Bcrypt geçiş hatası: {e}")
         return False
+
