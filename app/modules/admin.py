@@ -307,15 +307,197 @@ def debug_tables():
             st.error(f"Okuma hatası: {e}")
 
 def show_debug_panel():
-    """Yönetici Hata Ayıklama Paneli"""
+    """Yönetici Hata Ayıklama ve Bakım Paneli"""
     st.title("🛠️ Yönetici Hata Ayıklama Paneli")
-    tab1, tab2, tab3 = st.tabs(["Data Inspector", "Session State", "System Info"])
+    
+    tab1, tab2, tab3, tab4 = st.tabs(["📊 Data Inspector", "🔧 Bakım Araçları", "💾 Session State", "ℹ️ System Info"])
+    
+    # ===== TAB 1: DATA INSPECTOR =====
     with tab1:
         debug_tables()
+    
+    # ===== TAB 2: BAKIM ARAÇLARI (YENİ!) =====
     with tab2:
-        st.write("### Aktif Session State")
-        st.write(st.session_state)
+        st.subheader("🔧 Sistem Bakım Araçları")
+        st.warning("⚠️ Bu araçlar sadece acil durumlarda veya veri tutarsızlığı olduğunda kullanılmalıdır!")
+        
+        # ===== 1. SİLO SENKRONIZASYONU =====
+        with st.expander("🔄 Silo Stok Senkronizasyonu", expanded=False):
+            st.markdown("""
+            **📋 Ne İşe Yarar?**
+            - Tüm `hareketler` tablosunu tarar
+            - `silolar` tablosundaki stokları **sıfırdan yeniden hesaplar**
+            - Ağırlıklı ortalama (protein, maliyet vb.) günceller
+            
+            **🔍 Ne Zaman Kullanılır?**
+            - ✅ Google Sheets'te manuel düzenleme yaptıysanız
+            - ✅ Toplu veri import ettiyseniz
+            - ✅ Dashboard ile hareketler uyumsuzsa
+            - ✅ Stok değerleri yanlış görünüyorsa
+            
+            **⚠️ Dikkat:**
+            Bu işlem mevcut silo stoklarını **tamamen sıfırlayıp** hareketlerden yeniden hesaplar!
+            """)
+            
+            col_info, col_btn = st.columns([3, 1])
+            
+            with col_info:
+                # Mevcut durum bilgisi
+                try:
+                    df_silolar = fetch_data("silolar")
+                    df_hareketler = fetch_data("hareketler")
+                    
+                    toplam_silo = len(df_silolar) if not df_silolar.empty else 0
+                    toplam_hareket = len(df_hareketler) if not df_hareketler.empty else 0
+                    
+                    st.info(f"📊 **Mevcut Durum:** {toplam_silo} silo, {toplam_hareket} hareket kaydı")
+                except:
+                    st.warning("Veri okunamadı")
+            
+            with col_btn:
+                if st.button("🔄 HESAPLA", type="primary", use_container_width=True):
+                    from app.modules.wheat import recalculate_silos_from_logs
+                    
+                    with st.spinner("⏳ Hesaplanıyor... (Bu birkaç saniye sürebilir)"):
+                        if recalculate_silos_from_logs():
+                            st.success("✅ Tüm silolar başarıyla güncellendi!")
+                            st.balloons()
+                            time.sleep(2)
+                            st.rerun()
+                        else:
+                            st.error("❌ Güncelleme başarısız! Lütfen hata mesajını kontrol edin.")
+        
+        st.divider()
+        
+        # ===== 2. CACHE TEMİZLEME =====
+        with st.expander("🗑️ Cache Temizleme", expanded=False):
+            st.markdown("""
+            **📋 Ne İşe Yarar?**
+            Sistemin bellekte tuttuğu tüm verileri temizler ve sonraki istekte Google Sheets'ten taze veri çeker.
+            
+            **🔍 Ne Zaman Kullanılır?**
+            - ✅ Eski veriler görünüyorsa
+            - ✅ Google Sheets'te değişiklik yaptıktan sonra Dashboard'da yansımıyorsa
+            - ✅ "Güncelleme yaptım ama değişmedi" durumlarında
+            """)
+            
+            col_cache1, col_cache2 = st.columns([3, 1])
+            
+            with col_cache1:
+                # Cache bilgisi
+                cache_count = len(st.session_state.get('db_cache', {}))
+                st.info(f"📊 Şu an **{cache_count} tablo** cache'de saklanıyor")
+            
+            with col_cache2:
+                if st.button("🗑️ TEMİZLE", use_container_width=True):
+                    from app.core.database import clear_cache
+                    clear_cache()  # Tüm cache'i temizle
+                    st.success("✅ Cache temizlendi!")
+                    time.sleep(1)
+                    st.rerun()
+        
+        st.divider()
+        
+        # ===== 3. VERİ TUTARLILIK KONTROLÜ =====
+        with st.expander("🔍 Veri Tutarlılık Kontrolü", expanded=False):
+            st.markdown("""
+            **📋 Ne İşe Yarar?**
+            Tablolar arasındaki tutarsızlıkları tespit eder.
+            
+            **Kontrol Edilen Durumlar:**
+            - Hareketlerdeki silo isimleri, silolar tablosunda var mı?
+            - Arşivdeki lot_no'lar, hareketlerde var mı?
+            - Negatif stok var mı?
+            """)
+            
+            if st.button("🔍 KONTROL BAŞLAT", use_container_width=True):
+                with st.spinner("Kontrol ediliyor..."):
+                    problems = []
+                    
+                    try:
+                        df_silolar = fetch_data("silolar")
+                        df_hareketler = fetch_data("hareketler")
+                        
+                        # Kontrol 1: Tanımsız silolar
+                        if not df_hareketler.empty and 'silo_isim' in df_hareketler.columns:
+                            silo_list = df_silolar['isim'].tolist() if not df_silolar.empty else []
+                            undefined_silos = df_hareketler[~df_hareketler['silo_isim'].isin(silo_list)]['silo_isim'].unique()
+                            
+                            if len(undefined_silos) > 0:
+                                problems.append(f"⚠️ Hareketlerde tanımsız silo bulundu: {', '.join(undefined_silos)}")
+                        
+                        # Kontrol 2: Negatif stok
+                        if not df_silolar.empty and 'mevcut_miktar' in df_silolar.columns:
+                            negative_stocks = df_silolar[df_silolar['mevcut_miktar'] < 0]
+                            if not negative_stocks.empty:
+                                for _, row in negative_stocks.iterrows():
+                                    problems.append(f"⚠️ {row['isim']} silosunda negatif stok: {row['mevcut_miktar']:.2f} ton")
+                        
+                        # Sonuç
+                        if len(problems) == 0:
+                            st.success("✅ Tutarlılık kontrolünde sorun bulunamadı!")
+                        else:
+                            st.warning(f"⚠️ {len(problems)} sorun tespit edildi:")
+                            for problem in problems:
+                                st.write(f"- {problem}")
+                    
+                    except Exception as e:
+                        st.error(f"Kontrol hatası: {e}")
+        
+        st.divider()
+        
+        # ===== 4. TABLO İSTATİSTİKLERİ =====
+        st.subheader("📊 Tablo İstatistikleri")
+        
+        tables = {
+            "Buğday Siloları": "silolar",
+            "Stok Hareketleri": "hareketler",
+            "Buğday Giriş Arşivi": "bugday_giris_arsivi",
+            "Tavlı Analiz": "tavli_analiz",
+            "Un Analizleri": "un_analizleri",
+            "Un Spesifikasyonları": "un_spekleri",
+            "Üretim Kayıtları": "uretim_kaydi",
+            "Kullanıcılar": "kullanicilar"
+        }
+        
+        col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
+        
+        for idx, (table_name, sheet_name) in enumerate(tables.items()):
+            try:
+                df = fetch_data(sheet_name)
+                kayit_sayisi = len(df) if not df.empty else 0
+                
+                # Kolonlara dağıt
+                if idx % 4 == 0:
+                    col_stat1.metric(table_name, f"{kayit_sayisi} kayıt")
+                elif idx % 4 == 1:
+                    col_stat2.metric(table_name, f"{kayit_sayisi} kayıt")
+                elif idx % 4 == 2:
+                    col_stat3.metric(table_name, f"{kayit_sayisi} kayıt")
+                else:
+                    col_stat4.metric(table_name, f"{kayit_sayisi} kayıt")
+            except:
+                pass
+    
+    # ===== TAB 3: SESSION STATE =====
     with tab3:
-        st.write("### Sistem Bilgisi")
-        st.write(f"Python Version: {pd.__version__} (Pandas)")
-        st.write("Backend: Google Sheets API")
+        st.write("### 💾 Aktif Session State")
+        st.json(dict(st.session_state))
+    
+    # ===== TAB 4: SYSTEM INFO =====
+    with tab4:
+        st.write("### ℹ️ Sistem Bilgisi")
+        st.write(f"**Pandas Version:** {pd.__version__}")
+        st.write(f"**Streamlit Version:** {st.__version__}")
+        st.write("**Backend:** Google Sheets API")
+        st.write(f"**Aktif Kullanıcı:** {st.session_state.get('username', 'Bilinmiyor')}")
+        st.write(f"**Rol:** {st.session_state.get('user_role', 'Bilinmiyor')}")
+        
+        # Cache bilgisi
+        cache_info = st.session_state.get('db_cache', {})
+        st.write(f"**Cache'deki Tablo Sayısı:** {len(cache_info)}")
+        
+        if cache_info:
+            st.write("**Cache'deki Tablolar:**")
+            for table_name in cache_info.keys():
+                st.write(f"- {table_name}")
