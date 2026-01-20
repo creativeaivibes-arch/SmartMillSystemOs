@@ -256,20 +256,5 @@ elif selected_page == "PROFILE":
                 {'bugday_cinsi': 'TEST'}
             )
             st.write(f"Sonuç: {msg}")
-    # ===== GEÇİCİ ADMIN ARACI (Tek kullanımlık) =====
-if st.session_state.get('user_role') == "admin":
-    with st.sidebar:
-        st.divider()
-        st.caption("🔧 Tek Kullanımlık Araç")
-        
-        if st.button("🔄 SİLOLARI YENİDEN HESAPLA", type="secondary", use_container_width=True):
-            from app.modules.wheat import recalculate_silos_from_logs
-            
-            with st.spinner("Tüm hareketler taranıyor..."):
-                if recalculate_silos_from_logs():
-                    st.success("✅ Tüm silolar güncellendi!")
-                    time.sleep(1.5)
-                    st.rerun()
-                else:
-                    st.error("❌ Güncelleme başarısız!")
+    
 
