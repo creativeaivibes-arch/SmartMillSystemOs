@@ -128,50 +128,118 @@ def update_tavli_bugday_stok(silo_isim, eklenen_tonaj, islem_tipi="ekle"):
         return False
 
 def recalculate_silos_from_logs():
-    """Geçmiş hareketleri tarayıp siloları senkronize eder (SQL Mantığı -> Pandas Mantığı)"""
+    """
+    Geçmiş hareketleri tarayıp siloları senkronize eder (SQL Mantığı -> Pandas Mantığı)
+    
+    ÖNEMLİ: Bu fonksiyon her mal kabul/çıkıştan sonra otomatik çağrılır!
+    """
     try:
-        conn = get_conn()
-        df_silolar = fetch_data("silolar")
-        df_hareketler = fetch_data("hareketler")
+        # ===== VERİLERİ ÇEK (FORCE REFRESH) =====
+        from app.core.database import update_data, clear_cache
         
-        if df_silolar.empty: return False
+        # Cache'i temizle ve taze veri al
+        clear_cache("silolar")
+        clear_cache("hareketler")
         
-        # Hareket yoksa çık
-        if df_hareketler.empty: 
-            return True
-
+        df_silolar = fetch_data("silolar", force_refresh=True)
+        df_hareketler = fetch_data("hareketler", force_refresh=True)
+        
+        if df_silolar.empty:
+            st.warning("⚠️ Silolar tablosu boş!")
+            return False
+        
+        # Hareket yoksa siloları sıfırla ve çık
+        if df_hareketler.empty:
+            st.info("ℹ️ Henüz hareket kaydı yok, silolar sıfırlanıyor.")
+            df_silolar['mevcut_miktar'] = 0.0
+            df_silolar['protein'] = 0.0
+            df_silolar['maliyet'] = 0.0
+            return update_data("silolar", df_silolar)
+        
+        # ===== NUMERIC KOLONLARI DÜZELT =====
+        numeric_cols = ['miktar', 'protein', 'maliyet', 'gluten', 'rutubet', 'hektolitre', 'sedim']
+        for col in numeric_cols:
+            if col in df_hareketler.columns:
+                df_hareketler[col] = pd.to_numeric(df_hareketler[col], errors='coerce').fillna(0)
+        
+        # ===== HER SİLO İÇİN HESAPLA =====
         for index, row in df_silolar.iterrows():
             silo_isim = row['isim']
-            silo_moves = df_hareketler[df_hareketler['silo_isim'] == silo_isim]
             
-            curr_miktar = 0.0
+            # Bu silonun hareketlerini filtrele
+            silo_moves = df_hareketler[df_hareketler['silo_isim'] == silo_isim].copy()
             
-            # Girişler ve Çıkışlar
-            girisler = silo_moves[silo_moves['hareket_tipi'] == 'Giriş']
-            cikislar = silo_moves[silo_moves['hareket_tipi'] == 'Çıkış']
+            if silo_moves.empty:
+                # Hareket yoksa stoğu sıfırla
+                df_silolar.at[index, 'mevcut_miktar'] = 0.0
+                df_silolar.at[index, 'protein'] = 0.0
+                df_silolar.at[index, 'maliyet'] = 0.0
+                continue
             
-            toplam_giris = girisler['miktar'].sum()
-            toplam_cikis = cikislar['miktar'].sum()
+            # ===== GİRİŞ VE ÇIKIŞ AYIR =====
+            girisler = silo_moves[silo_moves['hareket_tipi'] == 'Giriş'].copy()
+            cikislar = silo_moves[silo_moves['hareket_tipi'] == 'Çıkış'].copy()
             
-            curr_miktar = max(0, toplam_giris - toplam_cikis)
+            # ===== TOPLAM HESAPLA =====
+            toplam_giris = girisler['miktar'].sum() if not girisler.empty else 0.0
+            toplam_cikis = cikislar['miktar'].sum() if not cikislar.empty else 0.0
             
-            # AĞIRLIKLI Ortalama (Sadece Girişlerden Hesaplanır)
+            mevcut_miktar = max(0, toplam_giris - toplam_cikis)
+            
+            # ===== AĞIRLIKLI ORTALAMA (Sadece Girişlerden) =====
             if not girisler.empty and toplam_giris > 0:
                 try:
-                    avg_prot = (girisler['miktar'] * girisler['protein']).sum() / toplam_giris
-                    avg_mal = (girisler['miktar'] * girisler['maliyet']).sum() / toplam_giris
+                    # Protein ortalaması
+                    avg_protein = (girisler['miktar'] * girisler['protein']).sum() / toplam_giris
                     
-                    df_silolar.at[index, 'protein'] = avg_prot
-                    df_silolar.at[index, 'maliyet'] = avg_mal
-                    # Diğer parametreler de eklenebilir (gluten vb.)
-                except: pass
-
-            df_silolar.at[index, 'mevcut_miktar'] = curr_miktar
-
-        conn.update(worksheet="silolar", data=df_silolar)
-        return True
+                    # Maliyet ortalaması
+                    avg_maliyet = (girisler['miktar'] * girisler['maliyet']).sum() / toplam_giris
+                    
+                    # Diğer parametreler (opsiyonel)
+                    avg_gluten = (girisler['miktar'] * girisler['gluten']).sum() / toplam_giris if 'gluten' in girisler.columns else 0
+                    avg_rutubet = (girisler['miktar'] * girisler['rutubet']).sum() / toplam_giris if 'rutubet' in girisler.columns else 0
+                    avg_hektolitre = (girisler['miktar'] * girisler['hektolitre']).sum() / toplam_giris if 'hektolitre' in girisler.columns else 0
+                    avg_sedim = (girisler['miktar'] * girisler['sedim']).sum() / toplam_giris if 'sedim' in girisler.columns else 0
+                    
+                    # Silo tablosunu güncelle
+                    df_silolar.at[index, 'protein'] = avg_protein
+                    df_silolar.at[index, 'maliyet'] = avg_maliyet
+                    
+                    # Eğer sütunlar varsa diğerlerini de güncelle
+                    if 'gluten' in df_silolar.columns:
+                        df_silolar.at[index, 'gluten'] = avg_gluten
+                    if 'rutubet' in df_silolar.columns:
+                        df_silolar.at[index, 'rutubet'] = avg_rutubet
+                    if 'hektolitre' in df_silolar.columns:
+                        df_silolar.at[index, 'hektolitre'] = avg_hektolitre
+                    if 'sedim' in df_silolar.columns:
+                        df_silolar.at[index, 'sedim'] = avg_sedim
+                    
+                except Exception as calc_err:
+                    st.warning(f"⚠️ {silo_isim} için ortalama hesaplanamadı: {calc_err}")
+                    # Hesaplama hatası olsa bile miktar güncellensin
+                    pass
+            else:
+                # Giriş yoksa varsayılan değerler
+                df_silolar.at[index, 'protein'] = 0.0
+                df_silolar.at[index, 'maliyet'] = 0.0
+            
+            # ===== MEVCUT MİKTARI GÜNCELLE =====
+            df_silolar.at[index, 'mevcut_miktar'] = mevcut_miktar
+        
+        # ===== GOOGLE SHEETS'E KAYDET (YENİ METODUMUZLA) =====
+        if update_data("silolar", df_silolar):
+            # Başarı mesajı (opsiyonel - çok fazla gösterilirse yorucu olur)
+            # st.success("✅ Silo stokları güncellendi!")
+            return True
+        else:
+            st.error("❌ Silo güncellemesi başarısız!")
+            return False
+        
     except Exception as e:
-        st.error(f"Hesaplama hatası: {str(e)}")
+        st.error(f"❌ Silo hesaplama hatası: {str(e)}")
+        import traceback
+        st.code(traceback.format_exc())
         return False
 
 def add_to_bugday_giris_arsivi(lot_no, **kwargs):
@@ -815,5 +883,6 @@ def show_bugday_spec_yonetimi():
                             st.rerun()
         else:
             st.info("Henüz standart tanımlanmamış")
+
 
 
