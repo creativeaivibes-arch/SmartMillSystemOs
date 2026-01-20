@@ -454,7 +454,7 @@ def show_debug_panel():
             "Stok Hareketleri": "hareketler",
             "Buğday Giriş Arşivi": "bugday_giris_arsivi",
             "Tavlı Analiz": "tavli_analiz",
-            "Un Analizleri": "un_analizleri",
+            "Un Analizleri": "un_analiz",
             "Un Spesifikasyonları": "un_spekleri",
             "Üretim Kayıtları": "uretim_kaydi",
             "Kullanıcılar": "kullanicilar"
@@ -501,3 +501,4 @@ def show_debug_panel():
             st.write("**Cache'deki Tablolar:**")
             for table_name in cache_info.keys():
                 st.write(f"- {table_name}")
+
