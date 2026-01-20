@@ -194,18 +194,77 @@ def get_movements():
         df_h = fetch_data("hareketler")
         df_a = fetch_data("bugday_giris_arsivi")
         
-        if df_h.empty: return pd.DataFrame()
-        if df_a.empty: return df_h
+        # BOŞLUK KONTROLÜ
+        if df_h.empty:
+            st.warning("🔍 Hareketler tablosu boş!")
+            return pd.DataFrame()
         
-        # Pandas Merge (SQL LEFT JOIN yerine)
-        # Hareket tablosunda olmayan detaylar (Süne, Yabancı Tane vb.) Arşivden gelir
+        # DEBUG: Sütunları göster (geçici - sonra silebilirsin)
+        # st.info(f"Hareketler sütunları: {list(df_h.columns)}")
+        # if not df_a.empty:
+        #     st.info(f"Arşiv sütunları: {list(df_a.columns)}")
+        
+        # Arşiv yoksa hareketleri olduğu gibi döndür
+        if df_a.empty:
+            if 'tarih' in df_h.columns:
+                df_h['tarih'] = pd.to_datetime(df_h['tarih'], errors='coerce')
+                df_h = df_h.sort_values('tarih', ascending=False)
+            return df_h
+        
+        # ===== LOT_NO KONTROLÜ =====
+        if 'lot_no' not in df_h.columns:
+            st.error("❌ 'lot_no' sütunu hareketler tablosunda bulunamadı!")
+            # lot_no yoksa hareketleri olduğu gibi göster
+            return df_h
+        
+        if 'lot_no' not in df_a.columns:
+            st.warning("⚠️ 'lot_no' sütunu arşiv tablosunda bulunamadı!")
+            return df_h
+        
+        # ===== ARŞİVDEN ALINACAK SÜTUNLARI BELİRLE (Mevcut olanları al) =====
+        arsiv_kolonlar = ['lot_no']  # lot_no kesin olmalı
+        
+        # İsteğe bağlı sütunları ekle (varsa)
+        optional_cols = [
+            'tedarikci', 'yore', 'plaka', 'bugday_cinsi', 
+            'sune', 'kirik_ciliz', 'yabanci_tane', 
+            'gluten_index', 'gecikmeli_sedim'
+        ]
+        
+        for col in optional_cols:
+            if col in df_a.columns:
+                arsiv_kolonlar.append(col)
+        
+        # ===== PANDAS MERGE (LEFT JOIN) =====
         merged = pd.merge(
             df_h, 
-            df_a[['lot_no', 'tedarikci', 'yore', 'plaka', 'bugday_cinsi', 'sune', 'kirik_ciliz', 'yabanci_tane', 'gluten_index', 'gecikmeli_sedim']], 
+            df_a[arsiv_kolonlar], 
             on='lot_no', 
-            how='left', 
+            how='left',  # Sol tablodaki (hareketler) tüm kayıtları koru
             suffixes=('', '_arsiv')
         )
+        
+        # ===== ÇAKIŞAN SÜTUNLARI BİRLEŞTİR =====
+        # Eğer hem hareketler hem arşivde aynı sütun varsa (örn: tedarikci)
+        # Hareketlerdeki boşsa arşivden doldur
+        for col in ['tedarikci', 'yore', 'bugday_cinsi']:
+            if col in merged.columns and f'{col}_arsiv' in merged.columns:
+                merged[col] = merged[col].fillna(merged[f'{col}_arsiv'])
+                # Gereksiz _arsiv sütununu sil
+                merged.drop(f'{col}_arsiv', axis=1, inplace=True)
+        
+        # ===== TARİH SIRALAMASI =====
+        if 'tarih' in merged.columns:
+            merged['tarih'] = pd.to_datetime(merged['tarih'], errors='coerce')
+            merged = merged.sort_values('tarih', ascending=False)
+        
+        return merged
+        
+    except Exception as e:
+        st.error(f"❌ Hareket yükleme hatası: {e}")
+        import traceback
+        st.code(traceback.format_exc())
+        return pd.DataFrame()
         
         # Çakışan sütunlarda boşlukları doldur
         for col in ['tedarikci', 'yore']:
@@ -756,4 +815,5 @@ def show_bugday_spec_yonetimi():
                             st.rerun()
         else:
             st.info("Henüz standart tanımlanmamış")
+
 
