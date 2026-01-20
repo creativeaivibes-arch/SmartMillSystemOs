@@ -615,6 +615,39 @@ def show_mal_kabul():
             
             if ok_arc:
                 st.success("✅ Kayıt Başarılı!")
+                
+                # ===== KRİTİK: SİLO STOKLARINI YENİDEN HESAPLA =====
+                recalculate_silos_from_logs()
+                
+                time.sleep(1)
+                st.rerun()
+            else:
+                st.error("Arşiv kaydında hata oluştu.")
+        else:
+            st.error("Stok kaydında hata oluştu.")
+        
+        # 3. Kayıt (Stok Hareketi + Arşiv)
+        ok_log = log_stok_hareketi(
+            secilen_silo, "Giriş", miktar,
+            protein=g_prot, gluten=g_glut, rutubet=g_rut, hektolitre=g_hl,
+            sedim=g_sedim, maliyet=fiyat, lot_no=lot_no,
+            tedarikci=tedarikci, yore=yore, notlar=note_final
+        )
+        
+        if ok_log:
+            # Arşive tüm detayları ekle
+            ok_arc = add_to_bugday_giris_arsivi(
+                lot_no, tarih=str(tarih), bugday_cinsi=bugday_cinsi,
+                tedarikci=tedarikci, yore=yore, plaka=plaka,
+                tonaj=miktar, fiyat=fiyat, silo_isim=secilen_silo,
+                hektolitre=g_hl, protein=g_prot, rutubet=g_rut,
+                gluten=g_glut, gluten_index=g_index, sedim=g_sedim,
+                gecikmeli_sedim=g_g_sedim, sune=sune, kirik_ciliz=kirik_ciliz,
+                yabanci_tane=yabanci_tane, notlar=note_final
+            )
+            
+            if ok_arc:
+                st.success("✅ Kayıt Başarılı!")
                 recalculate_silos_from_logs()
                 time.sleep(1)
                 st.rerun()
@@ -883,6 +916,7 @@ def show_bugday_spec_yonetimi():
                             st.rerun()
         else:
             st.info("Henüz standart tanımlanmamış")
+
 
 
 
