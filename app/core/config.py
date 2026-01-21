@@ -47,3 +47,102 @@ INPUT_LIMITS = {
 def get_limit(key, param):
     """Safely get a limit parameter"""
     return INPUT_LIMITS.get(key, {}).get(param, 0.0)
+
+def validate_numeric_input(value, field_key, allow_zero=True, allow_negative=False):
+    """
+    Numerik input validasyonu
+    
+    Args:
+        value: Kontrol edilecek değer
+        field_key: INPUT_LIMITS dict'indeki key (örn: 'protein', 'tonaj')
+        allow_zero: Sıfır kabul edilsin mi?
+        allow_negative: Negatif değer kabul edilsin mi?
+    
+    Returns:
+        tuple: (geçerli_mi: bool, hata_mesaji: str, düzeltilmiş_değer: float)
+    
+    Örnek:
+        valid, msg, corrected = validate_numeric_input(150, 'protein')
+        if not valid:
+            st.error(msg)
+    """
+    try:
+        value = float(value)
+    except:
+        return False, f"❌ Geçersiz sayı formatı!", 0.0
+    
+    # Negatif kontrol
+    if not allow_negative and value < 0:
+        return False, f"❌ Negatif değer girilemez!", 0.0
+    
+    # Sıfır kontrol
+    if not allow_zero and value == 0:
+        return False, f"❌ Değer sıfır olamaz!", 0.0
+    
+    # Limit kontrolü
+    if field_key in INPUT_LIMITS:
+        limits = INPUT_LIMITS[field_key]
+        min_val = limits.get('min', 0.0)
+        max_val = limits.get('max', float('inf'))
+        
+        if value < min_val:
+            return False, f"❌ Minimum değer: {min_val}", min_val
+        
+        if value > max_val:
+            return False, f"❌ Maksimum değer: {max_val}", max_val
+    
+    return True, "", value
+
+
+def validate_capacity(current_stock, capacity, adding_amount):
+    """
+    Kapasite kontrolü
+    
+    Args:
+        current_stock: Mevcut stok (ton)
+        capacity: Toplam kapasite (ton)
+        adding_amount: Eklenecek miktar (ton)
+    
+    Returns:
+        tuple: (geçerli_mi: bool, hata_mesaji: str, kalan_kapasite: float)
+    """
+    try:
+        current_stock = float(current_stock)
+        capacity = float(capacity)
+        adding_amount = float(adding_amount)
+    except:
+        return False, "❌ Geçersiz sayı formatı!", 0.0
+    
+    kalan = capacity - current_stock
+    
+    if adding_amount > kalan:
+        return False, f"❌ Kapasite aşımı! Sadece {kalan:.1f} ton yer var.", kalan
+    
+    return True, "", kalan
+
+
+def validate_stock_withdrawal(current_stock, withdrawal_amount):
+    """
+    Stok çıkış kontrolü
+    
+    Args:
+        current_stock: Mevcut stok (ton)
+        withdrawal_amount: Çıkış miktarı (ton)
+    
+    Returns:
+        tuple: (geçerli_mi: bool, hata_mesaji: str)
+    """
+    try:
+        current_stock = float(current_stock)
+        withdrawal_amount = float(withdrawal_amount)
+    except:
+        return False, "❌ Geçersiz sayı formatı!"
+    
+    if withdrawal_amount > current_stock:
+        return False, f"❌ Yetersiz stok! Mevcut: {current_stock:.1f} ton"
+    
+    if withdrawal_amount <= 0:
+        return False, "❌ Çıkış miktarı sıfırdan büyük olmalı!"
+    
+    return True, ""
+
