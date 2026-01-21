@@ -498,7 +498,9 @@ def show_mal_kabul():
         
         # Kapasite Kontrolü
         silo_row = df_silo[df_silo['isim'] == secilen_silo].iloc[0]
-        kalan = float(silo_row.get('kapasite', 0)) - float(silo_row.get('mevcut_miktar', 0))
+        mevcut = float(silo_row.get('mevcut_miktar', 0))
+        kapasite = float(silo_row.get('kapasite', 0))
+        kalan = kapasite - mevcut
         st.info(f"Kalan Kapasite: {kalan:.1f} Ton")
         
         tarih = st.date_input("Kabul Tarihi *", datetime.now())
@@ -580,20 +582,59 @@ def show_mal_kabul():
 
     st.divider()
     if st.button("💾 Kaydı Tamamla", type="primary", use_container_width=True):
-        # 1. Kapasite Kontrolü
-        if miktar > kalan:
-            st.error(f"❌ Kapasite AŞIMI! Sadece {kalan:.1f} ton yer var.")
+        # ===== KAPSAMLI VALİDASYON SİSTEMİ =====
+        from app.core.config import validate_numeric_input, validate_capacity
+        
+        validasyon_hatalari = []
+        
+        # 1. Miktar kontrolü
+        valid, msg, _ = validate_numeric_input(miktar, 'tonaj', allow_zero=False, allow_negative=False)
+        if not valid:
+            validasyon_hatalari.append(f"Miktar: {msg}")
+        
+        # 2. Fiyat kontrolü
+        valid, msg, _ = validate_numeric_input(fiyat, 'fiyat', allow_zero=False, allow_negative=False)
+        if not valid:
+            validasyon_hatalari.append(f"Fiyat: {msg}")
+        
+        # 3. Analiz değerleri kontrolü
+        analiz_checks = [
+            (g_hl, 'hektolitre', 'Hektolitre'),
+            (g_rut, 'rutubet', 'Rutubet'),
+            (g_prot, 'protein', 'Protein'),
+            (g_glut, 'gluten', 'Gluten'),
+            (g_index, 'gluten_index', 'Gluten Index'),
+            (g_sedim, 'sedim', 'Sedimantasyon'),
+            (sune, 'sune', 'Süne'),
+        ]
+        
+        for deger, key, label in analiz_checks:
+            if deger > 0:  # Sadece girilmişse kontrol et
+                valid, msg, _ = validate_numeric_input(deger, key, allow_zero=True, allow_negative=False)
+                if not valid:
+                    validasyon_hatalari.append(f"{label}: {msg}")
+        
+        # 4. Kapasite kontrolü (YENİ YÖNTEM)
+        valid, msg, kalan_yeni = validate_capacity(mevcut, kapasite, miktar)
+        if not valid:
+            validasyon_hatalari.append(msg)
+        
+        # 5. Zorunlu alanlar
+        if not (bugday_cinsi and tedarikci and plaka):
+            validasyon_hatalari.append("❌ Buğday cinsi, tedarikçi ve plaka zorunludur!")
+        
+        # ===== HATA VARSA GÖSTER VE DUR =====
+        if validasyon_hatalari:
+            st.error("🚫 Lütfen aşağıdaki hataları düzeltin:")
+            for hata in validasyon_hatalari:
+                st.write(f"- {hata}")
             return
         
-        # 2. Zorunlu Alanlar
-        if not (bugday_cinsi and tedarikci and plaka):
-            st.error("Lütfen zorunlu alanları doldurun.")
-            return
-
+        # ===== VALİDASYON BAŞARILI - KAYIT İŞLEMİ =====
         note_final = f"Plaka: {plaka} | {notlar}"
         if hasere == "Var": note_final += " | HAŞERE RİSKİ"
         
-        # 3. Kayıt (Stok Hareketi + Arşiv)
+        # Kayıt (Stok Hareketi + Arşiv)
         ok_log = log_stok_hareketi(
             secilen_silo, "Giriş", miktar,
             protein=g_prot, gluten=g_glut, rutubet=g_rut, hektolitre=g_hl,
@@ -616,39 +657,9 @@ def show_mal_kabul():
             if ok_arc:
                 st.success("✅ Kayıt Başarılı!")
                 
-                # ===== KRİTİK: SİLO STOKLARINI YENİDEN HESAPLA =====
+                # Silo stoklarını yeniden hesapla
                 recalculate_silos_from_logs()
                 
-                time.sleep(1)
-                st.rerun()
-            else:
-                st.error("Arşiv kaydında hata oluştu.")
-        else:
-            st.error("Stok kaydında hata oluştu.")
-        
-        # 3. Kayıt (Stok Hareketi + Arşiv)
-        ok_log = log_stok_hareketi(
-            secilen_silo, "Giriş", miktar,
-            protein=g_prot, gluten=g_glut, rutubet=g_rut, hektolitre=g_hl,
-            sedim=g_sedim, maliyet=fiyat, lot_no=lot_no,
-            tedarikci=tedarikci, yore=yore, notlar=note_final
-        )
-        
-        if ok_log:
-            # Arşive tüm detayları ekle
-            ok_arc = add_to_bugday_giris_arsivi(
-                lot_no, tarih=str(tarih), bugday_cinsi=bugday_cinsi,
-                tedarikci=tedarikci, yore=yore, plaka=plaka,
-                tonaj=miktar, fiyat=fiyat, silo_isim=secilen_silo,
-                hektolitre=g_hl, protein=g_prot, rutubet=g_rut,
-                gluten=g_glut, gluten_index=g_index, sedim=g_sedim,
-                gecikmeli_sedim=g_g_sedim, sune=sune, kirik_ciliz=kirik_ciliz,
-                yabanci_tane=yabanci_tane, notlar=note_final
-            )
-            
-            if ok_arc:
-                st.success("✅ Kayıt Başarılı!")
-                recalculate_silos_from_logs()
                 time.sleep(1)
                 st.rerun()
             else:
@@ -918,6 +929,7 @@ def show_bugday_spec_yonetimi():
                             st.rerun()
         else:
             st.info("Henüz standart tanımlanmamış")
+
 
 
 
