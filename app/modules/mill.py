@@ -97,7 +97,6 @@ def show_uretim_kaydi():
         kepek = st.number_input("KEPEK (KG)", min_value=0.0, step=50.0)
         bongalite = st.number_input("BONGALİTE (KG)", min_value=0.0, step=50.0)
         kirik = st.number_input("KIRIK (KG)", min_value=0.0, step=50.0)
-
     st.divider()
     
     st.subheader("📊 Randıman Hesaplamaları")
@@ -128,10 +127,59 @@ def show_uretim_kaydi():
     st.divider()
     
     if st.button("✅ ÜRETİM KAYDINI KAYDET", type="primary"):
+        # ===== VALİDASYON =====
+        from app.core.config import validate_numeric_input
+        
+        # Zorunlu alan kontrolü
         if not uretim_hatti or not vardiya:
             st.error("⚠️ Üretim Hattı ve Vardiya alanları zorunludur!")
             return
-            
+        
+        # Üretim değerleri için validasyon
+        uretim_degerleri_kontrol = {
+            'Kırılan Buğday': kirilan_bugday,
+            'Un 1': un_1,
+            'Un 2': un_2,
+            'Razmol': razmol,
+            'Kepek': kepek,
+            'Bongalite': bongalite,
+            'Kırık': kirik,
+            'Tav Süresi': tav_suresi
+        }
+        
+        validasyon_hatalari = []
+        
+        for alan_adi, deger in uretim_degerleri_kontrol.items():
+            valid, msg, _ = validate_numeric_input(
+                deger, 
+                alan_adi.lower().replace(' ', '_'),
+                allow_zero=True,  # Sıfır kabul edilebilir (üretilmemiş olabilir)
+                allow_negative=False  # Negatif kabul edilmez
+            )
+            if not valid:
+                validasyon_hatalari.append(f"{alan_adi}: {msg}")
+        
+        # Rutubet özel validasyonu (0-20 arası)
+        if b1_rutubet < 0 or b1_rutubet > 20:
+            validasyon_hatalari.append("B1 Buğday Rutubeti: %0-%20 arasında olmalıdır!")
+        
+        # Mantıksal kontrol: Çıkan toplam ürün, girilen buğdaydan fazla olamaz
+        if kirilan_bugday > 0:
+            toplam_cikan = un_1 + un_2 + razmol + kepek + bongalite + kirik
+            if toplam_cikan > kirilan_bugday * 1.05:  # %5 tolerans
+                validasyon_hatalari.append(
+                    f"Toplam çıktı ({toplam_cikan:.0f} kg), "
+                    f"giren buğdaydan ({kirilan_bugday:.0f} kg) fazla olamaz!"
+                )
+        
+        # Hata varsa göster ve çık
+        if validasyon_hatalari:
+            st.error("🚫 Lütfen aşağıdaki hataları düzeltin:")
+            for hata in validasyon_hatalari:
+                st.write(f"- {hata}")
+            return
+        
+        # ===== VALİDASYON BAŞARILI - KAYIT YAP =====
         uretim_verileri = {
             'kirilan_bugday': kirilan_bugday,
             'nem_orani': b1_rutubet,
@@ -590,3 +638,4 @@ def show_uretim_arsivi():
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     use_container_width=True
                 )
+
