@@ -286,10 +286,80 @@ def show_un_analiz_kaydi():
             e135_e = e3.number_input("Enerji (135)", value=126.0)
             su_e = st.number_input("Su Kaldırma (Extenso) (%)", value=54.3)
     st.divider()
+    
     if st.button("✅ Un Analizini Kaydet", type="primary", use_container_width=True):
+        # ===== VALİDASYON =====
+        from app.core.config import validate_numeric_input
+        
+        # Zorunlu alan kontrolü
         if not lot_no or not un_cinsi_marka:
-            st.error("Lot No ve Un Cinsi zorunludur.")
+            st.error("⚠️ Lot No ve Un Cinsi zorunludur!")
             return
+        
+        # Zorunlu kimyasal analizler kontrolü
+        zorunlu_analizler = [
+            (protein, 'protein', 'Protein'),
+            (rutubet, 'rutubet', 'Rutubet'),
+            (gluten, 'gluten', 'Gluten'),
+            (gluten_index, 'gluten_index', 'Gluten Index'),
+            (sedim, 'sedimantasyon', 'Sedimantasyon'),
+            (g_sedim, 'gecikmeli_sedim', 'Gecikmeli Sedim'),
+            (fn, 'falling_number', 'Düşme Sayısı (FN)'),
+            (ffn, 'ffn', 'F.F.N')
+        ]
+        
+        validasyon_hatalari = []
+        
+        for deger, key, label in zorunlu_analizler:
+            valid, msg, _ = validate_numeric_input(
+                deger, 
+                key,
+                allow_zero=False,  # Analiz değerleri sıfır olamaz
+                allow_negative=False  # Negatif kabul edilmez
+            )
+            if not valid:
+                validasyon_hatalari.append(f"{label}: {msg}")
+        
+        # Opsiyonel alanlar için sadece negatif kontrolü (eğer girilmişse)
+        opsiyonel_analizler = [
+            (amilo, 'amilograph', 'Amilograph'),
+            (nisasta, 'nisasta_zedelenmesi', 'Nişasta Zedelenmesi'),
+            (kul, 'kul', 'Kül'),
+            (f_su, 'su_kaldirma_f', 'Su Kaldırma (Farinograph)'),
+            (f_gelisme, 'gelisme_suresi', 'Gelişme Süresi'),
+            (f_stab, 'stabilite', 'Stabilite'),
+            (f_yumus, 'yumusama', 'Yumuşama'),
+            (su_e, 'su_kaldirma_e', 'Su Kaldırma (Extensograph)'),
+            (e45_d, 'direnc45', 'Direnç (45)'),
+            (e45_t, 'taban45', 'Taban (45)'),
+            (e45_e, 'enerji45', 'Enerji (45)'),
+            (e90_d, 'direnc90', 'Direnç (90)'),
+            (e90_t, 'taban90', 'Taban (90)'),
+            (e90_e, 'enerji90', 'Enerji (90)'),
+            (e135_d, 'direnc135', 'Direnç (135)'),
+            (e135_t, 'taban135', 'Taban (135)'),
+            (e135_e, 'enerji135', 'Enerji (135)')
+        ]
+        
+        for deger, key, label in opsiyonel_analizler:
+            if deger is not None and deger != 0:  # Eğer değer girilmişse
+                valid, msg, _ = validate_numeric_input(
+                    deger,
+                    key,
+                    allow_zero=True,  # Sıfır kabul edilebilir
+                    allow_negative=False  # Negatif kabul edilmez
+                )
+                if not valid:
+                    validasyon_hatalari.append(f"{label}: {msg}")
+        
+        # Hata varsa göster ve çık
+        if validasyon_hatalari:
+            st.error("🚫 Lütfen aşağıdaki hataları düzeltin:")
+            for hata in validasyon_hatalari:
+                st.write(f"- {hata}")
+            return
+        
+        # ===== VALİDASYON BAŞARILI - KAYIT YAP =====
         analiz_data = {
             'un_cinsi_marka': un_cinsi_marka, 'un_markasi': un_markasi, 'uretim_silosu': uretim_silosu,
             'protein': protein, 'rutubet': rutubet, 'gluten': gluten, 'gluten_index': gluten_index,
@@ -582,6 +652,7 @@ def show_un_maliyet_gecmisi():
     if st.button("📥 Excel İndir", type="primary"):
         filename = f"un_maliyet_{datetime.now().strftime('%Y%m%d')}.xlsx"
         download_styled_excel(df, filename, "Maliyet Geçmişi")
+
 
 
 
