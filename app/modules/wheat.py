@@ -671,7 +671,9 @@ def show_stok_cikis():
     """Stok Çıkışı Ekranı"""
     st.header("📉 Stok Çıkışı (Üretim/Transfer)")
     df = get_silo_data()
-    if df.empty: return
+    if df.empty: 
+        st.warning("Silo bulunamadı.")
+        return
     
     c1, c2 = st.columns(2)
     with c1:
@@ -680,7 +682,7 @@ def show_stok_cikis():
         mevcut = float(row['mevcut_miktar'])
         st.metric("Mevcut", f"{mevcut:.1f} Ton")
         
-        miktar = st.number_input("Miktar (Ton)", 0.1, max_value=mevcut if mevcut>0 else 0.1)
+        miktar = st.number_input("Miktar (Ton)", 0.1, max_value=mevcut if mevcut > 0 else 0.1)
         neden = st.selectbox("Neden", ["Üretime Gönderim", "Silo Transferi", "Satış", "Zayi"])
         
         hedef = None
@@ -692,23 +694,63 @@ def show_stok_cikis():
         yeni = max(0, mevcut - miktar)
         doluluk = yeni / float(row['kapasite']) if float(row['kapasite']) > 0 else 0
         st.markdown(draw_silo(doluluk, f"Kalan: {yeni:.1f}"), unsafe_allow_html=True)
-
-    if st.button("📤 Çıkışı Onayla", type="primary"):
+    
+    st.divider()
+    
+    if st.button("📤 Çıkışı Onayla", type="primary", use_container_width=True):
+        # ===== VALİDASYON SİSTEMİ =====
+        from app.core.config import validate_stock_withdrawal
+        
+        validasyon_hatalari = []
+        
+        # 1. Stok çıkış kontrolü
+        valid, msg = validate_stock_withdrawal(mevcut, miktar)
+        if not valid:
+            validasyon_hatalari.append(msg)
+        
+        # 2. Transfer kontrolü (hedef silo seçilmiş mi?)
+        if neden == "Silo Transferi" and not hedef:
+            validasyon_hatalari.append("❌ Transfer için hedef silo seçmelisiniz!")
+        
+        # 3. Transfer hedef kapasite kontrolü
+        if neden == "Silo Transferi" and hedef:
+            from app.core.config import validate_capacity
+            
+            hedef_row = df[df['isim'] == hedef].iloc[0]
+            hedef_mevcut = float(hedef_row['mevcut_miktar'])
+            hedef_kapasite = float(hedef_row['kapasite'])
+            
+            valid, msg, _ = validate_capacity(hedef_mevcut, hedef_kapasite, miktar)
+            if not valid:
+                validasyon_hatalari.append(f"Hedef Silo: {msg}")
+        
+        # ===== HATA VARSA GÖSTER VE DUR =====
+        if validasyon_hatalari:
+            st.error("🚫 Lütfen aşağıdaki hataları düzeltin:")
+            for hata in validasyon_hatalari:
+                st.write(f"- {hata}")
+            return
+        
+        # ===== VALİDASYON BAŞARILI - ÇIKIŞ İŞLEMİ =====
         if log_stok_hareketi(silo, "Çıkış", miktar, notlar=neden):
             update_tavli_bugday_stok(silo, miktar, "cikar")
             
             # Transfer ise hedefe giriş yap
             if neden == "Silo Transferi" and hedef:
-                log_stok_hareketi(hedef, "Giriş", miktar, protein=float(row['protein']), 
-                                 maliyet=float(row['maliyet']), notlar=f"Transfer: {silo}")
+                log_stok_hareketi(hedef, "Giriş", miktar, 
+                                 protein=float(row['protein']), 
+                                 maliyet=float(row['maliyet']), 
+                                 notlar=f"Transfer: {silo}")
                 update_tavli_bugday_stok(hedef, miktar, "ekle")
             
-            # ===== KRİTİK: SİLO STOKLARINI YENİDEN HESAPLA =====
+            # Silo stoklarını yeniden hesapla
             recalculate_silos_from_logs()
             
-            st.success("İşlem Başarılı")
+            st.success("✅ İşlem Başarılı!")
             time.sleep(1)
             st.rerun()
+        else:
+            st.error("❌ Çıkış kaydı oluşturulamadı!")
 
 def show_tavli_analiz():
     """Tavlı Buğday Analizi - TAM VE EKSİKSİZ Parametreler"""
@@ -929,6 +971,7 @@ def show_bugday_spec_yonetimi():
                             st.rerun()
         else:
             st.info("Henüz standart tanımlanmamış")
+
 
 
 
