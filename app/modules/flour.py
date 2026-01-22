@@ -11,7 +11,7 @@ from app.core.config import INPUT_LIMITS, TERMS, get_limit
 
 try:
     from app.modules.reports import create_un_maliyet_pdf_report, download_styled_excel
-    import app.modules.calculations as calculations
+    
 except ImportError:
     def create_un_maliyet_pdf_report(*args): return None
     def download_styled_excel(*args): pass
@@ -70,8 +70,19 @@ def get_all_specs_dataframe():
 
 def show_spec_yonetimi():
     st.markdown("### 🎯 Un Kalite Spesifikasyonları (Spec)")
-    df_analiz = fetch_data("un_analizleri")
-    df_spek = fetch_data("un_spekleri")
+    
+    # --- GÜVENLİ VERİ ÇEKME (AIRBAG) ---
+    try:
+        df_analiz = fetch_data("un_analizleri")
+        if df_analiz is None: df_analiz = pd.DataFrame()
+    except:
+        df_analiz = pd.DataFrame() # Hata olursa boş tablo ver, program çökmesin
+
+    try:
+        df_spek = fetch_data("un_spekleri")
+        if df_spek is None: df_spek = pd.DataFrame()
+    except:
+        df_spek = pd.DataFrame()
     un_listesi = set()
     if not df_analiz.empty and 'un_cinsi_marka' in df_analiz.columns:
         un_listesi.update(df_analiz['un_cinsi_marka'].dropna().unique())
@@ -720,6 +731,7 @@ def show_flour_yonetimi():
                 st.error("⚠️ calculations.show_enzim_dozajlama fonksiyonu bulunamadı!")
             except Exception as e:
                 st.error(f"⚠️ Bir hata oluştu: {e}")
+
 
 
 
