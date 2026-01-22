@@ -481,7 +481,28 @@ def show_enzim_dozajlama():
         except Exception:
             st.info("Kayıt bulunamadı.")
 
-ut2 = st.columns([1, 1], gap="large")
+def show_fire_maliyet_hesaplama():
+    """Fire Maliyet Hesaplama Modülü"""
+    
+    # Session state başlangıç değerleri
+    if 'fire_calc_state' not in st.session_state:
+        st.session_state.fire_calc_state = {
+            "bugday_tonaji": 100.0,
+            "bugday_fiyati": 10000.0,
+            "fire_yuzdesi": 0.38,
+            "fire_satis_fiyati": 3000.0
+        }
+    
+    st.markdown("""
+    <div style="text-align: center; margin-bottom: 30px;">
+        <h1 style="color: #0B4F6C; margin-bottom: 10px;">🔍 Buğday Fire Maliyet Hesaplama</h1>
+        <p style="color: #666; font-size: 16px;">Buğday alımındaki fire (yabancı madde) oranının maliyete etkisini hesaplayın</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # GİRİŞ ALANLARI
+    col_input1, col_input2 = st.columns([1, 1], gap="large")
+    
     with col_input1:
         st.markdown("### 📉 Buğday Bilgileri")
         with st.container(border=True):
@@ -497,6 +518,7 @@ ut2 = st.columns([1, 1], gap="large")
                 value=st.session_state.fire_calc_state["bugday_fiyati"],
                 help="Buğdayın ton başına alış fiyatı"
             )
+    
     with col_input2:
         st.markdown("### 🗑️ Fire Bilgileri")
         with st.container(border=True):
@@ -514,9 +536,8 @@ ut2 = st.columns([1, 1], gap="large")
                 help="Ayrılan firenin (kavuz, taş vb.) satılabileceği fiyat"
             )
 
-    # --- HESAPLAMA BUTONU VE MANTIĞI ---
+    # HESAPLAMA BUTONU
     if st.button("🧮 MALİYETİ HESAPLA", type="primary", use_container_width=True):
-        # Session state güncelle
         st.session_state.fire_calc_state = {
             "bugday_tonaji": bugday_tonaji,
             "bugday_fiyati": bugday_fiyati,
@@ -530,16 +551,12 @@ ut2 = st.columns([1, 1], gap="large")
         net_bugday_miktari = bugday_tonaji - fire_miktari
         fire_geliri = fire_miktari * fire_satis_fiyati
         net_maliyet = toplam_bugday_maliyeti - fire_geliri
-        
-        # Kritik Değerler
         birim_maliyet = net_maliyet / net_bugday_miktari if net_bugday_miktari > 0 else 0
         fiyat_farki = birim_maliyet - bugday_fiyati
 
         st.divider()
         
-        # --- SONUÇLARIN GÖSTERİMİ ---
-        
-        # 1. ÖZET METRİKLERİ
+        # SONUÇLAR
         col_res1, col_res2, col_res3 = st.columns(3)
         with col_res1:
             st.metric("📦 Net Buğday Miktarı", f"{net_bugday_miktari:,.2f} Ton", delta=f"-{fire_miktari:,.2f} Ton Fire")
@@ -548,9 +565,7 @@ ut2 = st.columns([1, 1], gap="large")
         with col_res3:
             st.metric("💵 Toplam Net Maliyet", f"{net_maliyet:,.2f} TL")
 
-        # 2. DETAYLI TABLO
         st.markdown("### 📋 Detaylı Maliyet Tablosu")
-        
         detay_data = {
             "Parametre": [
                 "Toplam Buğday Tonajı",
@@ -574,7 +589,6 @@ ut2 = st.columns([1, 1], gap="large")
             ]
         }
         st.table(pd.DataFrame(detay_data))
-        
         st.success(f"✅ Hesaplama Tamamlandı! Buğdayın tonu size **{birim_maliyet:,.2f} TL**'ye gelmektedir.")
 
 
