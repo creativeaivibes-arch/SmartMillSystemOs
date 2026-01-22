@@ -153,11 +153,9 @@ with st.sidebar:
         kk_bolum = st.sidebar.radio("Bölüm Seçiniz", ["🌾 Buğday Yönetimi", "🍞 Un Yönetimi"])
         st.sidebar.markdown("---")
         
-        if kk_bolum == "🌾 Buğday Yönetimi":
-            # Paçal Hesaplayıcı ve Geçmişi buraya eklendi
-            sub_page = st.sidebar.radio("İşlem Seçiniz", 
-                ["Mal Kabul", "Stok Çıkışı", "Paçal Hesaplayıcı", "Paçal Geçmişi", "Tavlı Analiz", "Stok Hareketleri", "Giriş Arşivi", "🎯 Kalite Hedefleri"])
-            selected_page = f"WHEAT_{sub_page}" 
+        elif kk_bolum == "🌾 Buğday Yönetimi":
+            # Alt menüleri kaldırdık, tek bir Buğday Merkezine gidiyoruz
+            selected_page = "WHEAT_MANAGER" 
             
         elif kk_bolum == "🍞 Un Yönetimi":
             # Alt menüleri kaldırdık, tek bir yönetici sayfasına yönlendiriyoruz
@@ -180,23 +178,9 @@ with st.sidebar:
 if selected_page == "Dashboard":
     dashboard.show_dashboard()
 
-# WHEAT
-elif selected_page == "WHEAT_Mal Kabul": 
-    wheat.show_mal_kabul()
-elif selected_page == "WHEAT_Stok Çıkışı": 
-    wheat.show_stok_cikis()
-elif selected_page == "WHEAT_Paçal Hesaplayıcı":   
-    mixing.show_pacal_hesaplayici()
-elif selected_page == "WHEAT_Paçal Geçmişi":        
-    mixing.show_pacal_gecmisi()
-elif selected_page == "WHEAT_Tavlı Analiz": 
-    wheat.show_tavli_analiz()
-elif selected_page == "WHEAT_Stok Hareketleri": 
-    wheat.show_stok_hareketleri()
-elif selected_page == "WHEAT_Giriş Arşivi": 
-    wheat.show_bugday_giris_arsivi()
-elif selected_page == "WHEAT_🎯 Kalite Hedefleri": 
-    wheat.show_bugday_spec_yonetimi()
+# WHEAT (BUĞDAY)
+elif selected_page == "WHEAT_MANAGER": 
+    wheat.show_wheat_yonetimi()
 
 # FLOUR
 elif selected_page == "FLOUR_MANAGER": 
@@ -274,6 +258,7 @@ if st.session_state.get('user_role') == "admin":
                 {'bugday_cinsi': 'TEST'}
             )
             st.write(f"Sonuç: {msg}")
+
 
 
 
