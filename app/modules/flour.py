@@ -719,18 +719,15 @@ def show_flour_yonetimi():
     # --- D) ENZİM DOZAJ ---
     elif secim == "💊 Enzim Dozaj Hesapla":
         with st.container(border=True):
-            # Dosyanın başındaki import çalışmazsa diye burada tekrar deniyoruz
             try:
-                if 'calculations' not in globals() or calculations is None:
-                    import app.modules.calculations as calculations
-                
-                calculations.show_enzim_dozajlama()
+                # İsim çakışmasını önlemek için 'as calc_module' dedik
+                import app.modules.calculations as calc_module
+                calc_module.show_enzim_dozajlama()
             except ImportError:
-                st.error("⚠️ Enzim modülü (calculations.py) yüklenemedi!")
-            except AttributeError:
-                st.error("⚠️ calculations.show_enzim_dozajlama fonksiyonu bulunamadı!")
+                st.error("⚠️ Enzim modülü (calculations.py) bulunamadı.")
             except Exception as e:
-                st.error(f"⚠️ Bir hata oluştu: {e}")
+                st.error(f"⚠️ Modül yüklenirken hata oluştu: {e}")
+
 
 
 
