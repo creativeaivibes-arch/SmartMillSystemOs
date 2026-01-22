@@ -971,6 +971,9 @@ def show_bugday_spec_yonetimi():
                             st.rerun()
         else:
             st.info("Henüz standart tanımlanmamış")
+# --------------------------------------------------------------------------
+# BUĞDAY YÖNETİM MERKEZİ (YENİ EKLENEN ANA FONKSİYON)
+# --------------------------------------------------------------------------
 def show_wheat_yonetimi():
     """
     Buğday Operasyon Merkezi
@@ -1008,7 +1011,6 @@ def show_wheat_yonetimi():
         tab1, tab2, tab3 = st.tabs(["📐 Spek & Hedefler", "📥 Hammadde Giriş", "🧪 Tavlı Analiz Girişi"])
         
         with tab1:
-            # Yetki kontrolü (Flour'daki gibi Admin koruması eklenebilir, şimdilik direkt çağırıyoruz)
             with st.container(border=True):
                 show_bugday_spec_yonetimi()
         
@@ -1022,8 +1024,6 @@ def show_wheat_yonetimi():
 
     # --- B) PAÇAL (BLEND) YÖNETİMİ ---
     elif secim == "⚗️ Paçal (Blend) Yönetimi":
-        # Paçal modülü genellikle calculations.py içindedir.
-        # Güvenli import yapıyoruz.
         try:
             import app.modules.calculations as calculations
             
@@ -1031,7 +1031,6 @@ def show_wheat_yonetimi():
             
             with tab_p1:
                 with st.container(border=True):
-                    # Eğer calculations içinde fonksiyon adı farklıysa buradan düzeltebiliriz
                     if hasattr(calculations, 'show_pacal_hesaplayici'):
                         calculations.show_pacal_hesaplayici()
                     else:
@@ -1065,6 +1064,7 @@ def show_wheat_yonetimi():
         with tab_db2:
             with st.container(border=True):
                 show_stok_hareketleri()
+
 
 
 
