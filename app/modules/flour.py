@@ -73,7 +73,7 @@ def show_spec_yonetimi():
     
     # --- GÜVENLİ VERİ ÇEKME (AIRBAG) ---
     try:
-        df_analiz = fetch_data("un_analizleri")
+        df_analiz = fetch_data("un_analiz")
         if df_analiz is None: df_analiz = pd.DataFrame()
     except:
         df_analiz = pd.DataFrame() # Hata olursa boş tablo ver, program çökmesin
@@ -727,6 +727,7 @@ def show_flour_yonetimi():
                 st.error("⚠️ Enzim modülü (calculations.py) bulunamadı.")
             except Exception as e:
                 st.error(f"⚠️ Modül yüklenirken hata oluştu: {e}")
+
 
 
 
