@@ -219,30 +219,36 @@ elif selected_page == "PRODUCTION_Üretim Arşivi":
 elif selected_page == "PRODUCTION_Yönetim Dashboard": 
     production.show_yonetim_dashboard()
 
-# CALCULATIONS
-elif selected_page == "CALC_Un Maliyet": 
-    flour.show_un_maliyet_hesaplama()
-elif selected_page == "CALC_Maliyet Geçmişi": 
-    flour.show_un_maliyet_gecmisi()
-elif selected_page == "CALC_Stratejik Analiz (BOSS)":
-    try:
-        from app.modules import strategy
-        strategy.show_strategy_module()
-    except ImportError as e:
-        st.error(f"⚠️ Strateji modülü yüklenemedi: {e}")
-        st.info("Lütfen app/modules/strategy.py dosyasının var olduğundan emin olun.")
-    except Exception as e:
-        st.error(f"❌ Beklenmeyen hata: {e}")
-elif selected_page == "CALC_Fire Maliyeti":
-    calculations.show_fire_maliyet_hesaplama()
-elif selected_page == "CALC_Paçal Hesaplayıcı": 
-    mixing.show_pacal_hesaplayici()
-elif selected_page == "CALC_Paçal Geçmişi": 
-    mixing.show_pacal_gecmisi()
-elif selected_page == "CALC_Katkı Maliyeti": 
-    calculations.show_katki_maliyeti_modulu()
-elif selected_page == "CALC_Enzim Dozajlama": 
-    calculations.show_enzim_dozajlama()
+# --- FİNANS & STRATEJİ (SEKMELİ YAPI) ---
+elif selected_page == "FINANCE_DASHBOARD":
+    st.markdown("## 💰 Finansal Yönetim & Strateji")
+    
+    # 5 Sekmeli Panel Oluşturuyoruz
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "💵 Un Maliyet", 
+        "📉 Maliyet Geçmişi", 
+        "♟️ Stratejik Analiz",
+        "🌾 Buğday Fire Maliyet",
+        "🧪 Katkı Maliyet"
+    ])
+    
+    with tab1:
+        flour.show_un_maliyet_hesaplama()
+    with tab2:
+        flour.show_un_maliyet_gecmisi()
+    with tab3:
+        # Strateji modülü kontrolü
+        try:
+            import app.modules.strategy as strategy
+            strategy.show_strategy_module()
+        except ImportError:
+            st.warning("Strateji modülü (app/modules/strategy.py) bulunamadı.")
+        except Exception as e:
+            st.error(f"Strateji modülü hatası: {e}")
+    with tab4:
+        calculations.show_fire_maliyet_hesaplayici()
+    with tab5:
+        calculations.show_katki_maliyeti_modulu()
 
 # ADMIN
 elif selected_page == "ADMIN" or selected_page == "PROFILE":
@@ -281,6 +287,7 @@ if st.session_state.get('user_role') == "admin":
                 {'bugday_cinsi': 'TEST'}
             )
             st.write(f"Sonuç: {msg}")
+
 
 
 
