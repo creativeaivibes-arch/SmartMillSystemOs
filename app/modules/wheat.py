@@ -523,7 +523,7 @@ def show_mal_kabul():
         tedarikci = st.text_input("Tedarikçi/Firma *")
         yore = st.text_input("Yöre/Bölge *")
         plaka = st.text_input("Plaka *")
-        notlar = st.text_area("Notlar")
+        notlar = st.text_area("Notlar", key="mal_kabul_notlar")
         
         # Manuel Kantar
         miktar = st.number_input("Gelen Miktar (Ton) *", min_value=27.0, format="%.1f")
@@ -777,7 +777,7 @@ def show_tavli_analiz():
     
     with c2:
         tarih = st.date_input("Tarih", datetime.now())
-        notlar = st.text_area("Notlar")
+        notlar = st.text_area("Notlar", key="tavli_notlar")
 
     # Tabs - TAM VERSİYON
     tab1, tab2, tab3 = st.tabs(["🧪 Kimyasal", "📈 Farinograph", "📊 Extensograph"])
@@ -1064,6 +1064,7 @@ def show_wheat_yonetimi():
         with tab_db2:
             with st.container(border=True):
                 show_stok_hareketleri()
+
 
 
 
