@@ -186,7 +186,7 @@ def show_spec_yonetimi():
 
 def save_un_analiz(lot_no, islem_tipi, **analiz_degerleri):
     try:
-        df_check = fetch_data("un_analizleri")
+        df_check = fetch_data("un_analiz")
         if not df_check.empty and 'lot_no' in df_check.columns:
             if lot_no in df_check['lot_no'].values:
                 return False, f"Bu lot numarası zaten kayıtlı: {lot_no}"
@@ -196,7 +196,7 @@ def save_un_analiz(lot_no, islem_tipi, **analiz_degerleri):
             'tarih': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             **analiz_degerleri
         }
-        if add_data("un_analizleri", data):
+        if add_data("un_analiz", data):
             return True, "Kayıt Başarılı"
         return False, "Kayıt Başarısız"
     except Exception as e:
@@ -395,7 +395,7 @@ def show_un_analiz_kaydi():
 
 def show_un_analiz_kayitlari():
     st.header("📚 Un Analiz Kayıtları")
-    df = fetch_data("un_analizleri")
+    df = fetch_data("un_analiz")
     if df.empty:
         st.info("📭 Henüz kayıtlı analiz bulunmamaktadır.")
         return
@@ -727,6 +727,7 @@ def show_flour_yonetimi():
                 st.error("⚠️ Enzim modülü (calculations.py) bulunamadı.")
             except Exception as e:
                 st.error(f"⚠️ Modül yüklenirken hata oluştu: {e}")
+
 
 
 
