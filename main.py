@@ -246,7 +246,7 @@ elif selected_page == "FINANCE_DASHBOARD":
         except Exception as e:
             st.error(f"Strateji modülü hatası: {e}")
     with tab4:
-        calculations.show_fire_maliyet_hesaplayici()
+        calculations.show_fire_maliyet_hesaplama()
     with tab5:
         calculations.show_katki_maliyeti_modulu()
 
@@ -287,6 +287,7 @@ if st.session_state.get('user_role') == "admin":
                 {'bugday_cinsi': 'TEST'}
             )
             st.write(f"Sonuç: {msg}")
+
 
 
 
