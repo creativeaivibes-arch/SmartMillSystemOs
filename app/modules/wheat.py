@@ -971,6 +971,101 @@ def show_bugday_spec_yonetimi():
                             st.rerun()
         else:
             st.info("Henüz standart tanımlanmamış")
+def show_wheat_yonetimi():
+    """
+    Buğday Operasyon Merkezi
+    Tüm giriş, analiz, paçal ve stok süreçlerinin yönetildiği ana ekran.
+    """
+    
+    # 1. Başlık Alanı (Yeşil/Tarım Teması)
+    st.markdown("""
+    <div style='background-color: #E8F5E9; padding: 15px; border-radius: 10px; margin-bottom: 20px; border-left: 5px solid #2E7D32;'>
+        <h2 style='color: #1B5E20; margin:0;'>🌾 Buğday Operasyon Merkezi</h2>
+        <p style='color: #4CAF50; margin:0; font-size: 14px;'>Hammadde Giriş, Kalite Yönetimi, Paçal ve Stok Takibi</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # 2. Yatay Menü (Senin belirlediğin yapı)
+    secim = st.radio(
+        "Modül Seçiniz:",
+        [
+            "🚛 Giriş & Kalite Operasyonları", 
+            "⚗️ Paçal (Blend) Yönetimi", 
+            "📤 Stok Çıkışı", 
+            "📂 Veri Tabanı & İzlenebilirlik"
+        ],
+        horizontal=True,
+        label_visibility="collapsed"
+    )
+    
+    st.markdown("---")
+
+    # 3. Yönlendirmeler ve Sekmeler
+    
+    # --- A) GİRİŞ & KALİTE ---
+    if secim == "🚛 Giriş & Kalite Operasyonları":
+        # İç Sekmeler
+        tab1, tab2, tab3 = st.tabs(["📐 Spek & Hedefler", "📥 Hammadde Giriş", "🧪 Tavlı Analiz Girişi"])
+        
+        with tab1:
+            # Yetki kontrolü (Flour'daki gibi Admin koruması eklenebilir, şimdilik direkt çağırıyoruz)
+            with st.container(border=True):
+                show_bugday_spec_yonetimi()
+        
+        with tab2:
+            with st.container(border=True):
+                show_mal_kabul()
+                
+        with tab3:
+            with st.container(border=True):
+                show_tavli_analiz()
+
+    # --- B) PAÇAL (BLEND) YÖNETİMİ ---
+    elif secim == "⚗️ Paçal (Blend) Yönetimi":
+        # Paçal modülü genellikle calculations.py içindedir.
+        # Güvenli import yapıyoruz.
+        try:
+            import app.modules.calculations as calculations
+            
+            tab_p1, tab_p2 = st.tabs(["🧮 Paçal Hesaplayıcı", "📜 Paçal Geçmişi"])
+            
+            with tab_p1:
+                with st.container(border=True):
+                    # Eğer calculations içinde fonksiyon adı farklıysa buradan düzeltebiliriz
+                    if hasattr(calculations, 'show_pacal_hesaplayici'):
+                        calculations.show_pacal_hesaplayici()
+                    else:
+                        st.warning("⚠️ Paçal Hesaplayıcı modülü bulunamadı.")
+            
+            with tab_p2:
+                with st.container(border=True):
+                    if hasattr(calculations, 'show_pacal_gecmisi'):
+                        calculations.show_pacal_gecmisi()
+                    else:
+                        st.warning("⚠️ Paçal Geçmişi modülü bulunamadı.")
+                        
+        except ImportError:
+            st.error("⚠️ 'app.modules.calculations' modülü yüklenemedi!")
+        except Exception as e:
+            st.error(f"⚠️ Bir hata oluştu: {e}")
+
+    # --- C) STOK ÇIKIŞI ---
+    elif secim == "📤 Stok Çıkışı":
+        with st.container(border=True):
+            show_stok_cikis()
+
+    # --- D) VERİ TABANI & İZLENEBİLİRLİK ---
+    elif secim == "📂 Veri Tabanı & İzlenebilirlik":
+        tab_db1, tab_db2 = st.tabs(["📒 Giriş Arşivi", "🔄 Stok Hareketleri"])
+        
+        with tab_db1:
+            with st.container(border=True):
+                show_bugday_giris_arsivi()
+                
+        with tab_db2:
+            with st.container(border=True):
+                show_stok_hareketleri()
+
 
 
 
