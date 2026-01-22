@@ -25,20 +25,18 @@ except ImportError:
     pass
 
 # ==============================================================================
-# BÖLÜM 1: YARDIMCI FONKSİYONLAR (PAÇAL - AĞIRLIKLI ORTALAMA MANTIĞI)
+# BÖLÜM 1: YARDIMCI FONKSİYONLAR (PAÇAL - TAVLI ANALİZ ORTALAMASI)
 # ==============================================================================
 
 def calculate_weighted_average(df_analiz, target_tonnage, params):
     """
     Belirli bir tonajı karşılayan analizlerin ağırlıklı ortalamasını hesaplar.
-    Mantık: Silodaki 400 ton mal, son giren 10-15 partinin karışımıdır.
-    En yeniden eskiye doğru giderek hedef tonajı dolduran kayıtların ortalamasını alır.
+    Silodaki malın "Tavlı Analiz" geçmişine bakar.
     """
     if df_analiz.empty or target_tonnage <= 0:
-        # Veri yoksa boş (0) değerler döndür
         return {p: 0.0 for p in params}
 
-    # Tarihe göre en yeniden eskiye sırala
+    # En yeniden eskiye sırala (Son giren mal üstte)
     if 'tarih' in df_analiz.columns:
         df_analiz = df_analiz.sort_values('tarih', ascending=False)
     
@@ -47,17 +45,15 @@ def calculate_weighted_average(df_analiz, target_tonnage, params):
     used_tonnage = 0
     
     for _, row in df_analiz.iterrows():
-        # Kaydın tonajı (Varsayılan 0 olmasın diye kontrol)
+        # Tavlı analiz kaydındaki tonaj
         row_tonaj = float(row.get('analiz_tonaj', 0))
         if row_tonaj <= 0: continue
         
-        # Ne kadar daha lazım?
+        # İhtiyaç duyulan miktar
         needed = target_tonnage - accumulated_tonnage
-        
-        if needed <= 0:
-            break
+        if needed <= 0: break
             
-        # Bu kayıttan ne kadar alacağız? (Hepsini mi yoksa kalan kısmı mı?)
+        # Bu kayıttan ne kadar hesaba katacağız?
         take_amount = min(row_tonaj, needed)
         
         # Ağırlıklı toplama ekle
@@ -86,10 +82,9 @@ def get_silo_data_with_averages():
     """
     # 1. Silo Stoklarını Çek
     df_silo = fetch_data("silolar")
-    if df_silo.empty:
-        return pd.DataFrame()
+    if df_silo.empty: return pd.DataFrame()
     
-    # Sadece içinde mal olan siloları al
+    # Sadece içinde mal olan silolar
     if 'mevcut_miktar' in df_silo.columns:
         df_silo['mevcut_miktar'] = pd.to_numeric(df_silo['mevcut_miktar'], errors='coerce').fillna(0)
         df_silo = df_silo[df_silo['mevcut_miktar'] > 0].copy()
@@ -99,47 +94,42 @@ def get_silo_data_with_averages():
     # 2. Tüm Tavlı Analizleri Çek
     df_tavli = fetch_data("tavli_analiz")
     
-    # Hesaplama yapılacak sayısal sütunlar
+    # Hesaplama yapılacak tüm parametreler
     analiz_cols = [
-        # Kimyasal
-        'protein', 'gluten', 'rutubet', 'hektolitre', 'sedim', 'gecikmeli_sedim',
+        'maliyet', 'protein', 'gluten', 'rutubet', 'hektolitre', 'sedim', 'gecikmeli_sedim',
         'fn', 'ffn', 'amilograph', 'nisasta_zedelenmesi', 'kul', 'gluten_index',
-        # Farinograph
         'su_kaldirma_f', 'gelisme_suresi', 'stabilite', 'yumusama',
-        # Extensograph
         'su_kaldirma_e', 
         'enerji45', 'direnc45', 'taban45',
         'enerji90', 'direnc90', 'taban90',
         'enerji135', 'direnc135', 'taban135'
     ]
 
-    # Sonuç DataFrame'i için kolonları hazırla
+    # Sütunları hazırla
     for col in analiz_cols:
         df_silo[col] = 0.0
 
-    # Eğer tavlı analiz yoksa direkt dön (Hepsi 0 olacak)
     if df_tavli.empty:
         return df_silo
 
-    # 3. Her Silo İçin Döngü: Ağırlıklı Ortalama Hesapla
+    # 3. Her Silo İçin Döngü
     for index, silo_row in df_silo.iterrows():
         silo_name = silo_row['isim']
         current_stock = silo_row['mevcut_miktar']
         
-        # Bu siloya ait analizleri filtrele
+        # Bu siloya ait analizler
         silo_analizleri = df_tavli[df_tavli['silo_isim'] == silo_name].copy()
         
-        # Ağırlıklı Ortalama Fonksiyonunu Çağır
+        # Ağırlıklı Ortalama Hesabı
         avg_values = calculate_weighted_average(silo_analizleri, current_stock, analiz_cols)
         
-        # Değerleri ana tabloya yaz
+        # Sonuçları yaz
         for col, val in avg_values.items():
             df_silo.at[index, col] = val
             
     return df_silo
 
 def save_pacal_recete(recete_adi, hedef_urun, toplam_tonaj, bilesenler, sonuclar, notlar):
-    """Reçeteyi ve detaylı sonuçları kaydet"""
     try:
         data = {
             'tarih': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
@@ -147,12 +137,11 @@ def save_pacal_recete(recete_adi, hedef_urun, toplam_tonaj, bilesenler, sonuclar
             'hedef_urun': hedef_urun,
             'toplam_tonaj': float(toplam_tonaj),
             'maliyet_ton': float(sonuclar.get('maliyet', 0)),
-            # Temel Sonuçlar
+            # Temel
             'protein_sonuc': float(sonuclar.get('protein', 0)),
             'gluten_sonuc': float(sonuclar.get('gluten', 0)),
             'sedim_sonuc': float(sonuclar.get('sedim', 0)),
-            'rutubet_sonuc': float(sonuclar.get('rutubet', 0)),
-            # Detaylı JSON
+            # Tüm Detaylar JSON
             'detayli_analiz_json': json.dumps(sonuclar),
             'bilesen_detay': str(bilesenler),
             'notlar': notlar
@@ -163,19 +152,18 @@ def save_pacal_recete(recete_adi, hedef_urun, toplam_tonaj, bilesenler, sonuclar
         return False
 
 # ==============================================================================
-# BÖLÜM 2: PAÇAL HESAPLAYICI (AĞIRLIKLI ORTALAMA ALTYAPISIYLA)
+# BÖLÜM 2: PAÇAL HESAPLAYICI (DÜZELTİLMİŞ)
 # ==============================================================================
 
 def show_pacal_hesaplayici():
-    """Tavlı Analiz Ağırlıklı Ortalama Bazlı Paçal Hesaplayıcı"""
+    """Tavlı Analiz Bazlı Paçal Hesaplayıcı - FULL GÖSTERİM"""
     st.header("🧮 Akıllı Paçal (Blend) Hesaplayıcı")
-    st.info("ℹ️ Hesaplamalar, silodaki mevcut stoğu oluşturan tavlı analizlerin **Ağırlıklı Ortalaması** alınarak yapılmaktadır.")
     
-    # 1. VERİ HAZIRLIĞI (YENİ FONKSİYON İLE)
+    # 1. VERİ HAZIRLIĞI
     df_silo = get_silo_data_with_averages()
     
     if df_silo.empty:
-        st.warning("⚠️ Silolarda ürün veya analiz kaydı bulunamadı.")
+        st.warning("⚠️ Silolarda ürün bulunamadı.")
         return
 
     col1, col2 = st.columns([1, 2])
@@ -208,8 +196,6 @@ def show_pacal_hesaplayici():
     with col2:
         st.subheader("🧪 Karışım Oranları")
         silolar = df_silo['isim'].tolist()
-        
-        # Varsayılan seçim (Stok olan ilk 3)
         varsayilan = df_silo.nlargest(3, 'mevcut_miktar')['isim'].tolist() if len(silolar) > 0 else []
         secilen_silolar = st.multiselect("Kullanılacak Silolar", silolar, default=varsayilan)
         
@@ -217,12 +203,11 @@ def show_pacal_hesaplayici():
             st.warning("En az bir silo seçin.")
             return
 
-        # Slider Alanı
         cols = st.columns(len(secilen_silolar)) if len(secilen_silolar) <= 4 else st.columns(3)
         toplam_oran = 0
         bilesen_verileri = []
         
-        # Tüm parametreler (Ortalaması alınacaklar)
+        # Tüm parametreler
         parametreler = [
             'maliyet', 'protein', 'gluten', 'rutubet', 'hektolitre', 'sedim', 'gecikmeli_sedim',
             'fn', 'ffn', 'amilograph', 'nisasta_zedelenmesi', 'kul', 'gluten_index',
@@ -237,35 +222,31 @@ def show_pacal_hesaplayici():
             col_idx = idx % 3
             with cols[col_idx]:
                 silo_row = df_silo[df_silo['isim'] == silo].iloc[0]
-                
-                # Bilgi Kartı
                 st.markdown(f"**{silo}**")
-                # Tavlı verisi kontrolü
-                if silo_row['protein'] == 0:
-                    st.caption("⚠️ Analiz Verisi Yok!", help="Bu silo için tavlı analiz ortalaması hesaplanamadı.")
+                # Bilgi gösterimi
+                prot_val = silo_row.get('protein', 0)
+                stab_val = silo_row.get('stabilite', 0)
+                if prot_val == 0:
+                    st.caption("⚠️ Analiz Yok")
                 else:
-                    st.caption(f"Ort.Prot: **{silo_row['protein']:.1f}** | Ort.Stab: **{silo_row['stabilite']:.1f}**")
+                    st.caption(f"Ort.Prot: **{prot_val:.1f}** | Stab: **{stab_val:.1f}**")
                 
-                # Oran Girişi
                 default_val = int(100 / len(secilen_silolar))
                 if idx == len(secilen_silolar) - 1: default_val = 100 - toplam_oran
-                
                 val = st.number_input(f"% {silo}", 0, 100, default_val, key=f"sl_{silo}")
                 toplam_oran += val
                 
-                # Veriyi Hazırla
                 silo_dict = {'silo': silo, 'oran': val, 'miktar': (hedef_tonaj * val) / 100}
                 for p in parametreler:
                     silo_dict[p] = float(silo_row.get(p, 0))
                 bilesen_verileri.append(silo_dict)
 
-        # Oran Uyarısı
         if toplam_oran != 100:
             st.warning(f"⚠️ Toplam: %{toplam_oran} (Hedef %100)")
     
     st.divider()
 
-    # --- HESAPLAMA VE SONUÇLAR ---
+    # --- HESAPLAMA VE SONUÇLAR (BURASI EKSİKTİ, ŞİMDİ TAMAM) ---
     if toplam_oran == 100:
         sonuclar = {}
         for p in parametreler:
@@ -274,8 +255,10 @@ def show_pacal_hesaplayici():
         
         toplam_maliyet = sonuclar['maliyet'] * hedef_tonaj
         
-        # KPI Gösterimi
-        st.subheader("📊 Tahmini Paçal Sonuçları (Ağırlıklı Ortalama)")
+        st.subheader("📊 Tahmini Paçal Sonuçları")
+        
+        # 1. Ana KPI'lar
+        k1, k2, k3, k4, k5 = st.columns(5)
         
         def check(val, key):
             if key in hedef_degerler:
@@ -284,17 +267,15 @@ def show_pacal_hesaplayici():
                 return "inverse"
             return "off"
 
-        k1, k2, k3, k4, k5 = st.columns(5)
         k1.metric("Protein", f"%{sonuclar['protein']:.2f}", delta_color=check(sonuclar['protein'], 'protein'))
         k2.metric("Gluten", f"%{sonuclar['gluten']:.1f}", delta_color=check(sonuclar['gluten'], 'gluten'))
         k3.metric("Sedim", f"{sonuclar['sedim']:.0f} ml", delta_color=check(sonuclar['sedim'], 'sedim'))
-        k4.metric("Stabilite", f"{sonuclar['stabilite']:.1f} dk", delta_color=check(sonuclar['stabilite'], 'stabilite'))
-        k5.metric("Enerji (135)", f"{sonuclar['enerji135']:.0f}", delta_color=check(sonuclar['enerji135'], 'enerji135'))
+        k4.metric("Birim Maliyet", f"{sonuclar['maliyet']:.2f} TL/kg")
+        k5.metric("Toplam Maliyet", f"{toplam_maliyet:,.0f} TL")
         
-        st.caption(f"💰 Tahmini Birim Maliyet: **{sonuclar['maliyet']:.2f} TL/kg** | Toplam: **{toplam_maliyet:,.0f} TL**")
-        
-        # --- DETAYLI TABLAR ---
-        tab_kimya, tab_farino, tab_extenso = st.tabs(["🧪 Kimyasal", "📈 Farinograph", "📊 Extensograph"])
+        # 2. DETAYLI SEKMELER (İŞTE BURASI EKLENDİ)
+        st.markdown("---")
+        tab_kimya, tab_farino, tab_extenso = st.tabs(["🧪 Kimyasal Analizler", "📈 Farinograph", "📊 Extensograph"])
         
         with tab_kimya:
             c1, c2, c3, c4 = st.columns(4)
@@ -303,39 +284,39 @@ def show_pacal_hesaplayici():
             c1.metric("Kül", f"%{sonuclar['kul']:.3f}")
             c2.metric("Gluten Index", f"%{sonuclar['gluten_index']:.1f}")
             c2.metric("Gecikmeli Sedim", f"{sonuclar['gecikmeli_sedim']:.0f}")
-            c3.metric("FN", f"{sonuclar['fn']:.0f}")
-            c3.metric("FFN", f"{sonuclar['ffn']:.0f}")
-            c4.metric("Amilograph", f"{sonuclar['amilograph']:.0f}")
-            c4.metric("Nişasta Zed.", f"{sonuclar['nisasta_zedelenmesi']:.1f}")
+            c3.metric("Düşme (FN)", f"{sonuclar['fn']:.0f}")
+            c3.metric("F.F.N", f"{sonuclar['ffn']:.0f}")
+            c4.metric("Amilograph", f"{sonuclar['amilograph']:.0f} AU")
+            c4.metric("Nişasta Zed.", f"{sonuclar['nisasta_zedelenmesi']:.1f} DS")
             
         with tab_farino:
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("Su Kaldırma", f"%{sonuclar['su_kaldirma_f']:.1f}")
             c2.metric("Gelişme Süresi", f"{sonuclar['gelisme_suresi']:.1f} dk")
-            c3.metric("Stabilite", f"{sonuclar['stabilite']:.1f} dk")
+            c3.metric("Stabilite", f"{sonuclar['stabilite']:.1f} dk", delta_color=check(sonuclar['stabilite'], 'stabilite'))
             c4.metric("Yumuşama", f"{sonuclar['yumusama']:.0f} FU")
             
         with tab_extenso:
-            st.markdown("**45 Dakika**")
+            st.markdown("#### 🕒 45 Dakika")
             x1, x2, x3 = st.columns(3)
-            x1.metric("Enerji", f"{sonuclar['enerji45']:.0f}")
-            x2.metric("Direnç", f"{sonuclar['direnc45']:.0f}")
-            x3.metric("Taban", f"{sonuclar['taban45']:.0f}")
+            x1.metric("Enerji (45)", f"{sonuclar['enerji45']:.0f}")
+            x2.metric("Direnç (45)", f"{sonuclar['direnc45']:.0f}")
+            x3.metric("Taban (45)", f"{sonuclar['taban45']:.0f}")
             
-            st.markdown("**90 Dakika**")
+            st.markdown("#### 🕒 90 Dakika")
             y1, y2, y3 = st.columns(3)
-            y1.metric("Enerji", f"{sonuclar['enerji90']:.0f}")
-            y2.metric("Direnç", f"{sonuclar['direnc90']:.0f}")
-            y3.metric("Taban", f"{sonuclar['taban90']:.0f}")
+            y1.metric("Enerji (90)", f"{sonuclar['enerji90']:.0f}")
+            y2.metric("Direnç (90)", f"{sonuclar['direnc90']:.0f}")
+            y3.metric("Taban (90)", f"{sonuclar['taban90']:.0f}")
 
-            st.markdown("**135 Dakika**")
-            z1, z2, z3 = st.columns(3)
-            z1.metric("Enerji", f"{sonuclar['enerji135']:.0f}")
-            z1.metric("Direnç", f"{sonuclar['direnc135']:.0f}")
-            z1.metric("Taban", f"{sonuclar['taban135']:.0f}")
-            z1.metric("Su Kaldırma (E)", f"%{sonuclar['su_kaldirma_e']:.1f}")
+            st.markdown("#### 🕒 135 Dakika")
+            z1, z2, z3, z4 = st.columns(4)
+            z1.metric("Enerji (135)", f"{sonuclar['enerji135']:.0f}", delta_color=check(sonuclar['enerji135'], 'enerji135'))
+            z2.metric("Direnç (135)", f"{sonuclar['direnc135']:.0f}")
+            z3.metric("Taban (135)", f"{sonuclar['taban135']:.0f}")
+            z4.metric("Su Kaldırma (E)", f"%{sonuclar['su_kaldirma_e']:.1f}")
 
-        # KAYDET BUTONU
+        # KAYDET
         st.divider()
         col_save, col_note = st.columns([1, 3])
         with col_note:
@@ -433,17 +414,11 @@ def show_pacal_gecmisi():
         st.text_area("Notlar", value=row['notlar'], disabled=True)
 
 # ==============================================================================
-# BÖLÜM 3: ENZİM VE KATKI MODÜLLERİ (DEĞİŞİKLİK YOK)
+# BÖLÜM 3: ENZİM VE KATKI MODÜLLERİ (AYNEN KORUNDU)
 # ==============================================================================
 
 def show_katki_maliyeti_modulu():
     """Katkı ve Enzim Maliyeti Modülü"""
-    # ... (Mevcut kod aynen korunuyor)
-    # Bu kısmın tekrarını yazmıyorum çünkü Calculations(2).py içindekiyle aynı kalacak.
-    # Sadece dosya bütünlüğü için buraya yapıştırılması gerekir.
-    # Aşağıdaki kodlar ÖNCEKİ cevabımdaki Enzim ve Fire modülleriyle birebir aynıdır.
-    # Kullanıcı bütünlük istediği için buraya ekliyorum.
-    
     st.markdown("""
     <div style="text-align: center; margin-bottom: 30px;">
         <h1 style="color: #0B4F6C; margin-bottom: 10px;">🧪 Katkı ve Enzim Maliyeti Hesaplama</h1>
