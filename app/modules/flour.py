@@ -672,12 +672,15 @@ def show_flour_yonetimi():
     """
     
     # 1. Başlık Alanı
+    def show_flour_yonetimi():
+    # 1. Başlık Alanı
     st.markdown("""
     <div style='background-color: #FFF8E1; padding: 15px; border-radius: 10px; margin-bottom: 20px; border-left: 5px solid #FFB300;'>
-        <h2 style='color: #E65100; margin:0;'>🍞 Un Kalite & Üretim Yönetimi</h2>
+        <h2 style='color: #E65100; margin:0;'>🍞 Un Kalite Kontrol Merkezi</h2>
         <p style='color: #666; margin:0; font-size: 14px;'>Laboratuvar Analizleri, Standartlar ve Akıllı Dozajlama</p>
     </div>
     """, unsafe_allow_html=True)
+
 
     # 2. Yatay Menü (Senin belirlediğin profesyonel isimler)
     secim = st.radio(
@@ -727,6 +730,7 @@ def show_flour_yonetimi():
                 st.error("⚠️ Enzim modülü (calculations.py) bulunamadı.")
             except Exception as e:
                 st.error(f"⚠️ Modül yüklenirken hata oluştu: {e}")
+
 
 
 
