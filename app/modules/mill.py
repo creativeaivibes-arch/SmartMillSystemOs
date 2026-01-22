@@ -207,8 +207,7 @@ def show_uretim_kaydi():
 
 def show_yonetim_dashboard():
     """Yönetim Dashboard'u - Patron Görünümü"""
-    st.header("📊 Yönetim Dashboard'u")
-    st.caption("Üretim performansı, trendler ve karşılaştırmalar")
+    # Başlıklar silindi, direkt içeriğe başlıyoruz.
     
     df = get_uretim_kayitlari()
     
@@ -679,6 +678,7 @@ def show_production_yonetimi():
     elif secim == "📊 Üretim Performans Analizi":
         with st.container(border=True):
             show_yonetim_dashboard()
+
 
 
 
