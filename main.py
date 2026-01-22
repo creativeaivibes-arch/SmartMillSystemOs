@@ -163,7 +163,7 @@ with st.sidebar:
     elif ana_menu == "Hesaplamalar":
         st.sidebar.markdown("### 🧮 Hesaplamalar")
         page_raw = st.sidebar.radio("İşlem Seçiniz", 
-            ["Un Maliyet", "Maliyet Geçmişi", "Stratejik Analiz (BOSS)", "Paçal Hesaplayıcı", "Paçal Geçmişi", "Katkı Maliyeti", "Enzim Dozajlama"])
+            ["Un Maliyet", "Maliyet Geçmişi", "Stratejik Analiz (BOSS)", "Paçal Hesaplayıcı", "Paçal Geçmişi", "Katkı Maliyeti", "Enzim Dozajlama","Buğday Fire Maliyeti"])
         selected_page = f"CALC_{page_raw}"
         
     elif ana_menu == "Yönetim Paneli":
@@ -232,6 +232,7 @@ elif selected_page == "CALC_Katkı Maliyeti":
 elif selected_page == "CALC_Enzim Dozajlama": 
     calculations.show_enzim_dozajlama()
 
+
 # ADMIN
 elif selected_page == "ADMIN":
     if st.session_state.user_role == "admin":
@@ -259,5 +260,6 @@ elif selected_page == "PROFILE":
             )
             st.write(f"Sonuç: {msg}")
     
+
 
 
