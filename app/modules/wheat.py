@@ -512,7 +512,7 @@ def show_mal_kabul():
             specs_list = df_specs['bugday_cinsi'].unique().tolist()
             
         secilen_standart = st.selectbox("Standart Seçiniz", ["(Standart Yok)"] + specs_list)
-        bugday_cinsi = st.text_input("Buğday Cinsi *", placeholder="Örn: Bezostaya")
+        bugday_cinsi = st.text_input("Buğday Cinsi *", placeholder="Örn: Esperia")
         
         current_specs = {}
         if secilen_standart != "(Standart Yok)":
@@ -526,8 +526,8 @@ def show_mal_kabul():
         notlar = st.text_area("Notlar")
         
         # Manuel Kantar
-        miktar = st.number_input("Gelen Miktar (Ton) *", min_value=0.1, format="%.1f")
-        fiyat = st.number_input("Alış Fiyatı (TL) *", min_value=0.1, format="%.2f")
+        miktar = st.number_input("Gelen Miktar (Ton) *", min_value=27.0, format="%.1f")
+        fiyat = st.number_input("Alış Fiyatı (TL) *", min_value=15.0, format="%.2f")
 
     with col2:
         st.subheader("🧪 Laboratuvar Analiz Değerleri")
@@ -568,14 +568,14 @@ def show_mal_kabul():
             g_g_sedim = st.number_input("Gecikmeli Sedim (ml)", 0.0, 100.0, 35.0)
             validate_val("gecikmeli_sedim", g_g_sedim, "G.Sedim")
             
-            sune = st.number_input("Süne (%)", 0.0, 10.0, 0.0)
+            sune = st.number_input("Süne (%)", 0.0, 10.0, 0.5)
             validate_val("sune", sune, "Süne")
 
         with c3:
-            kirik_ciliz = st.number_input("Kırık & Cılız (%)", 0.0, 100.0, 2.0)
+            kirik_ciliz = st.number_input("Kırık & Cılız (%)", 0.0, 100.0, 3.0)
             validate_val("kirik_ciliz", kirik_ciliz, "Kırık/Cılız")
             
-            yabanci_tane = st.number_input("Yabancı Tane (%)", 0.0, 100.0, 2.5)
+            yabanci_tane = st.number_input("Yabancı Tane (%)", 0.0, 100.0, 3.5)
             validate_val("yabanci_tane", yabanci_tane, "Yabancı Tane")
             
             hasere = st.selectbox("Haşere", ["Yok", "Var"])
@@ -971,6 +971,7 @@ def show_bugday_spec_yonetimi():
                             st.rerun()
         else:
             st.info("Henüz standart tanımlanmamış")
+
 
 
 
