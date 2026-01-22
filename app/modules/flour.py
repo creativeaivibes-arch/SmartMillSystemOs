@@ -11,9 +11,11 @@ from app.core.config import INPUT_LIMITS, TERMS, get_limit
 
 try:
     from app.modules.reports import create_un_maliyet_pdf_report, download_styled_excel
+    import app.modules.calculations as calculations
 except ImportError:
     def create_un_maliyet_pdf_report(*args): return None
     def download_styled_excel(*args): pass
+    calculations = None # Hata durumunda boş tanımla
 
 def get_un_maliyet_gecmisi():
     """Maliyet geçmişini döndür"""
@@ -652,6 +654,73 @@ def show_un_maliyet_gecmisi():
     if st.button("📥 Excel İndir", type="primary"):
         filename = f"un_maliyet_{datetime.now().strftime('%Y%m%d')}.xlsx"
         download_styled_excel(df, filename, "Maliyet Geçmişi")
+def show_flour_yonetimi():
+    """
+    Un Bölümü Ana Kontrol Paneli
+    Navigasyon: Spekler, Analiz, Arşiv, Enzim
+    """
+    
+    # 1. Başlık Alanı
+    st.markdown("""
+    <div style='background-color: #FFF8E1; padding: 15px; border-radius: 10px; margin-bottom: 20px; border-left: 5px solid #FFB300;'>
+        <h2 style='color: #E65100; margin:0;'>🍞 Un Kalite & Üretim Yönetimi</h2>
+        <p style='color: #666; margin:0; font-size: 14px;'>Laboratuvar Analizleri, Standartlar ve Akıllı Dozajlama</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # 2. Yatay Menü (Senin belirlediğin profesyonel isimler)
+    secim = st.radio(
+        "Modül Seçiniz:",
+        ["📐 Spek & Hedefler", "🧪 Analiz Girişi", "📂 Veri Tabanı & Rapor", "💊 Enzim Dozaj Hesapla"],
+        horizontal=True,
+        label_visibility="collapsed"
+    )
+    
+    st.markdown("---")
+
+    # 3. Yönlendirmeler
+    
+    # --- A) SPEK & HEDEFLER ---
+    if secim == "📐 Spek & Hedefler":
+        # Yetki Kontrolü
+        user_role = st.session_state.get('user_role', 'viewer')
+        
+        if user_role == 'admin':
+            with st.container(border=True):
+                st.success("🔓 **Yönetici Modu:** Kalite hedeflerini düzenleyebilirsiniz.")
+                show_spec_yonetimi()
+        else:
+            # Admin değilse uyarı ver
+            with st.container(border=True):
+                st.warning("🔒 **Salt Okunur:** Kalite hedeflerini sadece Yöneticiler değiştirebilir. Şu an sadece görüntülüyorsunuz.")
+                show_spec_yonetimi()
+
+    # --- B) ANALİZ GİRİŞİ ---
+    elif secim == "🧪 Analiz Girişi":
+        with st.container(border=True):
+            show_un_analiz_kaydi()
+
+    # --- C) VERİ TABANI & RAPOR ---
+    elif secim == "📂 Veri Tabanı & Rapor":
+        with st.container(border=True):
+            show_un_analiz_kayitlari()
+
+    # --- D) ENZİM DOZAJ ---
+    elif secim == "💊 Enzim Dozaj Hesapla":
+        with st.container(border=True):
+            # Dosyanın başındaki import çalışmazsa diye burada tekrar deniyoruz
+            try:
+                if 'calculations' not in globals() or calculations is None:
+                    import app.modules.calculations as calculations
+                
+                calculations.show_enzim_dozajlama()
+            except ImportError:
+                st.error("⚠️ Enzim modülü (calculations.py) yüklenemedi!")
+            except AttributeError:
+                st.error("⚠️ calculations.show_enzim_dozajlama fonksiyonu bulunamadı!")
+            except Exception as e:
+                st.error(f"⚠️ Bir hata oluştu: {e}")
+
 
 
 
