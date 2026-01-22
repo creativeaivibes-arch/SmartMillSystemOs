@@ -160,10 +160,8 @@ with st.sidebar:
             selected_page = f"WHEAT_{sub_page}" 
             
         elif kk_bolum == "🍞 Un Yönetimi":
-            # Enzim Dozajlama buraya eklendi
-            sub_page = st.sidebar.radio("İşlem Seçiniz", 
-                ["Un Analiz Kaydı", "Un Analiz Arşivi", "Enzim Dozajlama", "Kalite Hedefleri"])
-            selected_page = f"FLOUR_{sub_page}"
+            # Alt menüleri kaldırdık, tek bir yönetici sayfasına yönlendiriyoruz
+            selected_page = "FLOUR_MANAGER"
 
     elif ana_menu == "Değirmen":
         st.sidebar.markdown("### 🏭 Değirmen")
@@ -202,14 +200,8 @@ elif selected_page == "WHEAT_🎯 Kalite Hedefleri":
     wheat.show_bugday_spec_yonetimi()
 
 # FLOUR
-elif selected_page == "FLOUR_Un Analiz Kaydı": 
-    flour.show_un_analiz_kaydi()
-elif selected_page == "FLOUR_Un Analiz Arşivi": 
-    flour.show_un_analiz_kayitlari()
-elif selected_page == "FLOUR_Enzim Dozajlama":     
-    calculations.show_enzim_dozajlama()
-elif selected_page == "FLOUR_Kalite Hedefleri": 
-    flour.show_spec_yonetimi()
+elif selected_page == "FLOUR_MANAGER": 
+    flour.show_flour_yonetimi()
 
 # PRODUCTION
 elif selected_page == "PRODUCTION_Üretim Kaydı": 
@@ -287,6 +279,7 @@ if st.session_state.get('user_role') == "admin":
                 {'bugday_cinsi': 'TEST'}
             )
             st.write(f"Sonuç: {msg}")
+
 
 
 
