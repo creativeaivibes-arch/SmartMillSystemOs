@@ -203,12 +203,8 @@ elif selected_page == "FLOUR_MANAGER":
     flour.show_flour_yonetimi()
 
 # PRODUCTION
-elif selected_page == "PRODUCTION_Üretim Kaydı": 
-    production.show_uretim_kaydi()
-elif selected_page == "PRODUCTION_Üretim Arşivi": 
-    production.show_uretim_arsivi()
-elif selected_page == "PRODUCTION_Yönetim Dashboard": 
-    production.show_yonetim_dashboard()
+elif selected_page == "PRODUCTION_MANAGER": 
+    production.show_production_yonetimi()
 
 # --- FİNANS & STRATEJİ (SEKMELİ YAPI) ---
 elif selected_page == "FINANCE_DASHBOARD":
@@ -278,6 +274,7 @@ if st.session_state.get('user_role') == "admin":
                 {'bugday_cinsi': 'TEST'}
             )
             st.write(f"Sonuç: {msg}")
+
 
 
 
