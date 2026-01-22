@@ -164,9 +164,8 @@ with st.sidebar:
             selected_page = "FLOUR_MANAGER"
 
     elif ana_menu == "Değirmen":
-        st.sidebar.markdown("### 🏭 Değirmen")
-        page_raw = st.sidebar.radio("İşlem Seçiniz", ["Üretim Kaydı", "Üretim Arşivi", "Yönetim Dashboard"])
-        selected_page = f"PRODUCTION_{page_raw}"
+        
+        selected_page = "PRODUCTION_MANAGER"
         
     elif ana_menu == "Finans & Strateji":
         # Alt menü yok, direkt sayfa kodu atanıyor. Sekmeler sonra gelecek.
@@ -279,6 +278,7 @@ if st.session_state.get('user_role') == "admin":
                 {'bugday_cinsi': 'TEST'}
             )
             st.write(f"Sonuç: {msg}")
+
 
 
 
