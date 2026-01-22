@@ -136,7 +136,7 @@ with st.sidebar:
     
     ana_menu = st.sidebar.radio(
         "📂 Ana Menü",
-        ["Dashboard", "Kalite Kontrol", "Değirmen", "Hesaplamalar", "Yönetim Paneli", "Profil Ayarları"],
+        ["Dashboard", "Kalite Kontrol", "Değirmen", "Hesaplamalar", "Yönetim Paneli"],
         label_visibility="collapsed"
     )
     
@@ -173,9 +173,7 @@ with st.sidebar:
     elif ana_menu == "Yönetim Paneli":
         selected_page = "ADMIN"
         
-    elif ana_menu == "Profil Ayarları":
-        selected_page = "PROFILE"
-
+    
 # --- YÖNLENDIRME (ROUTING) ---
 
 if selected_page == "Dashboard":
@@ -237,21 +235,26 @@ elif selected_page == "CALC_Enzim Dozajlama":
     calculations.show_enzim_dozajlama()
 
 # ADMIN
-elif selected_page == "ADMIN":
+elif selected_page == "ADMIN" or selected_page == "PROFILE":
     if st.session_state.user_role == "admin":
-        tab1, tab2, tab3, tab4, tab5 = st.tabs(["👥 Kullanıcılar", "🏭 Silo Yönetimi", "💾 Yedekleme", "📜 Sistem Logları", "🛠️ Debug"])
-        with tab1: 
-            admin.show_user_management()
-        with tab2: 
-            admin.show_silo_management()
-        with tab3: 
-            admin.show_backup_management()
-        with tab4: 
-            admin.show_system_logs()
-        with tab5: 
-            admin.show_debug_panel()
+        tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+            "👤 Profilim", 
+            "👥 Kullanıcılar", 
+            "🏭 Silo Yönetimi", 
+            "💾 Yedekleme", 
+            "📜 Sistem Logları", 
+            "🛠️ Debug"
+        ])
+        with tab1: show_profile_settings()
+        with tab2: admin.show_user_management()
+        with tab3: admin.show_silo_management()
+        with tab4: admin.show_backup_management()
+        with tab5: admin.show_system_logs()
+        with tab6: admin.show_debug_panel()
     else:
-        st.error("⛔ Bu sayfaya erişim yetkiniz yok!")
+        # Admin olmayanlar (operations/viewer) sadece profil sekmesini görsün
+        tab1, = st.tabs(["👤 Profil Ayarları"])
+        with tab1: show_profile_settings()
 
 # PROFILE
 elif selected_page == "PROFILE":
@@ -268,4 +271,5 @@ if st.session_state.get('user_role') == "admin":
                 {'bugday_cinsi': 'TEST'}
             )
             st.write(f"Sonuç: {msg}")
+
 
