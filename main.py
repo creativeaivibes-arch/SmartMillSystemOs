@@ -188,6 +188,10 @@ elif selected_page == "WHEAT_Mal Kabul":
     wheat.show_mal_kabul()
 elif selected_page == "WHEAT_Stok Çıkışı": 
     wheat.show_stok_cikis()
+elif selected_page == "WHEAT_Paçal Hesaplayıcı":   
+    mixing.show_pacal_hesaplayici()
+elif selected_page == "WHEAT_Paçal Geçmişi":        
+    mixing.show_pacal_gecmisi()
 elif selected_page == "WHEAT_Tavlı Analiz": 
     wheat.show_tavli_analiz()
 elif selected_page == "WHEAT_Stok Hareketleri": 
@@ -275,6 +279,7 @@ if st.session_state.get('user_role') == "admin":
                 {'bugday_cinsi': 'TEST'}
             )
             st.write(f"Sonuç: {msg}")
+
 
 
 
