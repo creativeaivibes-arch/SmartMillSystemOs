@@ -85,9 +85,9 @@ def show_uretim_kaydi():
         
     with col2:
         st.subheader("🌾 Hammadde Girişi")
-        kirilan_bugday = st.number_input("Kırılan Buğday (Kg)", min_value=49058.0, step=100.0, format="%.0f")
-        b1_rutubet = st.number_input("B1 Buğday Rutubeti (%)", min_value=18.0 max_value=20.0, step=0.1)
-        tav_suresi = st.number_input("Tav Süresi (Saat)", min_value=48.0, step=0.5)
+        kirilan_bugday = st.number_input("Kırılan Buğday (Kg)", min_value=0.0, step=100.0, format="%.0f")
+        b1_rutubet = st.number_input("B1 Buğday Rutubeti (%)", min_value=0.0 max_value=20.0, step=0.1)
+        tav_suresi = st.number_input("Tav Süresi (Saat)", min_value=0.0, step=0.5)
         
     with col3:
         st.subheader("📦 Üretim Çıktıları (KG)")
@@ -638,6 +638,7 @@ def show_uretim_arsivi():
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     use_container_width=True
                 )
+
 
 
 
