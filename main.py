@@ -136,7 +136,7 @@ with st.sidebar:
     
     ana_menu = st.sidebar.radio(
         "📂 Ana Menü",
-        ["Dashboard", "Kalite Kontrol", "Değirmen", "Hesaplamalar", "Yönetim Paneli"],
+        ["Dashboard", "Kalite Kontrol", "Değirmen", "Finans & Strateji", "Yönetim Paneli"], # İsim değişti
         label_visibility="collapsed"
     )
     
@@ -149,14 +149,20 @@ with st.sidebar:
         
     elif ana_menu == "Kalite Kontrol":
         st.sidebar.markdown("### 🧪 Kalite Kontrol")
-        kk_bolum = st.sidebar.radio("Bölüm Seçiniz", ["🌾 Buğday Alım & Stok", "🍞 Un Analizleri"])
+        # İsimleri profesyonelleştirdik: Yönetimi olarak değiştirdik
+        kk_bolum = st.sidebar.radio("Bölüm Seçiniz", ["🌾 Buğday Yönetimi", "🍞 Un Yönetimi"])
         st.sidebar.markdown("---")
         
-        if kk_bolum == "🌾 Buğday Alım & Stok":
-            sub_page = st.sidebar.radio("İşlem Seçiniz", ["Mal Kabul", "Stok Çıkışı", "Tavlı Analiz", "Stok Hareketleri", "Giriş Arşivi", "🎯 Kalite Hedefleri"])
+        if kk_bolum == "🌾 Buğday Yönetimi":
+            # Paçal Hesaplayıcı ve Geçmişi buraya eklendi
+            sub_page = st.sidebar.radio("İşlem Seçiniz", 
+                ["Mal Kabul", "Stok Çıkışı", "Paçal Hesaplayıcı", "Paçal Geçmişi", "Tavlı Analiz", "Stok Hareketleri", "Giriş Arşivi", "🎯 Kalite Hedefleri"])
             selected_page = f"WHEAT_{sub_page}" 
-        elif kk_bolum == "🍞 Un Analizleri":
-            sub_page = st.sidebar.radio("İşlem Seçiniz", ["Un Analiz Kaydı", "Un Analiz Arşivi", "Kalite Hedefleri"])
+            
+        elif kk_bolum == "🍞 Un Yönetimi":
+            # Enzim Dozajlama buraya eklendi
+            sub_page = st.sidebar.radio("İşlem Seçiniz", 
+                ["Un Analiz Kaydı", "Un Analiz Arşivi", "Enzim Dozajlama", "Kalite Hedefleri"])
             selected_page = f"FLOUR_{sub_page}"
 
     elif ana_menu == "Değirmen":
@@ -164,11 +170,9 @@ with st.sidebar:
         page_raw = st.sidebar.radio("İşlem Seçiniz", ["Üretim Kaydı", "Üretim Arşivi", "Yönetim Dashboard"])
         selected_page = f"PRODUCTION_{page_raw}"
         
-    elif ana_menu == "Hesaplamalar":
-        st.sidebar.markdown("### 🧮 Hesaplamalar")
-        page_raw = st.sidebar.radio("İşlem Seçiniz", 
-            ["Un Maliyet", "Maliyet Geçmişi", "Stratejik Analiz (BOSS)", "Fire Maliyeti", "Paçal Hesaplayıcı", "Paçal Geçmişi", "Katkı Maliyeti", "Enzim Dozajlama"])
-        selected_page = f"CALC_{page_raw}"
+    elif ana_menu == "Finans & Strateji":
+        # Alt menü yok, direkt sayfa kodu atanıyor. Sekmeler sonra gelecek.
+        selected_page = "FINANCE_DASHBOARD"
         
     elif ana_menu == "Yönetim Paneli":
         selected_page = "ADMIN"
@@ -271,5 +275,6 @@ if st.session_state.get('user_role') == "admin":
                 {'bugday_cinsi': 'TEST'}
             )
             st.write(f"Sonuç: {msg}")
+
 
 
