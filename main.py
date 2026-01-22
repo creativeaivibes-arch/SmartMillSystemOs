@@ -163,7 +163,7 @@ with st.sidebar:
     elif ana_menu == "Hesaplamalar":
         st.sidebar.markdown("### 🧮 Hesaplamalar")
         page_raw = st.sidebar.radio("İşlem Seçiniz", 
-            ["Un Maliyet", "Maliyet Geçmişi", "Stratejik Analiz (BOSS)", "Paçal Hesaplayıcı", "Paçal Geçmişi", "Katkı Maliyeti", "Enzim Dozajlama","Buğday Fire Maliyeti"])
+            ["Un Maliyet", "Maliyet Geçmişi", "Stratejik Analiz (BOSS)", "Paçal Hesaplayıcı", "Paçal Geçmişi", "Katkı Maliyeti", "Enzim Dozajlama"])
         selected_page = f"CALC_{page_raw}"
         
     elif ana_menu == "Yönetim Paneli":
@@ -260,6 +260,7 @@ elif selected_page == "PROFILE":
             )
             st.write(f"Sonuç: {msg}")
     
+
 
 
 
