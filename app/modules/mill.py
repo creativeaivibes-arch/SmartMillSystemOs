@@ -639,6 +639,46 @@ def show_uretim_arsivi():
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     use_container_width=True
                 )
+def show_production_yonetimi():
+    """
+    Değirmen Bölümü Ana Kontrol Paneli
+    Navigasyon: Üretim Girişi, Arşiv, Performans Analizi
+    """
+    
+    # 1. Başlık Alanı (Mavi/Endüstriyel Tema)
+    st.markdown("""
+    <div style='background-color: #E3F2FD; padding: 15px; border-radius: 10px; margin-bottom: 20px; border-left: 5px solid #1565C0;'>
+        <h2 style='color: #0D47A1; margin:0;'>🏭 Değirmen Üretim Merkezi</h2>
+        <p style='color: #546E7A; margin:0; font-size: 14px;'>Günlük Üretim, Operasyonel Verimlilik ve Performans Takibi</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # 2. Yatay Menü (Profesyonel İsimlendirme)
+    secim = st.radio(
+        "Modül Seçiniz:",
+        ["📝 Günlük Üretim Girişi", "📂 Üretim Arşivi & Rapor", "📊 Üretim Performans Analizi"],
+        horizontal=True,
+        label_visibility="collapsed"
+    )
+    
+    st.markdown("---")
+
+    # 3. Yönlendirmeler
+    
+    # --- A) GÜNLÜK ÜRETİM GİRİŞİ ---
+    if secim == "📝 Günlük Üretim Girişi":
+        with st.container(border=True):
+            show_uretim_kaydi()
+
+    # --- B) ARŞİV VE RAPOR ---
+    elif secim == "📂 Üretim Arşivi & Rapor":
+        with st.container(border=True):
+            show_uretim_arsivi()
+
+    # --- C) PERFORMANS ANALİZİ (DASHBOARD) ---
+    elif secim == "📊 Üretim Performans Analizi":
+        with st.container(border=True):
+            show_yonetim_dashboard()
 
 
 
