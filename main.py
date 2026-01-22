@@ -232,7 +232,6 @@ elif selected_page == "CALC_Katkı Maliyeti":
 elif selected_page == "CALC_Enzim Dozajlama": 
     calculations.show_enzim_dozajlama()
 
-
 # ADMIN
 elif selected_page == "ADMIN":
     if st.session_state.user_role == "admin":
@@ -254,12 +253,13 @@ elif selected_page == "PROFILE":
             if st.button("Test Update"):
                 from app.core.database import update_row_by_filter
                 success, msg = update_row_by_filter(
-                'silolar',
-                {'isim': 'CELIK SILO 1'},  # Bu silonuz varsa
-                {'bugday_cinsi': 'TEST'}
-            )
-            st.write(f"Sonuç: {msg}")
+                    'silolar',
+                    {'isim': 'CELIK SILO 1'},
+                    {'bugday_cinsi': 'TEST'}
+                )
+                st.write(f"Sonuç: {msg}")
     
+
 
 
 
