@@ -149,16 +149,16 @@ with st.sidebar:
         
     elif ana_menu == "Kalite Kontrol":
         st.sidebar.markdown("### 🧪 Kalite Kontrol")
-        # İsimleri profesyonelleştirdik: Yönetimi olarak değiştirdik
+        # Menü sıralaması
         kk_bolum = st.sidebar.radio("Bölüm Seçiniz", ["🌾 Buğday Yönetimi", "🍞 Un Yönetimi"])
         st.sidebar.markdown("---")
         
-        elif kk_bolum == "🌾 Buğday Yönetimi":
-            # Alt menüleri kaldırdık, tek bir Buğday Merkezine gidiyoruz
-            selected_page = "WHEAT_MANAGER" 
+        # 1. Koşul (Her zaman 'if' ile başlar)
+        if kk_bolum == "🌾 Buğday Yönetimi":
+            selected_page = "WHEAT_MANAGER"
             
+        # 2. Koşul ('elif' ile devam eder)
         elif kk_bolum == "🍞 Un Yönetimi":
-            # Alt menüleri kaldırdık, tek bir yönetici sayfasına yönlendiriyoruz
             selected_page = "FLOUR_MANAGER"
 
     elif ana_menu == "Değirmen":
@@ -258,6 +258,7 @@ if st.session_state.get('user_role') == "admin":
                 {'bugday_cinsi': 'TEST'}
             )
             st.write(f"Sonuç: {msg}")
+
 
 
 
