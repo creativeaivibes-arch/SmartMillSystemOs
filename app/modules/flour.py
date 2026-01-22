@@ -15,7 +15,7 @@ try:
 except ImportError:
     def create_un_maliyet_pdf_report(*args): return None
     def download_styled_excel(*args): pass
-    calculations = None # Hata durumunda boş tanımla
+    
 
 def get_un_maliyet_gecmisi():
     """Maliyet geçmişini döndür"""
@@ -727,6 +727,7 @@ def show_flour_yonetimi():
                 st.error("⚠️ Enzim modülü (calculations.py) bulunamadı.")
             except Exception as e:
                 st.error(f"⚠️ Modül yüklenirken hata oluştu: {e}")
+
 
 
 
