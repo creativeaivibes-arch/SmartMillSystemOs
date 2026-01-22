@@ -64,15 +64,17 @@ if not st.session_state.logged_in:
     with login_col:
         col_logo, col_text = st.columns([1, 2.5])
         with col_logo:
-             try: st.image("logo.png", use_container_width=True)
-             except: st.markdown("🏭")
+            try: 
+                st.image("logo.png", use_container_width=True)
+            except: 
+                st.markdown("🏭")
         with col_text:
-             st.markdown("""
-             <div style='display: flex; flex-direction: column; justify-content: center; height: 100%;'>
+            st.markdown("""
+            <div style='display: flex; flex-direction: column; justify-content: center; height: 100%;'>
                 <h2 style='margin:0; padding:0; color: #000; font-weight: 800;'>SmartMill OS</h2>
                 <h5 style='margin:0; padding:0; color: #666; font-weight: normal;'>Akıllı Değirmen Sistemi</h5>
-             </div>
-             """, unsafe_allow_html=True)
+            </div>
+            """, unsafe_allow_html=True)
         
         st.write("") 
         
@@ -102,8 +104,10 @@ with st.sidebar:
     # 0. Marka
     col_brand1, col_brand2 = st.columns([1, 4])
     with col_brand1:
-        try: st.image("logo.png", width=50)
-        except: st.write("🏭")
+        try: 
+            st.image("logo.png", width=50)
+        except: 
+            st.write("🏭")
     with col_brand2:
         st.markdown("**SmartMill System OS**")
         st.caption("Akıllı Değirmen YS")
@@ -172,7 +176,7 @@ with st.sidebar:
     elif ana_menu == "Profil Ayarları":
         selected_page = "PROFILE"
 
-# --- YÖNLENDİRME (ROUTING) ---
+# --- YÖNLENDIRME (ROUTING) ---
 
 if selected_page == "Dashboard":
     dashboard.show_dashboard()
@@ -236,35 +240,31 @@ elif selected_page == "CALC_Enzim Dozajlama":
 elif selected_page == "ADMIN":
     if st.session_state.user_role == "admin":
         tab1, tab2, tab3, tab4, tab5 = st.tabs(["👥 Kullanıcılar", "🏭 Silo Yönetimi", "💾 Yedekleme", "📜 Sistem Logları", "🛠️ Debug"])
-        with tab1: admin.show_user_management()
-        with tab2: admin.show_silo_management()
-        with tab3: admin.show_backup_management()
-        with tab4: admin.show_system_logs()
-        with tab5: admin.show_debug_panel()
+        with tab1: 
+            admin.show_user_management()
+        with tab2: 
+            admin.show_silo_management()
+        with tab3: 
+            admin.show_backup_management()
+        with tab4: 
+            admin.show_system_logs()
+        with tab5: 
+            admin.show_debug_panel()
     else:
         st.error("⛔ Bu sayfaya erişim yetkiniz yok!")
 
 # PROFILE
 elif selected_page == "PROFILE":
     show_profile_settings()
-    # main.py'nin EN ALTINA (geçici test için)
-    if st.session_state.get('user_role') == "admin":
-        with st.sidebar.expander("🧪 Test: Yeni DB Fonksiyonları"):
-            if st.button("Test Update"):
-                from app.core.database import update_row_by_filter
-                success, msg = update_row_by_filter(
-                    'silolar',
-                    {'isim': 'CELIK SILO 1'},
-                    {'bugday_cinsi': 'TEST'}
-                )
-                st.write(f"Sonuç: {msg}")
-    
 
-
-
-
-
-
-
-
-
+# main.py'nin EN ALTINA (geçici test için)
+if st.session_state.get('user_role') == "admin":
+    with st.sidebar.expander("🧪 Test: Yeni DB Fonksiyonları"):
+        if st.button("Test Update"):
+            from app.core.database import update_row_by_filter
+            success, msg = update_row_by_filter(
+                'silolar',
+                {'isim': 'CELIK SILO 1'},
+                {'bugday_cinsi': 'TEST'}
+            )
+            st.write(f"Sonuç: {msg}")
