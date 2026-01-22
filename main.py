@@ -226,7 +226,7 @@ elif selected_page == "CALC_Stratejik Analiz (BOSS)":
     except Exception as e:
         st.error(f"❌ Beklenmeyen hata: {e}")
 elif selected_page == "CALC_Fire Maliyeti":
-    calculations.show_fire_maliyet_hesaplayici()
+    calculations.show_fire_maliyet_hesaplama()
 elif selected_page == "CALC_Paçal Hesaplayıcı": 
     mixing.show_pacal_hesaplayici()
 elif selected_page == "CALC_Paçal Geçmişi": 
@@ -268,3 +268,4 @@ if st.session_state.get('user_role') == "admin":
                 {'bugday_cinsi': 'TEST'}
             )
             st.write(f"Sonuç: {msg}")
+
