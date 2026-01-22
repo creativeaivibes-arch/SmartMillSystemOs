@@ -206,6 +206,8 @@ elif selected_page == "FLOUR_Un Analiz Kaydı":
     flour.show_un_analiz_kaydi()
 elif selected_page == "FLOUR_Un Analiz Arşivi": 
     flour.show_un_analiz_kayitlari()
+elif selected_page == "FLOUR_Enzim Dozajlama":     
+    calculations.show_enzim_dozajlama()
 elif selected_page == "FLOUR_Kalite Hedefleri": 
     flour.show_spec_yonetimi()
 
@@ -279,6 +281,7 @@ if st.session_state.get('user_role') == "admin":
                 {'bugday_cinsi': 'TEST'}
             )
             st.write(f"Sonuç: {msg}")
+
 
 
 
