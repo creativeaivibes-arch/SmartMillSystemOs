@@ -4,8 +4,16 @@ from datetime import datetime
 import json
 import time
 
-# --- GÜNCELLENMİŞ IMPORTLAR ---
+# --- DATABASE VE CORE IMPORTLARI ---
 from app.core.database import fetch_data, add_data, get_conn
+
+# Plotly Kontrolü
+try:
+    import plotly.express as px
+    import plotly.graph_objects as go
+except ImportError:
+    px = None
+    go = None
 
 # PDF Kütüphanesi Kontrolü
 PDF_AVAILABLE = False
@@ -16,24 +24,264 @@ try:
 except ImportError:
     pass
 
-def show_katki_maliyeti_modulu():
-    """Katkı ve Enzim Maliyeti Modülü - Google Sheets Uyumlu"""
+# ==============================================================================
+# BÖLÜM 1: YARDIMCI FONKSİYONLAR (PAÇAL İÇİN)
+# ==============================================================================
+
+def get_silo_data_for_calc():
+    """Hesaplama için silo verilerini ve analizlerini getir"""
+    df = fetch_data("silolar")
+    if df.empty:
+        return pd.DataFrame()
     
-    # Ana başlık
+    numeric_cols = ['protein', 'gluten', 'rutubet', 'hektolitre', 'sedim', 'maliyet', 'mevcut_miktar']
+    for col in numeric_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+    
+    return df[df['mevcut_miktar'] > 0]
+
+def save_pacal_recete(recete_adi, hedef_urun, toplam_tonaj, bilesenler, sonuclar, notlar):
+    """Oluşturulan reçeteyi kaydet"""
+    try:
+        data = {
+            'tarih': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'recete_adi': recete_adi,
+            'hedef_urun': hedef_urun,
+            'toplam_tonaj': float(toplam_tonaj),
+            'maliyet_ton': float(sonuclar.get('maliyet', 0)),
+            'protein_sonuc': float(sonuclar.get('protein', 0)),
+            'gluten_sonuc': float(sonuclar.get('gluten', 0)),
+            'sedim_sonuc': float(sonuclar.get('sedim', 0)),
+            'rutubet_sonuc': float(sonuclar.get('rutubet', 0)),
+            'bilesen_detay': str(bilesenler),
+            'notlar': notlar
+        }
+        return add_data("pacal_receteleri", data)
+    except Exception as e:
+        st.error(f"Kayıt hatası: {e}")
+        return False
+
+# ==============================================================================
+# BÖLÜM 2: PAÇAL (BLEND) MODÜLLERİ (WHEAT.PY İÇİN GEREKLİ)
+# ==============================================================================
+
+def show_pacal_hesaplayici():
+    """Akıllı Paçal Hesaplayıcı"""
+    st.header("🧮 Akıllı Paçal (Blend) Hesaplayıcı")
+    
+    # 1. VERİ HAZIRLIĞI
+    df_silo = get_silo_data_for_calc()
+    if df_silo.empty:
+        st.warning("⚠️ Hesaplama yapmak için önce silolara buğday girişi yapmalısınız.")
+        return
+
+    col1, col2 = st.columns([1, 2])
+    
+    with col1:
+        st.subheader("⚙️ Ayarlar")
+        recete_adi = st.text_input("Reçete Adı", placeholder="Örn: Lüks Pidelik Karışımı")
+        hedef_tonaj = st.number_input("Hedeflenen Üretim (Ton)", min_value=1.0, value=100.0, step=10.0)
+        
+        # Hedef Standart Seçimi
+        df_specs = fetch_data("un_spekleri")
+        secilen_hedef = None
+        hedef_degerler = {}
+        
+        if not df_specs.empty:
+            spec_list = df_specs['un_cinsi'].unique().tolist()
+            secim = st.selectbox("Hedef Ürün Standardı", ["(Serbest Hesaplama)"] + spec_list)
+            
+            if secim != "(Serbest Hesaplama)":
+                secilen_hedef = secim
+                df_filter = df_specs[df_specs['un_cinsi'] == secim]
+                for _, row in df_filter.iterrows():
+                    hedef_degerler[row['parametre']] = {
+                        'min': float(row.get('min_deger', 0)),
+                        'max': float(row.get('max_deger', 999)),
+                        'hedef': float(row.get('hedef_deger', 0))
+                    }
+                st.info(f"🎯 Hedef: **{secim}** standartlarına göre kontrol edilecek.")
+    
+    with col2:
+        st.subheader("🧪 Karışım Oranları")
+        silolar = df_silo['isim'].tolist()
+        secilen_silolar = st.multiselect("Kullanılacak Siloları Seçin", silolar, default=silolar[:2] if len(silolar)>1 else silolar)
+        
+        if not secilen_silolar:
+            st.warning("Lütfen en az bir silo seçin.")
+            return
+
+        cols = st.columns(len(secilen_silolar)) if len(secilen_silolar) <= 4 else st.columns(3)
+        
+        toplam_oran = 0
+        bilesen_verileri = []
+        
+        for idx, silo in enumerate(secilen_silolar):
+            col_idx = idx % 3
+            with cols[col_idx]:
+                silo_data = df_silo[df_silo['isim'] == silo].iloc[0]
+                st.markdown(f"**{silo}**")
+                st.caption(f"Stok: {silo_data['mevcut_miktar']:.0f} Ton | Prot: {silo_data['protein']:.1f}")
+                
+                default_val = int(100 / len(secilen_silolar))
+                val = st.number_input(f"% Kullanım ({silo})", 0, 100, default_val, key=f"sl_{silo}")
+                toplam_oran += val
+                
+                bilesen_verileri.append({
+                    'silo': silo,
+                    'oran': val,
+                    'miktar': (hedef_tonaj * val) / 100,
+                    'protein': silo_data['protein'],
+                    'gluten': silo_data['gluten'],
+                    'sedim': silo_data['sedim'],
+                    'rutubet': silo_data['rutubet'],
+                    'maliyet': silo_data['maliyet']
+                })
+
+        if toplam_oran != 100:
+            if toplam_oran < 100:
+                st.warning(f"⚠️ Toplam oran %{toplam_oran}. Kalan %{100-toplam_oran} eklenmeli.")
+            else:
+                st.error(f"⛔ Toplam oran %{toplam_oran}. %{toplam_oran-100} azaltılmalı.")
+    
+    st.divider()
+
+    # HESAPLAMA MOTORU
+    if toplam_oran == 100:
+        sonuc_protein = sum([b['protein'] * b['oran'] for b in bilesen_verileri]) / 100
+        sonuc_gluten = sum([b['gluten'] * b['oran'] for b in bilesen_verileri]) / 100
+        sonuc_sedim = sum([b['sedim'] * b['oran'] for b in bilesen_verileri]) / 100
+        sonuc_rutubet = sum([b['rutubet'] * b['oran'] for b in bilesen_verileri]) / 100
+        sonuc_maliyet = sum([b['maliyet'] * b['oran'] for b in bilesen_verileri]) / 100
+        
+        toplam_maliyet = sonuc_maliyet * hedef_tonaj
+        
+        st.subheader("📊 Tahmini Paçal Sonuçları")
+        
+        res1, res2, res3, res4, res5 = st.columns(5)
+        
+        def check_target(val, param_key):
+            if not hedef_degerler or param_key not in hedef_degerler:
+                return None, "off"
+            tgt = hedef_degerler[param_key]
+            if tgt['min'] <= val <= tgt['max']:
+                return f"Hedef: {tgt['hedef']}", "normal"
+            else:
+                return f"Limit Dışı! ({tgt['min']}-{tgt['max']})", "inverse"
+
+        delta_prot, color_prot = check_target(sonuc_protein, 'protein')
+        res1.metric("Protein", f"%{sonuc_protein:.2f}", delta=delta_prot, delta_color=color_prot)
+        
+        delta_glut, color_glut = check_target(sonuc_gluten, 'gluten')
+        res2.metric("Gluten", f"%{sonuc_gluten:.1f}", delta=delta_glut, delta_color=color_glut)
+        
+        delta_sedim, color_sedim = check_target(sonuc_sedim, 'sedim')
+        res3.metric("Sedim", f"{sonuc_sedim:.0f} ml", delta=delta_sedim, delta_color=color_sedim)
+        
+        res4.metric("Birim Maliyet", f"{sonuc_maliyet:.2f} TL/kg", delta="Tahmini")
+        res5.metric("Toplam Maliyet", f"{toplam_maliyet:,.0f} TL")
+        
+        if px:
+            c_chart1, c_chart2 = st.columns([1, 2])
+            with c_chart1:
+                df_pie = pd.DataFrame(bilesen_verileri)
+                fig = px.pie(df_pie, values='oran', names='silo', title='Karışım Dağılımı', hole=0.4)
+                fig.update_layout(height=300, margin=dict(t=30, b=0, l=0, r=0))
+                st.plotly_chart(fig, use_container_width=True)
+            
+            with c_chart2:
+                st.markdown("**📉 Silolardan Çekilecek Miktarlar**")
+                df_usage = pd.DataFrame(bilesen_verileri)[['silo', 'oran', 'miktar', 'maliyet']]
+                df_usage.columns = ['Silo', 'Oran (%)', 'Çekilecek (Ton)', 'Birim Maliyet']
+                st.dataframe(df_usage, use_container_width=True, hide_index=True)
+
+        st.markdown("---")
+        col_save, col_note = st.columns([1, 3])
+        with col_note:
+            kayit_notu = st.text_input("Reçete Notu (Opsiyonel)", placeholder="Örn: Yüksek proteinli deneme...")
+        
+        with col_save:
+            st.write("") 
+            st.write("") 
+            if st.button("💾 Reçeteyi Kaydet", type="primary", use_container_width=True):
+                if not recete_adi:
+                    st.error("Lütfen bir Reçete Adı giriniz!")
+                else:
+                    sonuclar = {
+                        'maliyet': sonuc_maliyet, 'protein': sonuc_protein,
+                        'gluten': sonuc_gluten, 'sedim': sonuc_sedim, 'rutubet': sonuc_rutubet
+                    }
+                    bilesen_ozet = ", ".join([f"{b['silo']}:%{b['oran']}" for b in bilesen_verileri])
+                    
+                    if save_pacal_recete(recete_adi, secilen_hedef, hedef_tonaj, bilesen_ozet, sonuclar, kayit_notu):
+                        st.success("✅ Paçal Reçetesi Başarıyla Kaydedildi!")
+                        time.sleep(2)
+                        st.rerun()
+
+def show_pacal_gecmisi():
+    """Paçal Geçmişi"""
+    st.header("📜 Reçete ve Paçal Geçmişi")
+    
+    df = fetch_data("pacal_receteleri")
+    
+    if df.empty:
+        st.info("📭 Henüz kaydedilmiş bir paçal reçetesi bulunmamaktadır.")
+        return
+        
+    if 'tarih' in df.columns:
+        df['tarih'] = pd.to_datetime(df['tarih'])
+        df = df.sort_values('tarih', ascending=False)
+    
+    col_f1, col_f2 = st.columns(2)
+    with col_f1:
+        search = st.text_input("🔍 Reçete Ara", placeholder="Reçete adı...").lower()
+    
+    if search:
+        df = df[df['recete_adi'].str.lower().str.contains(search, na=False)]
+        
+    st.dataframe(
+        df,
+        use_container_width=True,
+        column_config={
+            "tarih": st.column_config.DatetimeColumn("Tarih", format="DD.MM.YYYY HH:mm"),
+            "maliyet_ton": st.column_config.NumberColumn("Maliyet (TL)", format="%.2f"),
+            "protein_sonuc": st.column_config.NumberColumn("Prot.", format="%.2f"),
+            "toplam_tonaj": st.column_config.NumberColumn("Tonaj", format="%.0f"),
+        }
+    )
+    
+    st.divider()
+    st.subheader("🔎 Reçete Detayı")
+    
+    selected_id = st.selectbox("İncelemek istediğiniz reçeteyi seçin:", df['recete_adi'].unique())
+    
+    if selected_id:
+        row = df[df['recete_adi'] == selected_id].iloc[0]
+        d1, d2, d3 = st.columns(3)
+        d1.info(f"**Ürün:** {row['hedef_urun']}")
+        d2.success(f"**Maliyet:** {row['maliyet_ton']:.2f} TL")
+        d3.warning(f"**Tarih:** {row['tarih'].strftime('%d.%m.%Y')}")
+        st.text_area("Bileşenler", value=row['bilesen_detay'], disabled=True)
+        st.text_area("Notlar", value=row['notlar'], disabled=True)
+
+# ==============================================================================
+# BÖLÜM 3: ENZİM VE KATKI MODÜLLERİ (FLOUR.PY İÇİN GEREKLİ)
+# ==============================================================================
+
+def show_katki_maliyeti_modulu():
+    """Katkı ve Enzim Maliyeti Modülü"""
     st.markdown("""
     <div style="text-align: center; margin-bottom: 30px;">
         <h1 style="color: #0B4F6C; margin-bottom: 10px;">🧪 Katkı ve Enzim Maliyeti Hesaplama</h1>
-        <p style="color: #666; font-size: 16px;">Katkı reçetelerinizi yönetin ve maliyetlerinizi hesaplayın</p>
     </div>
     """, unsafe_allow_html=True)
     
-    # --- VERİLERİ ÇEK ---
     df_kurlar = fetch_data("katki_kurlar")
     df_enzimler = fetch_data("katki_enzimler")
     df_urunler = fetch_data("katki_urunler")
     df_recete = fetch_data("katki_recete")
     
-    # Döviz kurlarını ayarla
     new_usd = 43.28
     new_eur = 50.08
     
@@ -41,44 +289,35 @@ def show_katki_maliyeti_modulu():
         new_usd = float(df_kurlar.iloc[0]['usd_tl'])
         new_eur = float(df_kurlar.iloc[0]['eur_tl'])
     else:
-        # İlk kez çalışıyorsa varsayılan ekle
         add_data("katki_kurlar", {"id": 1, "usd_tl": new_usd, "eur_tl": new_eur})
 
-    # --- ÜST BÖLÜM: 3 KOLONLU DÜZEN ---
     st.markdown("### 📋 Kontrol Paneli")
     col1, col2, col3 = st.columns([1, 1, 1], gap="large")
     
-    # 1. KOLON: DÖVİZ KURLARI
     with col1:
         with st.container(border=True, height=260):
             st.markdown("#### 💱 Döviz Kurları")
-            st.markdown("Güncel döviz kurlarını TL cinsinden giriniz:")
-            
             input_usd = st.number_input("**1 USD**", value=new_usd, format="%.2f", step=0.01, key="katki_usd")
             input_eur = st.number_input("**1 EUR**", value=new_eur, format="%.2f", step=0.01, key="katki_eur")
             
             if st.button("💾 Kurları Güncelle", use_container_width=True, key="katki_kur_save", type="primary"):
                 try:
                     conn = get_conn()
-                    # Mevcut satırı güncelle
                     if df_kurlar.empty:
                         add_data("katki_kurlar", {"id": 1, "usd_tl": input_usd, "eur_tl": input_eur})
                     else:
                         df_kurlar.at[0, 'usd_tl'] = input_usd
                         df_kurlar.at[0, 'eur_tl'] = input_eur
                         conn.update(worksheet="katki_kurlar", data=df_kurlar)
-                    
                     st.success("✅ Kurlar güncellendi!")
                     time.sleep(1)
                     st.rerun()
                 except Exception as e:
                     st.error(f"❌ Güncelleme hatası: {str(e)}")
     
-    # 2. KOLON: YENİ KATKI/ENZİM
     with col2:
         with st.container(border=True, height=260):
             st.markdown("#### ⚙️ Yeni Katkı/Enzim")
-            
             e_ad = st.text_input("**Katkı/Enzim Adı**", key="yeni_enzim_ad").strip().upper()
             e_birim = st.selectbox("**Para Birimi**", ["EUR", "USD", "TL"], key="yeni_enzim_birim")
             e_fiyat = st.number_input("**1 kg Fiyatı**", min_value=0.0, step=0.01, format="%.3f", key="yeni_enzim_fiyat")
@@ -86,91 +325,58 @@ def show_katki_maliyeti_modulu():
             if st.button("💾 Katkıyı Kaydet", key="katki_ekle", use_container_width=True, type="secondary"):
                 if e_ad:
                     try:
-                        # İsim kontrolü
-                        if not df_enzimler.empty and e_ad in df_enzimler['ad'].values:
-                            st.error("Bu isimde katkı zaten var.")
-                        else:
-                            # ID oluştur (Max ID + 1)
-                            new_id = 1
-                            if not df_enzimler.empty and 'id' in df_enzimler.columns:
-                                new_id = df_enzimler['id'].max() + 1
-                                
-                            add_data("katki_enzimler", {
-                                "id": int(new_id), 
-                                "ad": e_ad, 
-                                "fiyat": e_fiyat, 
-                                "para_birimi": e_birim
-                            })
-                            st.success(f"✅ '{e_ad}' kaydedildi!")
-                            time.sleep(1)
-                            st.rerun()
+                        new_id = 1
+                        if not df_enzimler.empty and 'id' in df_enzimler.columns:
+                            new_id = df_enzimler['id'].max() + 1
+                        add_data("katki_enzimler", {"id": int(new_id), "ad": e_ad, "fiyat": e_fiyat, "para_birimi": e_birim})
+                        st.success(f"✅ '{e_ad}' kaydedildi!")
+                        time.sleep(1)
+                        st.rerun()
                     except Exception as e:
                         st.error(f"❌ Hata: {str(e)}")
-                else:
-                    st.warning("⚠️ Katkı/enzim adı gerekli!")
     
-    # 3. KOLON: YENİ ÜRÜN
     with col3:
         with st.container(border=True, height=260):
             st.markdown("#### 🥖 Yeni Ürün")
-            
             u_ad = st.text_input("**Ürün Adı**", key="yeni_urun_ad").strip().upper()
             
             if st.button("💾 Ürünü Kaydet", key="urun_ekle", use_container_width=True, type="secondary"):
                 if u_ad:
                     try:
-                        if not df_urunler.empty and u_ad in df_urunler['ad'].values:
-                            st.error("Bu isimde ürün zaten var.")
-                        else:
-                            new_id = 1
-                            if not df_urunler.empty and 'id' in df_urunler.columns:
-                                new_id = df_urunler['id'].max() + 1
-                                
-                            add_data("katki_urunler", {"id": int(new_id), "ad": u_ad})
-                            st.success(f"✅ '{u_ad}' kaydedildi!")
-                            time.sleep(1)
-                            st.rerun()
+                        new_id = 1
+                        if not df_urunler.empty and 'id' in df_urunler.columns:
+                            new_id = df_urunler['id'].max() + 1
+                        add_data("katki_urunler", {"id": int(new_id), "ad": u_ad})
+                        st.success(f"✅ '{u_ad}' kaydedildi!")
+                        time.sleep(1)
+                        st.rerun()
                     except Exception as e:
                         st.error(f"❌ Hata: {str(e)}")
-                else:
-                    st.warning("⚠️ Ürün adı gerekli!")
-    
-    # --- REÇETE VE FİYAT TABLOSU (MATRIX) ---
+
     st.divider()
     st.markdown("### 📊 Reçete ve Fiyat Tablosu")
     
-    if df_enzimler.empty:
-        st.info("Henüz katkı/enzim eklenmemiş.")
-    else:
-        # Tablo verilerini hazırla (Matrix Oluşturma)
-        # Satırlar: Enzimler, Sütunlar: Ürünler
-        
-        # Temel sütunlar
+    if not df_enzimler.empty:
         table_data = df_enzimler[['id', 'ad', 'fiyat', 'para_birimi']].copy()
         table_data.columns = ['id', 'ENZİM İSMİ', 'FİYAT', 'BİRİM']
         
-        # Ürün sütunlarını ekle ve gramajları doldur
         if not df_urunler.empty:
             for _, u_row in df_urunler.iterrows():
                 u_id = u_row['id']
                 u_name = u_row['ad']
                 col_values = []
-                
                 for _, e_row in table_data.iterrows():
                     e_id = e_row['id']
                     gramaj = 0.0
-                    # Reçete tablosundan gramajı bul
                     if not df_recete.empty:
                         match = df_recete[(df_recete['urun_id'] == u_id) & (df_recete['enzim_id'] == e_id)]
                         if not match.empty:
                             gramaj = float(match.iloc[0]['gramaj'])
                     col_values.append(gramaj)
-                
                 table_data[u_name] = col_values
 
-        # Editör Konfigürasyonu
         column_config = {
-            "id": None, # ID'yi gizle
+            "id": None,
             "ENZİM İSMİ": st.column_config.TextColumn("ENZİM", width="small", required=True),
             "FİYAT": st.column_config.NumberColumn("FİYAT", width="small", format="%.3f", required=True),
             "BİRİM": st.column_config.SelectboxColumn("BİRİM", width="small", options=["EUR", "USD", "TL"], required=True),
@@ -178,43 +384,25 @@ def show_katki_maliyeti_modulu():
         
         if not df_urunler.empty:
             for u_name in df_urunler['ad'].values:
-                column_config[u_name] = st.column_config.NumberColumn(
-                    u_name, width="small", format="%.3f", min_value=0.0
-                )
+                column_config[u_name] = st.column_config.NumberColumn(u_name, width="small", format="%.3f", min_value=0.0)
         
-        # Data Editor Gösterimi
-        edited_df = st.data_editor(
-            table_data,
-            use_container_width=True,
-            hide_index=True,
-            column_config=column_config,
-            num_rows="fixed",
-            key="recete_editor"
-        )
+        edited_df = st.data_editor(table_data, use_container_width=True, hide_index=True, column_config=column_config, num_rows="fixed", key="recete_editor")
         
-        # KAYDET BUTONU
         if st.button("🔄 DEĞİŞİKLİKLERİ KAYDET", use_container_width=True, type="primary", key="katki_kaydet"):
             try:
                 conn = get_conn()
-                
-                # 1. Enzim Güncellemeleri (Fiyat/İsim/Birim)
                 updated_enzimler = df_enzimler.copy()
                 for idx, row in edited_df.iterrows():
                     e_id = row['id']
-                    # İlgili satırı bul ve güncelle
                     mask = updated_enzimler['id'] == e_id
                     if mask.any():
                         updated_enzimler.loc[mask, 'ad'] = row['ENZİM İSMİ']
                         updated_enzimler.loc[mask, 'fiyat'] = row['FİYAT']
                         updated_enzimler.loc[mask, 'para_birimi'] = row['BİRİM']
-                
                 conn.update(worksheet="katki_enzimler", data=updated_enzimler)
                 
-                # 2. Reçete Güncellemeleri (Gramajlar)
-                # DataFrame üzerinde işlem yapıp toplu update edeceğiz
                 updated_recete = df_recete.copy()
                 new_records = []
-                
                 if not df_urunler.empty:
                     for idx, row in edited_df.iterrows():
                         e_id = row['id']
@@ -222,128 +410,22 @@ def show_katki_maliyeti_modulu():
                             u_id = u_row['id']
                             u_name = u_row['ad']
                             gramaj = float(row[u_name])
-                            
-                            # Mevcut kaydı bul
                             mask = (updated_recete['urun_id'] == u_id) & (updated_recete['enzim_id'] == e_id)
-                            
                             if mask.any():
                                 updated_recete.loc[mask, 'gramaj'] = gramaj
                             else:
-                                if gramaj > 0: # Sadece 0'dan büyükse yeni kayıt ekle
-                                    new_records.append({
-                                        'urun_id': int(u_id),
-                                        'enzim_id': int(e_id),
-                                        'gramaj': gramaj
-                                    })
+                                if gramaj > 0:
+                                    new_records.append({'urun_id': int(u_id), 'enzim_id': int(e_id), 'gramaj': gramaj})
                 
-                # Yeni kayıtları ekle
                 if new_records:
                     updated_recete = pd.concat([updated_recete, pd.DataFrame(new_records)], ignore_index=True)
                 
                 conn.update(worksheet="katki_recete", data=updated_recete)
-                
-                # 3. Geçmişe Kayıt (Opsiyonel ama iyi olur)
-                recete_json = json.dumps(edited_df.to_dict(orient='records'), ensure_ascii=False)
-                add_data("katki_recete_gecmisi", {
-                    "tarih": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                    "urun_adi": "Toplu Güncelleme",
-                    "enzim_sayisi": len(df_enzimler),
-                    "recete_json": recete_json,
-                    "aciklama": "Reçete tablosu güncellendi"
-                })
-
-                st.success("✅ Tüm değişiklikler başarıyla kaydedildi!")
+                st.success("✅ Değişiklikler kaydedildi!")
                 time.sleep(1)
                 st.rerun()
-                
             except Exception as ex:
                 st.error(f"Kayıt hatası: {ex}")
-
-        # --- MALİYET ANALİZ RAPORU ---
-        st.divider()
-        st.markdown("### 💰 Maliyet Analiz Raporu")
-        
-        if not df_urunler.empty:
-            col_report1, col_report2 = st.columns([2, 1])
-            with col_report1:
-                rapor_birimi = st.radio("**Rapor Birimi:**", ["1 Çuval (50kg) Başına", "1 Ton Un Başına"], horizontal=True, key="rapor_birimi")
-            
-            rapor_data = []
-            
-            # Hesaplama
-            for u_name in df_urunler['ad'].values:
-                toplam_tl = 0.0
-                katki_sayisi = 0
-                
-                for idx, row in edited_df.iterrows():
-                    gramaj_cuval = float(row[u_name])
-                    if gramaj_cuval > 0:
-                        katki_sayisi += 1
-                        fiyat = float(row["FİYAT"])
-                        birim = row["BİRİM"]
-                        
-                        # TL'ye çevir
-                        if birim == "USD": tl_kg_fiyat = fiyat * new_usd
-                        elif birim == "EUR": tl_kg_fiyat = fiyat * new_eur
-                        else: tl_kg_fiyat = fiyat
-                        
-                        # Maliyet hesabı (Gramaj 50kg çuval içindir)
-                        maliyet_cuval = (gramaj_cuval / 1000) * tl_kg_fiyat
-                        
-                        if rapor_birimi == "1 Ton Un Başına":
-                            maliyet = maliyet_cuval * 20 # 1 tonda 20 çuval var
-                        else:
-                            maliyet = maliyet_cuval
-                            
-                        toplam_tl += maliyet
-                
-                maliyet_usd = toplam_tl / new_usd if new_usd > 0 else 0
-                maliyet_eur = toplam_tl / new_eur if new_eur > 0 else 0
-                birim_aciklama = "1 ÇUVAL" if rapor_birimi == "1 Çuval (50kg) Başına" else "1 TON"
-                
-                rapor_data.append({
-                    "Ürün": u_name, 
-                    "Birim": birim_aciklama, 
-                    "Katkı Sayısı": katki_sayisi,
-                    "Toplam TL": toplam_tl, 
-                    "Toplam USD": maliyet_usd, 
-                    "Toplam EUR": maliyet_eur
-                })
-            
-            if rapor_data:
-                st.dataframe(
-                    pd.DataFrame(rapor_data), 
-                    use_container_width=True, 
-                    hide_index=True,
-                    column_config={
-                        "Toplam TL": st.column_config.NumberColumn(format="%.2f ₺"),
-                        "Toplam USD": st.column_config.NumberColumn(format="%.2f $"),
-                        "Toplam EUR": st.column_config.NumberColumn(format="%.2f €")
-                    }
-                )
-
-        # --- ÜRÜN SİLME ---
-        st.divider()
-        with st.expander("🗑️ Ürün Sil"):
-            if not df_urunler.empty:
-                silinecek = st.selectbox("Silinecek Ürün", df_urunler['ad'].tolist(), key="sil_urun_sec")
-                if st.button("🗑️ Ürünü Sil", type="secondary"):
-                    try:
-                        conn = get_conn()
-                        # Ürünü sil
-                        u_id = df_urunler[df_urunler['ad'] == silinecek]['id'].values[0]
-                        new_urunler = df_urunler[df_urunler['id'] != u_id]
-                        conn.update(worksheet="katki_urunler", data=new_urunler)
-                        
-                        # Reçeteden de sil
-                        new_recete = df_recete[df_recete['urun_id'] != u_id]
-                        conn.update(worksheet="katki_recete", data=new_recete)
-                        
-                        st.success(f"{silinecek} silindi.")
-                        time.sleep(1)
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Silme hatası: {e}")
 
 def show_enzim_dozajlama():
     """Un Geliştirici Enzim Dozajlama Hesaplama Modülü"""
@@ -468,7 +550,7 @@ def show_enzim_dozajlama():
             st.session_state.enzim_rows = [{'name': '', 'doz': '', 'total': 0} for _ in range(10)]
             if 'irmik_total' in st.session_state: del st.session_state.irmik_total
             st.rerun()
-
+            
     # Geçmiş Gösterimi
     st.divider()
     if st.checkbox("📋 Geçmiş Reçeteleri Göster"):
@@ -484,7 +566,6 @@ def show_enzim_dozajlama():
 def show_fire_maliyet_hesaplama():
     """Fire Maliyet Hesaplama Modülü"""
     
-    # Session state başlangıç değerleri
     if 'fire_calc_state' not in st.session_state:
         st.session_state.fire_calc_state = {
             "bugday_tonaji": 100.0,
@@ -496,47 +577,23 @@ def show_fire_maliyet_hesaplama():
     st.markdown("""
     <div style="text-align: center; margin-bottom: 30px;">
         <h1 style="color: #0B4F6C; margin-bottom: 10px;">🔍 Buğday Fire Maliyet Hesaplama</h1>
-        <p style="color: #666; font-size: 16px;">Buğday alımındaki fire (yabancı madde) oranının maliyete etkisini hesaplayın</p>
     </div>
     """, unsafe_allow_html=True)
     
-    # GİRİŞ ALANLARI
     col_input1, col_input2 = st.columns([1, 1], gap="large")
     
     with col_input1:
         st.markdown("### 📉 Buğday Bilgileri")
         with st.container(border=True):
-            bugday_tonaji = st.number_input(
-                "Buğday Tonajı (Ton)", 
-                min_value=0.0, step=1.0, 
-                value=st.session_state.fire_calc_state["bugday_tonaji"],
-                help="Toplam alınan buğday miktarı"
-            )
-            bugday_fiyati = st.number_input(
-                "Buğday Alış Fiyatı (TL/Ton)", 
-                min_value=0.0, step=10.0, 
-                value=st.session_state.fire_calc_state["bugday_fiyati"],
-                help="Buğdayın ton başına alış fiyatı"
-            )
+            bugday_tonaji = st.number_input("Buğday Tonajı (Ton)", min_value=0.0, step=1.0, value=st.session_state.fire_calc_state["bugday_tonaji"])
+            bugday_fiyati = st.number_input("Buğday Alış Fiyatı (TL/Ton)", min_value=0.0, step=10.0, value=st.session_state.fire_calc_state["bugday_fiyati"])
     
     with col_input2:
         st.markdown("### 🗑️ Fire Bilgileri")
         with st.container(border=True):
-            fire_yuzdesi = st.number_input(
-                "Fire Yüzdesi (%)", 
-                min_value=0.0, max_value=100.0, step=0.01, 
-                value=st.session_state.fire_calc_state["fire_yuzdesi"],
-                format="%.2f",
-                help="Analiz sonucu çıkan yabancı madde oranı (Örn: 0.38)"
-            )
-            fire_satis_fiyati = st.number_input(
-                "Fire Satış Fiyatı (TL/Ton)", 
-                min_value=0.0, step=10.0, 
-                value=st.session_state.fire_calc_state["fire_satis_fiyati"],
-                help="Ayrılan firenin (kavuz, taş vb.) satılabileceği fiyat"
-            )
+            fire_yuzdesi = st.number_input("Fire Yüzdesi (%)", min_value=0.0, max_value=100.0, step=0.01, value=st.session_state.fire_calc_state["fire_yuzdesi"], format="%.2f")
+            fire_satis_fiyati = st.number_input("Fire Satış Fiyatı (TL/Ton)", min_value=0.0, step=10.0, value=st.session_state.fire_calc_state["fire_satis_fiyati"])
 
-    # HESAPLAMA BUTONU
     if st.button("🧮 MALİYETİ HESAPLA", type="primary", use_container_width=True):
         st.session_state.fire_calc_state = {
             "bugday_tonaji": bugday_tonaji,
@@ -545,7 +602,6 @@ def show_fire_maliyet_hesaplama():
             "fire_satis_fiyati": fire_satis_fiyati
         }
 
-        # Hesaplamalar
         toplam_bugday_maliyeti = bugday_tonaji * bugday_fiyati
         fire_miktari = bugday_tonaji * (fire_yuzdesi / 100)
         net_bugday_miktari = bugday_tonaji - fire_miktari
@@ -555,8 +611,6 @@ def show_fire_maliyet_hesaplama():
         fiyat_farki = birim_maliyet - bugday_fiyati
 
         st.divider()
-        
-        # SONUÇLAR
         col_res1, col_res2, col_res3 = st.columns(3)
         with col_res1:
             st.metric("📦 Net Buğday Miktarı", f"{net_bugday_miktari:,.2f} Ton", delta=f"-{fire_miktari:,.2f} Ton Fire")
@@ -564,31 +618,3 @@ def show_fire_maliyet_hesaplama():
             st.metric("💰 Gerçek Maliyet (Ton)", f"{birim_maliyet:,.2f} TL", delta=f"+{fiyat_farki:,.2f} TL Fark", delta_color="inverse")
         with col_res3:
             st.metric("💵 Toplam Net Maliyet", f"{net_maliyet:,.2f} TL")
-
-        st.markdown("### 📋 Detaylı Maliyet Tablosu")
-        detay_data = {
-            "Parametre": [
-                "Toplam Buğday Tonajı",
-                "Buğday Alış Fiyatı",
-                "Toplam Buğday Maliyeti",
-                "Fire Miktarı (Ton)",
-                "Fire Satış Fiyatı",
-                "Fire Geliri",
-                "Net Buğday Miktarı",
-                "NET MALİYET (Toplam)"
-            ],
-            "Değer": [
-                f"{bugday_tonaji:,.2f} Ton",
-                f"{bugday_fiyati:,.2f} TL",
-                f"{toplam_bugday_maliyeti:,.2f} TL",
-                f"{fire_miktari:,.2f} Ton",
-                f"{fire_satis_fiyati:,.2f} TL",
-                f"{fire_geliri:,.2f} TL",
-                f"{net_bugday_miktari:,.2f} Ton",
-                f"{net_maliyet:,.2f} TL"
-            ]
-        }
-        st.table(pd.DataFrame(detay_data))
-        st.success(f"✅ Hesaplama Tamamlandı! Buğdayın tonu size **{birim_maliyet:,.2f} TL**'ye gelmektedir.")
-
-
