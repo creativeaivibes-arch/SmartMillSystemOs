@@ -78,9 +78,9 @@ def show_uretim_kaydi():
     with col1:
         st.subheader("📋 Üretim Bilgileri")
         uretim_tarihi = st.date_input("Üretim Tarihi *", value=datetime.now())
-        uretim_hatti = st.text_input("Üretim Hattı *", placeholder="Hat 1, Hat 2...")
-        uretim_adi = st.text_input("Üretim Adı", placeholder="Özel üretim ismi...")
-        vardiya = st.text_input("Vardiya *", placeholder="08:00 - 16:00")
+        uretim_hatti = st.text_input("Üretim Hattı *", placeholder="Yeni Degirmen, Eski Degirmen...")
+        uretim_adi = st.text_input("Üretim Adı", placeholder="Ekmeklik, Pidelik...")
+        vardiya = st.text_input("Vardiya *", placeholder="08:00 - 18:00")
         sorumlu = st.text_input("Vardiya Sorumlusu")
         
     with col2:
@@ -638,4 +638,5 @@ def show_uretim_arsivi():
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     use_container_width=True
                 )
+
 
