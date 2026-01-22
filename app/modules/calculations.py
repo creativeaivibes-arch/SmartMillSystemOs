@@ -482,7 +482,6 @@ def show_enzim_dozajlama():
             st.info("Kayıt bulunamadı.")
 
 ut2 = st.columns([1, 1], gap="large")
-
     with col_input1:
         st.markdown("### 📉 Buğday Bilgileri")
         with st.container(border=True):
@@ -498,7 +497,6 @@ ut2 = st.columns([1, 1], gap="large")
                 value=st.session_state.fire_calc_state["bugday_fiyati"],
                 help="Buğdayın ton başına alış fiyatı"
             )
-
     with col_input2:
         st.markdown("### 🗑️ Fire Bilgileri")
         with st.container(border=True):
@@ -578,4 +576,5 @@ ut2 = st.columns([1, 1], gap="large")
         st.table(pd.DataFrame(detay_data))
         
         st.success(f"✅ Hesaplama Tamamlandı! Buğdayın tonu size **{birim_maliyet:,.2f} TL**'ye gelmektedir.")
+
 
