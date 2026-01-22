@@ -221,6 +221,8 @@ elif selected_page == "CALC_Stratejik Analiz (BOSS)":
         st.info("Lütfen app/modules/strategy.py dosyasının var olduğundan emin olun.")
     except Exception as e:
         st.error(f"❌ Beklenmeyen hata: {e}")
+elif selected_page == "CALC_Fire Maliyeti":
+    calculations.show_fire_maliyet_hesaplayici()
 elif selected_page == "CALC_Paçal Hesaplayıcı": 
     mixing.show_pacal_hesaplayici()
 elif selected_page == "CALC_Paçal Geçmişi": 
@@ -257,4 +259,5 @@ elif selected_page == "PROFILE":
             )
             st.write(f"Sonuç: {msg}")
     
+
 
