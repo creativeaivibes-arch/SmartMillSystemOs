@@ -480,3 +480,102 @@ def show_enzim_dozajlama():
                 st.info("Kayıt yok.")
         except Exception:
             st.info("Kayıt bulunamadı.")
+
+ut2 = st.columns([1, 1], gap="large")
+
+    with col_input1:
+        st.markdown("### 📉 Buğday Bilgileri")
+        with st.container(border=True):
+            bugday_tonaji = st.number_input(
+                "Buğday Tonajı (Ton)", 
+                min_value=0.0, step=1.0, 
+                value=st.session_state.fire_calc_state["bugday_tonaji"],
+                help="Toplam alınan buğday miktarı"
+            )
+            bugday_fiyati = st.number_input(
+                "Buğday Alış Fiyatı (TL/Ton)", 
+                min_value=0.0, step=10.0, 
+                value=st.session_state.fire_calc_state["bugday_fiyati"],
+                help="Buğdayın ton başına alış fiyatı"
+            )
+
+    with col_input2:
+        st.markdown("### 🗑️ Fire Bilgileri")
+        with st.container(border=True):
+            fire_yuzdesi = st.number_input(
+                "Fire Yüzdesi (%)", 
+                min_value=0.0, max_value=100.0, step=0.01, 
+                value=st.session_state.fire_calc_state["fire_yuzdesi"],
+                format="%.2f",
+                help="Analiz sonucu çıkan yabancı madde oranı (Örn: 0.38)"
+            )
+            fire_satis_fiyati = st.number_input(
+                "Fire Satış Fiyatı (TL/Ton)", 
+                min_value=0.0, step=10.0, 
+                value=st.session_state.fire_calc_state["fire_satis_fiyati"],
+                help="Ayrılan firenin (kavuz, taş vb.) satılabileceği fiyat"
+            )
+
+    # --- HESAPLAMA BUTONU VE MANTIĞI ---
+    if st.button("🧮 MALİYETİ HESAPLA", type="primary", use_container_width=True):
+        # Session state güncelle
+        st.session_state.fire_calc_state = {
+            "bugday_tonaji": bugday_tonaji,
+            "bugday_fiyati": bugday_fiyati,
+            "fire_yuzdesi": fire_yuzdesi,
+            "fire_satis_fiyati": fire_satis_fiyati
+        }
+
+        # Hesaplamalar
+        toplam_bugday_maliyeti = bugday_tonaji * bugday_fiyati
+        fire_miktari = bugday_tonaji * (fire_yuzdesi / 100)
+        net_bugday_miktari = bugday_tonaji - fire_miktari
+        fire_geliri = fire_miktari * fire_satis_fiyati
+        net_maliyet = toplam_bugday_maliyeti - fire_geliri
+        
+        # Kritik Değerler
+        birim_maliyet = net_maliyet / net_bugday_miktari if net_bugday_miktari > 0 else 0
+        fiyat_farki = birim_maliyet - bugday_fiyati
+
+        st.divider()
+        
+        # --- SONUÇLARIN GÖSTERİMİ ---
+        
+        # 1. ÖZET METRİKLERİ
+        col_res1, col_res2, col_res3 = st.columns(3)
+        with col_res1:
+            st.metric("📦 Net Buğday Miktarı", f"{net_bugday_miktari:,.2f} Ton", delta=f"-{fire_miktari:,.2f} Ton Fire")
+        with col_res2:
+            st.metric("💰 Gerçek Maliyet (Ton)", f"{birim_maliyet:,.2f} TL", delta=f"+{fiyat_farki:,.2f} TL Fark", delta_color="inverse")
+        with col_res3:
+            st.metric("💵 Toplam Net Maliyet", f"{net_maliyet:,.2f} TL")
+
+        # 2. DETAYLI TABLO
+        st.markdown("### 📋 Detaylı Maliyet Tablosu")
+        
+        detay_data = {
+            "Parametre": [
+                "Toplam Buğday Tonajı",
+                "Buğday Alış Fiyatı",
+                "Toplam Buğday Maliyeti",
+                "Fire Miktarı (Ton)",
+                "Fire Satış Fiyatı",
+                "Fire Geliri",
+                "Net Buğday Miktarı",
+                "NET MALİYET (Toplam)"
+            ],
+            "Değer": [
+                f"{bugday_tonaji:,.2f} Ton",
+                f"{bugday_fiyati:,.2f} TL",
+                f"{toplam_bugday_maliyeti:,.2f} TL",
+                f"{fire_miktari:,.2f} Ton",
+                f"{fire_satis_fiyati:,.2f} TL",
+                f"{fire_geliri:,.2f} TL",
+                f"{net_bugday_miktari:,.2f} Ton",
+                f"{net_maliyet:,.2f} TL"
+            ]
+        }
+        st.table(pd.DataFrame(detay_data))
+        
+        st.success(f"✅ Hesaplama Tamamlandı! Buğdayın tonu size **{birim_maliyet:,.2f} TL**'ye gelmektedir.")
+
