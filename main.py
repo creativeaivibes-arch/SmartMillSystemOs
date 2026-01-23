@@ -258,6 +258,11 @@ if st.session_state.get('user_role') == "admin":
                 {'bugday_cinsi': 'TEST'}
             )
             st.write(f"Sonuç: {msg}")
+# === DEBUG TEST ===
+if __name__ == "__main__":
+    print("✓ wheat.py yüklendi!")
+    print("✓ show_bugday_spec_yonetimi:", show_bugday_spec_yonetimi)
+
 
 
 
