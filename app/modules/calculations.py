@@ -94,9 +94,9 @@ def get_silo_data_with_averages():
     # 2. Tüm Tavlı Analizleri Çek
     df_tavli = fetch_data("tavli_analiz")
     
-    # Hesaplama yapılacak tüm parametreler
+    # Hesaplama yapılacak tüm parametreler (ESKİ DOSYADAKI GİBİ)
     analiz_cols = [
-        'maliyet', 'protein', 'gluten', 'rutubet', 'hektolitre', 'sedim', 'gecikmeli_sedim',
+        'protein', 'gluten', 'rutubet', 'hektolitre', 'sedim', 'gecikmeli_sedim',
         'fn', 'ffn', 'amilograph', 'nisasta_zedelenmesi', 'kul', 'gluten_index',
         'su_kaldirma_f', 'gelisme_suresi', 'stabilite', 'yumusama',
         'su_kaldirma_e', 
@@ -136,13 +136,13 @@ def save_pacal_recete(recete_adi, hedef_urun, toplam_tonaj, bilesenler, sonuclar
             'recete_adi': recete_adi,
             'hedef_urun': hedef_urun,
             'toplam_tonaj': float(toplam_tonaj),
-            'maliyet_ton': float(sonuclar.get('maliyet', 0)),
+            'maliyet_ton': float(sonuclar.get('maliyet_ortalama', 0)),
             # Temel
             'protein_sonuc': float(sonuclar.get('protein', 0)),
             'gluten_sonuc': float(sonuclar.get('gluten', 0)),
             'sedim_sonuc': float(sonuclar.get('sedim', 0)),
             # Tüm Detaylar JSON
-            'detayli_analiz_json': json.dumps(sonuclar),
+            'detayli_analiz_json': json.dumps(sonuclar, ensure_ascii=False),
             'bilesen_detay': str(bilesenler),
             'notlar': notlar
         }
@@ -152,11 +152,11 @@ def save_pacal_recete(recete_adi, hedef_urun, toplam_tonaj, bilesenler, sonuclar
         return False
 
 # ==============================================================================
-# BÖLÜM 2: PAÇAL HESAPLAYICI (DÜZELTİLMİŞ)
+# BÖLÜM 2: PAÇAL HESAPLAYICI (DÜZELTİLMİŞ - ESKİ DOSYA REFERANS)
 # ==============================================================================
 
 def show_pacal_hesaplayici():
-    """Tavlı Analiz Bazlı Paçal Hesaplayıcı - FULL GÖSTERİM"""
+    """Tavlı Analiz Bazlı Paçal Hesaplayıcı - ESKİ DOSYA GÖRÜNÜMÜ"""
     st.header("🧮 Akıllı Paçal (Blend) Hesaplayıcı")
     
     # 1. VERİ HAZIRLIĞI
@@ -207,9 +207,9 @@ def show_pacal_hesaplayici():
         toplam_oran = 0
         bilesen_verileri = []
         
-        # Tüm parametreler
+        # Tüm parametreler (ESKİ DOSYADAKILER)
         parametreler = [
-            'maliyet', 'protein', 'gluten', 'rutubet', 'hektolitre', 'sedim', 'gecikmeli_sedim',
+            'protein', 'gluten', 'rutubet', 'hektolitre', 'sedim', 'gecikmeli_sedim',
             'fn', 'ffn', 'amilograph', 'nisasta_zedelenmesi', 'kul', 'gluten_index',
             'su_kaldirma_f', 'gelisme_suresi', 'stabilite', 'yumusama',
             'su_kaldirma_e', 
@@ -246,20 +246,44 @@ def show_pacal_hesaplayici():
     
     st.divider()
 
-    # --- HESAPLAMA VE SONUÇLAR (BURASI EKSİKTİ, ŞİMDİ TAMAM) ---
+    # --- HESAPLAMA VE SONUÇLAR (ESKİ DOSYA GİBİ DETAYLI) ---
     if toplam_oran == 100:
         sonuclar = {}
         for p in parametreler:
             agirlikli_toplam = sum([b[p] * b['oran'] for b in bilesen_verileri])
             sonuclar[p] = agirlikli_toplam / 100
         
-        toplam_maliyet = sonuclar['maliyet'] * hedef_tonaj
+        # MALİYET HESAPLAMASI - Buğday satın alma fiyatlarından
+        df_bugday_giris = fetch_data("bugday_giris")
+        toplam_maliyet_hesap = 0
+        
+        if not df_bugday_giris.empty:
+            # Her silo için o siloya giren buğdayların ağırlıklı ortalaması
+            maliyet_toplam = 0
+            for b in bilesen_verileri:
+                silo_adi = b['silo']
+                silo_miktari = b['miktar']
+                
+                # Bu siloya giren buğdaylar
+                silo_bugdaylari = df_bugday_giris[df_bugday_giris['silo_isim'] == silo_adi].copy()
+                
+                if not silo_bugdaylari.empty and 'birim_fiyat' in silo_bugdaylari.columns:
+                    # En son giren buğdayın fiyatını al (basit yaklaşım)
+                    ortalama_fiyat = silo_bugdaylari['birim_fiyat'].mean()
+                    maliyet_toplam += (silo_miktari * ortalama_fiyat)
+            
+            if hedef_tonaj > 0:
+                sonuclar['maliyet_ortalama'] = maliyet_toplam / hedef_tonaj
+            else:
+                sonuclar['maliyet_ortalama'] = 0
+        else:
+            sonuclar['maliyet_ortalama'] = 0
+        
+        toplam_maliyet = sonuclar['maliyet_ortalama'] * hedef_tonaj
         
         st.subheader("📊 Tahmini Paçal Sonuçları")
         
-        # 1. Ana KPI'lar
-        k1, k2, k3, k4, k5 = st.columns(5)
-        
+        # 1. Ana KPI'lar (ESKİ DOSYA GİBİ)
         def check(val, key):
             if key in hedef_degerler:
                 t = hedef_degerler[key]
@@ -267,60 +291,101 @@ def show_pacal_hesaplayici():
                 return "inverse"
             return "off"
 
+        k1, k2, k3, k4, k5 = st.columns(5)
         k1.metric("Protein", f"%{sonuclar['protein']:.2f}", delta_color=check(sonuclar['protein'], 'protein'))
         k2.metric("Gluten", f"%{sonuclar['gluten']:.1f}", delta_color=check(sonuclar['gluten'], 'gluten'))
         k3.metric("Sedim", f"{sonuclar['sedim']:.0f} ml", delta_color=check(sonuclar['sedim'], 'sedim'))
-        k4.metric("Birim Maliyet", f"{sonuclar['maliyet']:.2f} TL/kg")
+        k4.metric("Birim Maliyet", f"{sonuclar['maliyet_ortalama']:.2f} TL/kg")
         k5.metric("Toplam Maliyet", f"{toplam_maliyet:,.0f} TL")
         
-        # 2. DETAYLI SEKMELER (İŞTE BURASI EKLENDİ)
+        # 2. DETAYLI ANALİZLER (ESKİ DOSYA STILI)
         st.markdown("---")
+        st.markdown("### 📋 Detaylı Analiz Sonuçları")
+        
         tab_kimya, tab_farino, tab_extenso = st.tabs(["🧪 Kimyasal Analizler", "📈 Farinograph", "📊 Extensograph"])
         
         with tab_kimya:
+            st.markdown("#### Temel Kimyasal Parametreler")
             c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Rutubet", f"%{sonuclar['rutubet']:.1f}")
-            c1.metric("Hektolitre", f"{sonuclar['hektolitre']:.1f}")
-            c1.metric("Kül", f"%{sonuclar['kul']:.3f}")
-            c2.metric("Gluten Index", f"%{sonuclar['gluten_index']:.1f}")
-            c2.metric("Gecikmeli Sedim", f"{sonuclar['gecikmeli_sedim']:.0f}")
-            c3.metric("Düşme (FN)", f"{sonuclar['fn']:.0f}")
-            c3.metric("F.F.N", f"{sonuclar['ffn']:.0f}")
+            
+            c1.metric("Protein", f"%{sonuclar['protein']:.2f}")
+            c1.metric("Gluten", f"%{sonuclar['gluten']:.1f}")
+            c1.metric("Gluten Index", f"%{sonuclar['gluten_index']:.1f}")
+            
+            c2.metric("Rutubet", f"%{sonuclar['rutubet']:.2f}")
+            c2.metric("Hektolitre", f"{sonuclar['hektolitre']:.1f} kg/hl")
+            c2.metric("Kül", f"%{sonuclar['kul']:.3f}")
+            
+            c3.metric("Sedim", f"{sonuclar['sedim']:.0f} ml")
+            c3.metric("Gecikmeli Sedim", f"{sonuclar['gecikmeli_sedim']:.0f} ml")
+            c3.metric("Nişasta Zed.", f"{sonuclar['nisasta_zedelenmesi']:.1f} DS")
+            
+            c4.metric("Düşme (FN)", f"{sonuclar['fn']:.0f} sn")
+            c4.metric("F.F.N", f"{sonuclar['ffn']:.0f}")
             c4.metric("Amilograph", f"{sonuclar['amilograph']:.0f} AU")
-            c4.metric("Nişasta Zed.", f"{sonuclar['nisasta_zedelenmesi']:.1f} DS")
             
         with tab_farino:
+            st.markdown("#### Farinograph Değerleri")
             c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Su Kaldırma", f"%{sonuclar['su_kaldirma_f']:.1f}")
-            c2.metric("Gelişme Süresi", f"{sonuclar['gelisme_suresi']:.1f} dk")
-            c3.metric("Stabilite", f"{sonuclar['stabilite']:.1f} dk", delta_color=check(sonuclar['stabilite'], 'stabilite'))
-            c4.metric("Yumuşama", f"{sonuclar['yumusama']:.0f} FU")
+            
+            c1.metric("Su Kaldırma", f"%{sonuclar['su_kaldirma_f']:.1f}", 
+                     delta_color=check(sonuclar['su_kaldirma_f'], 'su_kaldirma_f'))
+            
+            c2.metric("Gelişme Süresi", f"{sonuclar['gelisme_suresi']:.1f} dk", 
+                     delta_color=check(sonuclar['gelisme_suresi'], 'gelisme_suresi'))
+            
+            c3.metric("Stabilite", f"{sonuclar['stabilite']:.1f} dk", 
+                     delta_color=check(sonuclar['stabilite'], 'stabilite'))
+            
+            c4.metric("Yumuşama", f"{sonuclar['yumusama']:.0f} FU", 
+                     delta_color=check(sonuclar['yumusama'], 'yumusama'))
             
         with tab_extenso:
-            st.markdown("#### 🕒 45 Dakika")
-            x1, x2, x3 = st.columns(3)
-            x1.metric("Enerji (45)", f"{sonuclar['enerji45']:.0f}")
-            x2.metric("Direnç (45)", f"{sonuclar['direnc45']:.0f}")
-            x3.metric("Taban (45)", f"{sonuclar['taban45']:.0f}")
+            st.markdown("#### Extensograph Değerleri")
             
-            st.markdown("#### 🕒 90 Dakika")
-            y1, y2, y3 = st.columns(3)
-            y1.metric("Enerji (90)", f"{sonuclar['enerji90']:.0f}")
-            y2.metric("Direnç (90)", f"{sonuclar['direnc90']:.0f}")
-            y3.metric("Taban (90)", f"{sonuclar['taban90']:.0f}")
+            # 45 Dakika
+            st.markdown("##### 🕐 45 Dakika")
+            x1, x2, x3, x4 = st.columns(4)
+            x1.metric("Enerji", f"{sonuclar['enerji45']:.0f} cm²", 
+                     delta_color=check(sonuclar['enerji45'], 'enerji45'))
+            x2.metric("Direnç", f"{sonuclar['direnc45']:.0f} EU", 
+                     delta_color=check(sonuclar['direnc45'], 'direnc45'))
+            x3.metric("Taban", f"{sonuclar['taban45']:.0f} mm", 
+                     delta_color=check(sonuclar['taban45'], 'taban45'))
+            x4.metric("Oran (E/D)", f"{(sonuclar['enerji45']/sonuclar['direnc45']):.2f}" if sonuclar['direnc45'] > 0 else "N/A")
+            
+            # 90 Dakika
+            st.markdown("##### 🕐 90 Dakika")
+            y1, y2, y3, y4 = st.columns(4)
+            y1.metric("Enerji", f"{sonuclar['enerji90']:.0f} cm²", 
+                     delta_color=check(sonuclar['enerji90'], 'enerji90'))
+            y2.metric("Direnç", f"{sonuclar['direnc90']:.0f} EU", 
+                     delta_color=check(sonuclar['direnc90'], 'direnc90'))
+            y3.metric("Taban", f"{sonuclar['taban90']:.0f} mm", 
+                     delta_color=check(sonuclar['taban90'], 'taban90'))
+            y4.metric("Oran (E/D)", f"{(sonuclar['enerji90']/sonuclar['direnc90']):.2f}" if sonuclar['direnc90'] > 0 else "N/A")
 
-            st.markdown("#### 🕒 135 Dakika")
-            z1, z2, z3, z4 = st.columns(4)
-            z1.metric("Enerji (135)", f"{sonuclar['enerji135']:.0f}", delta_color=check(sonuclar['enerji135'], 'enerji135'))
-            z2.metric("Direnç (135)", f"{sonuclar['direnc135']:.0f}")
-            z3.metric("Taban (135)", f"{sonuclar['taban135']:.0f}")
-            z4.metric("Su Kaldırma (E)", f"%{sonuclar['su_kaldirma_e']:.1f}")
+            # 135 Dakika
+            st.markdown("##### 🕐 135 Dakika")
+            z1, z2, z3, z4, z5 = st.columns(5)
+            z1.metric("Enerji", f"{sonuclar['enerji135']:.0f} cm²", 
+                     delta_color=check(sonuclar['enerji135'], 'enerji135'))
+            z2.metric("Direnç", f"{sonuclar['direnc135']:.0f} EU", 
+                     delta_color=check(sonuclar['direnc135'], 'direnc135'))
+            z3.metric("Taban", f"{sonuclar['taban135']:.0f} mm", 
+                     delta_color=check(sonuclar['taban135'], 'taban135'))
+            z4.metric("Oran (E/D)", f"{(sonuclar['enerji135']/sonuclar['direnc135']):.2f}" if sonuclar['direnc135'] > 0 else "N/A")
+            z5.metric("Su Kaldırma (E)", f"%{sonuclar['su_kaldirma_e']:.1f}", 
+                     delta_color=check(sonuclar['su_kaldirma_e'], 'su_kaldirma_e'))
 
-        # KAYDET
+        # KAYDET BÖLÜMÜ
         st.divider()
         col_save, col_note = st.columns([1, 3])
+        
         with col_note:
-            kayit_notu = st.text_input("Reçete Notu (Opsiyonel)", placeholder="Örn: Yüksek proteinli deneme...")
+            kayit_notu = st.text_input("Reçete Notu (Opsiyonel)", 
+                                      placeholder="Örn: Yüksek proteinli deneme...", 
+                                      key="pacal_not")
         
         with col_save:
             st.write("") 
@@ -343,7 +408,7 @@ def show_pacal_gecmisi():
     df = fetch_data("pacal_receteleri")
     
     if df.empty:
-        st.info("📭 Henüz kaydedilmiş bir paçal reçetesi bulunmamaktadır.")
+        st.info("🔭 Henüz kaydedilmiş bir paçal reçetesi bulunmamaktadır.")
         return
         
     if 'tarih' in df.columns:
@@ -724,7 +789,7 @@ def show_fire_maliyet_hesaplama():
     
     st.markdown("""
     <div style="text-align: center; margin-bottom: 30px;">
-        <h1 style="color: #0B4F6C; margin-bottom: 10px;">🔍 Buğday Fire Maliyet Hesaplama</h1>
+        <h1 style="color: #0B4F6C; margin-bottom: 10px;">🔥 Buğday Fire Maliyet Hesaplama</h1>
     </div>
     """, unsafe_allow_html=True)
     
