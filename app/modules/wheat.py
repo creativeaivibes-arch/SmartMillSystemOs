@@ -920,7 +920,7 @@ def show_bugday_giris_arsivi():
 
 
 def show_bugday_spec_yonetimi():
-    """Buğday Spesifikasyon Yönetimi 
+    """Buğday Spesifikasyon Yönetimi""" 
     st.header("📏 Buğday Kalite Standartları")
     
     tab1, tab2 = st.tabs(["➕ Yeni Standart Ekle", "📋 Mevcut Standartlar"])
@@ -1135,6 +1135,7 @@ def show_wheat_yonetimi():
         with tab_db2:
             with st.container(border=True):
                 show_stok_hareketleri()
+
 
 
 
