@@ -920,30 +920,48 @@ def show_bugday_giris_arsivi():
 
 
 def show_bugday_spec_yonetimi():
-    """Buğday Spesifikasyon Yönetimi"""
-    st.header("📐 Buğday Kalite Standartları")
+    """Buğday Spesifikasyon Yönetimi 
+    st.header("📏 Buğday Kalite Standartları")
     
     tab1, tab2 = st.tabs(["➕ Yeni Standart Ekle", "📋 Mevcut Standartlar"])
     
     with tab1:
         st.subheader("Yeni Standart Tanımla")
         
+        # Parametre mapping (ikon + Türkçe)
+        PARAMETRE_MAP = {
+            "protein": {"label": "🧬 Protein", "birim": "%"},
+            "gluten": {"label": "🌾 Gluten", "birim": "%"},
+            "rutubet": {"label": "💧 Rutubet", "birim": "%"},
+            "hektolitre": {"label": "📊 Hektolitre", "birim": "kg/hl"},
+            "sedim": {"label": "🔬 Sedimantasyon", "birim": "ml"},
+            "gluten_index": {"label": "⚗️ Gluten Index", "birim": "%"},
+            "sune": {"label": "🐛 Süne", "birim": "%"},
+            "kirik_ciliz": {"label": "💔 Kırık & Cılız", "birim": "%"},
+            "yabanci_tane": {"label": "🌿 Yabancı Tane", "birim": "%"}
+        }
+        
         col1, col2 = st.columns(2)
         with col1:
-            cins = st.text_input("Buğday Cinsi *", placeholder="Örn: Bezostaya-1")
+            cins = st.text_input("**🏷️ Buğday Cinsi** *", placeholder="Örn: Bezostaya-1")
         
         with col2:
-            param = st.selectbox("Parametre *", [
-                "protein", "gluten", "rutubet", "hektolitre", 
-                "sedim", "gluten_index", "sune", "kirik_ciliz", "yabanci_tane"
-            ])
+            param_labels = [f"{v['label']}" for k, v in PARAMETRE_MAP.items()]
+            param_keys = list(PARAMETRE_MAP.keys())
+            selected_label = st.selectbox("**🔬 Kalite Parametresi** *", param_labels)
+            param = param_keys[param_labels.index(selected_label)]
+            birim = PARAMETRE_MAP[param]['birim']
         
-        col3, col4, col5 = st.columns(3)
-        min_val = col3.number_input("Min Değer", 0.0, format="%.2f")
-        max_val = col4.number_input("Max Değer", 0.0, format="%.2f")
-        hedef_val = col5.number_input("Hedef Değer", 0.0, format="%.2f")
+        # Değer girişleri - KART TASARIMI
+        st.markdown("#### 📐 Standart Değerler")
+        with st.container(border=True):
+            col3, col4, col5 = st.columns(3)
+            min_val = col3.number_input(f"**Minimum** ({birim})", 0.0, format="%.2f", help="Kabul edilebilir en düşük değer")
+            max_val = col4.number_input(f"**Maximum** ({birim})", 0.0, format="%.2f", help="Kabul edilebilir en yüksek değer")
+            hedef_val = col5.number_input(f"**Hedef** ({birim})", 0.0, format="%.2f", help="İdeal hedef değer")
         
-        if st.button("💾 Standart Kaydet", type="primary"):
+        st.divider()
+        if st.button("💾 Standart Kaydet", type="primary", use_container_width=True):
             if cins and param:
                 if save_bugday_spec(cins, param, min_val, max_val, hedef_val):
                     st.success("✅ Standart kaydedildi!")
@@ -954,23 +972,76 @@ def show_bugday_spec_yonetimi():
     
     with tab2:
         df_specs = get_all_bugday_specs_dataframe()
+        
         if not df_specs.empty:
             # Cinslere göre grupla
             cinsler = df_specs['bugday_cinsi'].unique()
             
+            PARAMETRE_MAP = {
+                "protein": {"label": "🧬 Protein", "birim": "%"},
+                "gluten": {"label": "🌾 Gluten", "birim": "%"},
+                "rutubet": {"label": "💧 Rutubet", "birim": "%"},
+                "hektolitre": {"label": "📊 Hektolitre", "birim": "kg/hl"},
+                "sedim": {"label": "🔬 Sedimantasyon", "birim": "ml"},
+                "gluten_index": {"label": "⚗️ Gluten Index", "birim": "%"},
+                "sune": {"label": "🐛 Süne", "birim": "%"},
+                "kirik_ciliz": {"label": "💔 Kırık & Cılız", "birim": "%"},
+                "yabanci_tane": {"label": "🌿 Yabancı Tane", "birim": "%"}
+            }
+            
             for cins in cinsler:
-                with st.expander(f"📦 {cins}", expanded=False):
-                    cins_df = df_specs[df_specs['bugday_cinsi'] == cins]
-                    st.dataframe(cins_df[['parametre', 'min_deger', 'max_deger', 'hedef_deger']], 
-                               use_container_width=True, hide_index=True)
+                with st.expander(f"🌾 **{cins}**", expanded=False):
+                    cins_df = df_specs[df_specs['bugday_cinsi'] == cins].copy()
                     
-                    if st.button(f"🗑️ {cins} Standardını Sil", key=f"del_{cins}"):
-                        if delete_bugday_spec_group(cins):
-                            st.success(f"✅ {cins} silindi")
-                            time.sleep(1)
-                            st.rerun()
+                    # Parametreleri Türkçe etiketle
+                    cins_df['Parametre'] = cins_df['parametre'].apply(
+                        lambda x: PARAMETRE_MAP.get(x, {"label": x})['label']
+                    )
+                    
+                    # Gösterim için yeniden düzenle
+                    display_df = cins_df[['Parametre', 'min_deger', 'max_deger', 'hedef_deger']].copy()
+                    display_df.columns = ['Parametre', 'Min', 'Max', 'Hedef']
+                    
+                    st.dataframe(
+                        display_df, 
+                        use_container_width=True, 
+                        hide_index=True,
+                        column_config={
+                            "Parametre": st.column_config.TextColumn("Parametre", width="medium"),
+                            "Min": st.column_config.NumberColumn("Min", format="%.2f"),
+                            "Max": st.column_config.NumberColumn("Max", format="%.2f"),
+                            "Hedef": st.column_config.NumberColumn("Hedef ⭐", format="%.2f")
+                        }
+                    )
+                    
+                    # Silme butonu - ONAY İLE
+                    col_a, col_b = st.columns([3, 1])
+                    with col_b:
+                        if st.button(f"🗑️ Sil", key=f"del_{cins}", type="secondary", use_container_width=True):
+                            if f"confirm_delete_{cins}" not in st.session_state:
+                                st.session_state[f"confirm_delete_{cins}"] = True
+                                st.warning(f"⚠️ '{cins}' standardını silmek istediğinize emin misiniz?")
+                                st.rerun()
+                    
+                    # Onay mesajı gösterildiyse
+                    if st.session_state.get(f"confirm_delete_{cins}", False):
+                        col_x, col_y = st.columns(2)
+                        with col_x:
+                            if st.button("✅ Evet, Sil", key=f"confirm_yes_{cins}", type="primary"):
+                                if delete_bugday_spec_group(cins):
+                                    st.success(f"✅ {cins} silindi")
+                                    del st.session_state[f"confirm_delete_{cins}"]
+                                    time.sleep(1)
+                                    st.rerun()
+                        with col_y:
+                            if st.button("❌ İptal", key=f"confirm_no_{cins}"):
+                                del st.session_state[f"confirm_delete_{cins}"]
+                                st.rerun()
         else:
-            st.info("Henüz standart tanımlanmamış")
+            st.info("📭 Henüz standart tanımlanmamış")
+            st.markdown("""
+            **💡 İpucu:** Yeni bir standart eklemek için yukarıdaki **'Yeni Standart Ekle'** sekmesini kullanın.
+            """)
 # --------------------------------------------------------------------------
 # BUĞDAY YÖNETİM MERKEZİ (YENİ EKLENEN ANA FONKSİYON)
 # --------------------------------------------------------------------------
@@ -1064,6 +1135,7 @@ def show_wheat_yonetimi():
         with tab_db2:
             with st.container(border=True):
                 show_stok_hareketleri()
+
 
 
 
