@@ -94,8 +94,9 @@ def get_silo_data_with_averages():
     # 2. Tüm Tavlı Analizleri Çek
     df_tavli = fetch_data("tavli_analiz")
     
-    # Hesaplama yapılacak tüm parametreler (ESKİ DOSYADAKI GİBİ)
+    # Hesaplama yapılacak tüm parametreler (MALİYET DAHİL)
     analiz_cols = [
+        'maliyet',  # ← Maliyet tavlı analizde var
         'protein', 'gluten', 'rutubet', 'hektolitre', 'sedim', 'gecikmeli_sedim',
         'fn', 'ffn', 'amilograph', 'nisasta_zedelenmesi', 'kul', 'gluten_index',
         'su_kaldirma_f', 'gelisme_suresi', 'stabilite', 'yumusama',
@@ -120,7 +121,7 @@ def get_silo_data_with_averages():
         # Bu siloya ait analizler
         silo_analizleri = df_tavli[df_tavli['silo_isim'] == silo_name].copy()
         
-        # Ağırlıklı Ortalama Hesabı
+        # Ağırlıklı Ortalama Hesabı (Maliyet dahil)
         avg_values = calculate_weighted_average(silo_analizleri, current_stock, analiz_cols)
         
         # Sonuçları yaz
@@ -253,29 +254,16 @@ def show_pacal_hesaplayici():
             agirlikli_toplam = sum([b[p] * b['oran'] for b in bilesen_verileri])
             sonuclar[p] = agirlikli_toplam / 100
         
-        # MALİYET HESAPLAMASI - Buğday satın alma fiyatlarından
-        df_bugday_giris = fetch_data("bugday_giris")
-        toplam_maliyet_hesap = 0
+        # MALİYET HESAPLAMASI - Tavlı analizden gelen maliyet kullan
+        # Her silo için zaten ağırlıklı ortalama maliyet hesaplandı
+        maliyet_toplam = 0
+        for b in bilesen_verileri:
+            silo_maliyet = b.get('maliyet', 0)  # Silonun ağırlıklı ortalama maliyeti
+            silo_miktari = b['miktar']
+            maliyet_toplam += (silo_maliyet * silo_miktari)
         
-        if not df_bugday_giris.empty:
-            # Her silo için o siloya giren buğdayların ağırlıklı ortalaması
-            maliyet_toplam = 0
-            for b in bilesen_verileri:
-                silo_adi = b['silo']
-                silo_miktari = b['miktar']
-                
-                # Bu siloya giren buğdaylar
-                silo_bugdaylari = df_bugday_giris[df_bugday_giris['silo_isim'] == silo_adi].copy()
-                
-                if not silo_bugdaylari.empty and 'birim_fiyat' in silo_bugdaylari.columns:
-                    # En son giren buğdayın fiyatını al (basit yaklaşım)
-                    ortalama_fiyat = silo_bugdaylari['birim_fiyat'].mean()
-                    maliyet_toplam += (silo_miktari * ortalama_fiyat)
-            
-            if hedef_tonaj > 0:
-                sonuclar['maliyet_ortalama'] = maliyet_toplam / hedef_tonaj
-            else:
-                sonuclar['maliyet_ortalama'] = 0
+        if hedef_tonaj > 0:
+            sonuclar['maliyet_ortalama'] = maliyet_toplam / hedef_tonaj
         else:
             sonuclar['maliyet_ortalama'] = 0
         
