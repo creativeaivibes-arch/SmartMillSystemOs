@@ -254,13 +254,37 @@ def show_pacal_hesaplayici():
             agirlikli_toplam = sum([b[p] * b['oran'] for b in bilesen_verileri])
             sonuclar[p] = agirlikli_toplam / 100
         
-        # MALİYET HESAPLAMASI - Tavlı analizden gelen maliyet kullan
-        # Her silo için zaten ağırlıklı ortalama maliyet hesaplandı
+        # MALİYET HESAPLAMASI - bugday_giris_arsivi tablosundan
+        # Her siloya giren buğdayların fiyat ortalamasını al
+        df_arsiv = fetch_data("bugday_giris_arsivi")
+        
         maliyet_toplam = 0
         for b in bilesen_verileri:
-            silo_maliyet = b.get('maliyet', 0)  # Silonun ağırlıklı ortalama maliyeti
+            silo_adi = b['silo']
             silo_miktari = b['miktar']
-            maliyet_toplam += (silo_maliyet * silo_miktari)
+            
+            # Bu siloya giren buğdaylar
+            if not df_arsiv.empty:
+                silo_girisler = df_arsiv[df_arsiv['silo_isim'] == silo_adi].copy()
+                
+                if not silo_girisler.empty:
+                    # Fiyat sütununu kontrol et (fiyat veya birim_fiyat olabilir)
+                    fiyat_col = 'fiyat' if 'fiyat' in silo_girisler.columns else 'birim_fiyat'
+                    tonaj_col = 'tonaj' if 'tonaj' in silo_girisler.columns else 'miktar'
+                    
+                    # Numeric dönüşüm
+                    silo_girisler[fiyat_col] = pd.to_numeric(silo_girisler[fiyat_col], errors='coerce').fillna(0)
+                    silo_girisler[tonaj_col] = pd.to_numeric(silo_girisler[tonaj_col], errors='coerce').fillna(0)
+                    
+                    # Ağırlıklı ortalama fiyat hesapla
+                    toplam_tonaj = silo_girisler[tonaj_col].sum()
+                    if toplam_tonaj > 0:
+                        agirlikli_fiyat = (silo_girisler[tonaj_col] * silo_girisler[fiyat_col]).sum() / toplam_tonaj
+                        maliyet_toplam += (silo_miktari * agirlikli_fiyat)
+                    else:
+                        # Tonaj yoksa basit ortalama
+                        ortalama_fiyat = silo_girisler[fiyat_col].mean()
+                        maliyet_toplam += (silo_miktari * ortalama_fiyat)
         
         if hedef_tonaj > 0:
             sonuclar['maliyet_ortalama'] = maliyet_toplam / hedef_tonaj
