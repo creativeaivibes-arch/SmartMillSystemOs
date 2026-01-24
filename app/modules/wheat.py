@@ -888,21 +888,304 @@ def show_tavli_analiz():
                 st.error(f"🔍 Debug: {type(e).__name__}")
         else:
             st.error(f"❌ Kayıt hatası: {msg}")
-
-
 def show_stok_hareketleri():
-    """Stok Hareketleri Listesi"""
-    st.header("📋 Stok Hareketleri")
+    """
+    Stok Hareketleri - PROFESYONEL VERSİYON
+    - Toggle ile kalite parametreleri göster/gizle
+    - Metrik kartları
+    - Akıllı filtreleme
+    - Excel export
+    """
+    st.header("📊 Stok Hareketleri")
+    
     df = get_movements()
-    if not df.empty:
-        # Görünümü düzenle
-        cols = ['tarih', 'lot_no', 'hareket_tipi', 'silo_isim', 'miktar', 'tedarikci', 'protein', 'sedim']
-        # Varsa al, yoksa geç
-        cols = [c for c in cols if c in df.columns]
-        st.dataframe(df[cols], use_container_width=True)
+    
+    if df.empty:
+        st.info("📭 Henüz stok hareketi kaydı bulunmuyor.")
+        return
+    
+    # ===== METRİK KARTLARI =====
+    with st.container(border=True):
+        col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+        
+        # Giriş/Çıkış ayrımı
+        df_giris = df[df['hareket_tipi'] == 'Giriş'] if 'hareket_tipi' in df.columns else pd.DataFrame()
+        df_cikis = df[df['hareket_tipi'] == 'Çıkış'] if 'hareket_tipi' in df.columns else pd.DataFrame()
+        
+        toplam_giris = df_giris['miktar'].sum() if not df_giris.empty and 'miktar' in df_giris.columns else 0
+        toplam_cikis = df_cikis['miktar'].sum() if not df_cikis.empty and 'miktar' in df_cikis.columns else 0
+        net_stok = toplam_giris - toplam_cikis
+        
+        # Ortalama maliyet (sadece girişlerden)
+        ort_maliyet = df_giris['maliyet'].mean() if not df_giris.empty and 'maliyet' in df_giris.columns else 0
+        
+        col_m1.metric("📥 Toplam Giriş", f"{toplam_giris:.1f} Ton")
+        col_m2.metric("📤 Toplam Çıkış", f"{toplam_cikis:.1f} Ton")
+        col_m3.metric("📊 Net Stok Değişimi", f"{net_stok:+.1f} Ton")
+        col_m4.metric("💰 Ort. Maliyet", f"{ort_maliyet:,.0f} ₺/Ton" if ort_maliyet > 0 else "N/A")
+    
+    st.divider()
+    
+    # ===== FİLTRE SİSTEMİ =====
+    with st.expander("🔍 Filtreleme Sistemi", expanded=True):
+        col_f1, col_f2, col_f3, col_f4 = st.columns(4)
+        
+        with col_f1:
+            # Tarih Aralığı
+            st.markdown("**📅 Tarih Aralığı**")
+            if 'tarih' in df.columns:
+                df['tarih'] = pd.to_datetime(df['tarih'], errors='coerce')
+                min_tarih = df['tarih'].min().date() if not df['tarih'].isna().all() else datetime.now().date()
+                max_tarih = df['tarih'].max().date() if not df['tarih'].isna().all() else datetime.now().date()
+                
+                baslangic = st.date_input("Başlangıç", min_tarih, key="hareket_baslangic")
+                bitis = st.date_input("Bitiş", max_tarih, key="hareket_bitis")
+            else:
+                baslangic = bitis = datetime.now().date()
+        
+        with col_f2:
+            # Silo Filtresi
+            st.markdown("**🏭 Silo**")
+            silo_list = ["Tümü"] + sorted(df['silo_isim'].dropna().unique().tolist()) if 'silo_isim' in df.columns else ["Tümü"]
+            secili_silo = st.selectbox("Seçiniz", silo_list, key="hareket_silo")
+        
+        with col_f3:
+            # Hareket Tipi Filtresi
+            st.markdown("**🔄 Hareket Tipi**")
+            tip_list = ["Tümü", "Giriş", "Çıkış", "Transfer"]
+            secili_tip = st.selectbox("Seçiniz", tip_list, key="hareket_tip")
+        
+        with col_f4:
+            # Tedarikçi Filtresi
+            st.markdown("**🏢 Tedarikçi**")
+            tedarikci_list = ["Tümü"] + sorted(df['tedarikci'].dropna().unique().tolist()) if 'tedarikci' in df.columns else ["Tümü"]
+            secili_tedarikci = st.selectbox("Seçiniz", tedarikci_list, key="hareket_tedarikci")
+        
+        # Arama Kutusu
+        arama = st.text_input("🔎 Lot No Ara", placeholder="BUGDAY-250115...", key="hareket_arama")
+    
+    # ===== FİLTRE UYGULAMA =====
+    df_filtered = df.copy()
+    
+    # Tarih Filtresi
+    if 'tarih' in df_filtered.columns:
+        df_filtered = df_filtered[
+            (df_filtered['tarih'].dt.date >= baslangic) & 
+            (df_filtered['tarih'].dt.date <= bitis)
+        ]
+    
+    # Silo Filtresi
+    if secili_silo != "Tümü" and 'silo_isim' in df_filtered.columns:
+        df_filtered = df_filtered[df_filtered['silo_isim'] == secili_silo]
+    
+    # Hareket Tipi Filtresi
+    if secili_tip != "Tümü" and 'hareket_tipi' in df_filtered.columns:
+        df_filtered = df_filtered[df_filtered['hareket_tipi'] == secili_tip]
+    
+    # Tedarikçi Filtresi
+    if secili_tedarikci != "Tümü" and 'tedarikci' in df_filtered.columns:
+        df_filtered = df_filtered[df_filtered['tedarikci'] == secili_tedarikci]
+    
+    # Arama Filtresi
+    if arama and 'lot_no' in df_filtered.columns:
+        df_filtered = df_filtered[df_filtered['lot_no'].str.contains(arama, case=False, na=False)]
+    
+    if df_filtered.empty:
+        st.warning("⚠️ Filtre kriterlerine uygun kayıt bulunamadı.")
+        return
+    
+    st.divider()
+    
+    # ===== TOGGLE: KALİTE PARAMETRELERİ =====
+    col_info, col_toggle = st.columns([3, 1])
+    
+    with col_info:
+        st.caption(f"📋 Toplam {len(df_filtered)} hareket kaydı listeleniyor")
+    
+    with col_toggle:
+        show_quality = st.toggle(
+            "🧪 Kalite Detayları",
+            value=False,
+            help="Hektolitre, Protein, Gluten, Rutubet sütunlarını göster/gizle"
+        )
+    
+    # ===== TABLO HAZIRLAMA =====
+    # Temel sütunlar
+    kolon_map_temel = {
+        'tarih': 'Tarih',
+        'hareket_tipi': 'Hareket Tipi',
+        'silo_isim': 'Silo',
+        'lot_no': 'Lot No',
+        'miktar': 'Miktar (Ton)',
+        'tedarikci': 'Tedarikçi',
+        'maliyet': 'Maliyet (₺/Ton)',
+        'notlar': 'Notlar'
+    }
+    
+    # Kalite sütunları (toggle ile gösterilecek)
+    kolon_map_kalite = {
+        'hektolitre': 'Hektolitre',
+        'protein': 'Protein (%)',
+        'gluten': 'Gluten (%)',
+        'rutubet': 'Rutubet (%)'
+    }
+    
+    # Sütun seçimi
+    if show_quality:
+        # Tüm sütunlar
+        tum_kolonlar = {**kolon_map_temel, **kolon_map_kalite}
     else:
-        st.info("Kayıt yok")
-
+        # Sadece temel sütunlar
+        tum_kolonlar = kolon_map_temel
+    
+    # Mevcut sütunları filtrele
+    mevcut_kolonlar = [k for k in tum_kolonlar.keys() if k in df_filtered.columns]
+    df_display = df_filtered[mevcut_kolonlar].copy()
+    
+    # Tarih formatı düzelt
+    if 'tarih' in df_display.columns:
+        df_display['tarih'] = df_display['tarih'].dt.strftime('%d.%m.%Y %H:%M')
+    
+    # Hareket tipi ikonları ekle
+    if 'hareket_tipi' in df_display.columns:
+        df_display['hareket_tipi'] = df_display['hareket_tipi'].apply(lambda x: 
+            f"🔵 {x}" if x == "Giriş" else 
+            f"🔴 {x}" if x == "Çıkış" else 
+            f"🔄 {x}"
+        )
+    
+    # Türkçe başlıkları uygula
+    df_display = df_display.rename(columns=tum_kolonlar)
+    
+    # ID sütunu ekle
+    df_display.insert(0, 'ID', range(1, len(df_display) + 1))
+    
+    # ===== SAYFALANDIRMA =====
+    sayfa_basi = 10
+    toplam_sayfa = (len(df_display) - 1) // sayfa_basi + 1
+    
+    col_page1, col_page2, col_page3 = st.columns([2, 1, 2])
+    with col_page2:
+        sayfa = st.number_input(
+            f"Sayfa (1-{toplam_sayfa})",
+            min_value=1,
+            max_value=toplam_sayfa,
+            value=1,
+            key="hareket_sayfa"
+        )
+    
+    baslangic_idx = (sayfa - 1) * sayfa_basi
+    bitis_idx = min(sayfa * sayfa_basi, len(df_display))
+    df_sayfa = df_display.iloc[baslangic_idx:bitis_idx]
+    
+    # ===== TABLO GÖRÜNÜMÜ =====
+    st.dataframe(
+        df_sayfa,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "ID": st.column_config.NumberColumn("ID", width="small"),
+            "Tarih": st.column_config.TextColumn("Tarih", width="medium"),
+            "Hareket Tipi": st.column_config.TextColumn("Hareket Tipi", width="medium"),
+            "Miktar (Ton)": st.column_config.NumberColumn("Miktar (Ton)", format="%.1f"),
+            "Maliyet (₺/Ton)": st.column_config.NumberColumn("Maliyet", format="%.0f ₺"),
+            "Protein (%)": st.column_config.NumberColumn("Protein (%)", format="%.2f") if show_quality else None,
+            "Gluten (%)": st.column_config.NumberColumn("Gluten (%)", format="%.2f") if show_quality else None,
+            "Hektolitre": st.column_config.NumberColumn("Hektolitre", format="%.1f") if show_quality else None,
+            "Rutubet (%)": st.column_config.NumberColumn("Rutubet (%)", format="%.2f") if show_quality else None,
+        }
+    )
+    
+    st.caption(f"Gösterilen: {baslangic_idx + 1}-{bitis_idx} / Toplam: {len(df_filtered)} kayıt")
+    
+    # ===== EXCEL EXPORT =====
+    st.divider()
+    
+    if st.button("📥 Excel İndir (Tüm Filtreli Veriler)", type="primary", use_container_width=True):
+        export_stok_hareketleri_excel(df_display, "Stok_Hareketleri")
+def export_stok_hareketleri_excel(df, dosya_adi="Stok_Hareketleri"):
+    """
+    Stok Hareketleri Excel Export
+    - Renkli başlıklar
+    - Hücre kenarlıkları
+    - Hareket tipine göre renk kodlama
+    """
+    try:
+        from io import BytesIO
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
+        from openpyxl.utils.dataframe import dataframe_to_rows
+        
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Hareketler"
+        
+        # DataFrame'i yaz
+        for r_idx, row in enumerate(dataframe_to_rows(df, index=False, header=True), 1):
+            for c_idx, value in enumerate(row, 1):
+                cell = ws.cell(row=r_idx, column=c_idx, value=value)
+                
+                # Kenarlık
+                border = Border(
+                    left=Side(style='thin', color='000000'),
+                    right=Side(style='thin', color='000000'),
+                    top=Side(style='thin', color='000000'),
+                    bottom=Side(style='thin', color='000000')
+                )
+                cell.border = border
+                
+                # Başlık satırı
+                if r_idx == 1:
+                    cell.fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+                    cell.font = Font(bold=True, color="FFFFFF", size=11)
+                    cell.alignment = Alignment(horizontal='center', vertical='center')
+                else:
+                    # Hareket tipine göre renk kodlama
+                    if c_idx == 3:  # Hareket Tipi sütunu (varsayılan pozisyon)
+                        if isinstance(value, str):
+                            if "Giriş" in value or "🔵" in value:
+                                cell.fill = PatternFill(start_color="D4EDDA", end_color="D4EDDA", fill_type="solid")
+                            elif "Çıkış" in value or "🔴" in value:
+                                cell.fill = PatternFill(start_color="F8D7DA", end_color="F8D7DA", fill_type="solid")
+                            elif "Transfer" in value or "🔄" in value:
+                                cell.fill = PatternFill(start_color="D1ECF1", end_color="D1ECF1", fill_type="solid")
+                    
+                    cell.alignment = Alignment(vertical='center')
+        
+        # Sütun genişlikleri
+        for column in ws.columns:
+            max_length = 0
+            column_letter = column[0].column_letter
+            for cell in column:
+                try:
+                    if cell.value:
+                        max_length = max(max_length, len(str(cell.value)))
+                except:
+                    pass
+            adjusted_width = min(max_length + 3, 50)
+            ws.column_dimensions[column_letter].width = adjusted_width
+        
+        # BytesIO'ya kaydet
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+        
+        # Download butonu
+        st.download_button(
+            label="📄 Excel Dosyasını İndir (.xlsx)",
+            data=output.getvalue(),
+            file_name=f"{dosya_adi}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            type="secondary",
+            use_container_width=True
+        )
+        
+        st.success("✅ Excel dosyası hazır!")
+        
+    except ImportError:
+        st.error("❌ openpyxl kütüphanesi eksik!")
+    except Exception as e:
+        st.error(f"❌ Excel oluşturma hatası: {e}")
 
 def show_bugday_giris_arsivi():
     """
@@ -1380,6 +1663,7 @@ def show_wheat_yonetimi():
         with tab_db2:
             with st.container(border=True):
                 show_stok_hareketleri()
+
 
 
 
