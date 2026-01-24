@@ -138,16 +138,26 @@ def show_silo_card(silo_data):
 # ANA DASHBOARD
 # --------------------------------------------------------------------------
 def show_dashboard():
+    """
+    OPTIMAL DASHBOARD - PROFESYONEL VERSİYON
+    - Finansal özet
+    - 7 günlük trend grafiği
+    - Kalite skorkart
+    - Akıllı uyarı sistemi
+    - Silo kartları
+    - Son aktivite akışı
+    """
     df_silo, df_hareket = get_dashboard_data()
     if df_silo.empty:
-        st.warning("Silo bulunamadı.")
+        st.warning("⚠️ Henüz silo tanımlanmamış. Yönetim Paneli'nden silo ekleyin.")
         return
 
-    # --- ÜST YÖNETİCİ ŞERİDİ (KATILDIĞıN ÖNERİLER) ---
+    # ===== 1. ÜST YÖNETİCİ ŞERİDİ (FİNANS + STOK ÖMRÜ + 24 SAAT) =====
     st.markdown("<h2 style='color:#0B4F6C;'>🏭 Fabrika Kontrol Merkezi</h2>", unsafe_allow_html=True)
     
     with st.container(border=True):
         col_fin, col_sim, col_24h = st.columns([1, 1.5, 1])
+        
         toplam_stok = df_silo['mevcut_miktar'].sum()
         toplam_deger = (df_silo['mevcut_miktar'] * df_silo['maliyet'] * 1000).sum()
         
@@ -155,25 +165,225 @@ def show_dashboard():
             st.markdown("### 💰 Finans")
             st.metric("Stok Değeri", f"{toplam_deger/1_000_000:.2f}M ₺")
             avg_maliyet = (toplam_deger / (toplam_stok * 1000)) if toplam_stok > 0 else 0
-            st.metric("Ort. Maliyet", f"{avg_maliyet:.2f} TL")
+            st.metric("Ort. Maliyet", f"{avg_maliyet:.2f} TL/Kg")
             
         with col_sim:
             st.markdown("### ⏳ Stok Ömrü")
-            gunluk = st.number_input("Günlük Kırma (Ton)", value=80, step=10)
+            gunluk = st.number_input("Günlük Kırma (Ton)", value=80, step=10, key="dashboard_gunluk_kirma")
             if gunluk > 0:
                 omur = toplam_stok / gunluk
                 st.metric("Kalan Süre", f"{omur:.1f} Gün")
                 st.progress(min(1.0, omur/30))
+            else:
+                st.metric("Kalan Süre", "N/A")
                 
         with col_24h:
-            st.markdown("### 🚛 24 Saat")
-            # Basit son 24 saat filtresi logic'i buraya eklenebilir
-            st.metric("Toplam Stok", f"{toplam_stok:,.0f} Ton")
+            st.markdown("### 🚛 Son 24 Saat")
+            # Son 24 saatteki hareketler
+            if not df_hareket.empty and 'tarih' in df_hareket.columns:
+                df_hareket['tarih'] = pd.to_datetime(df_hareket['tarih'], errors='coerce')
+                son_24h = df_hareket[df_hareket['tarih'] >= (datetime.now() - timedelta(hours=24))]
+                
+                giris_24h = son_24h[son_24h['hareket_tipi'] == 'Giriş']['miktar'].sum() if 'hareket_tipi' in son_24h.columns else 0
+                cikis_24h = son_24h[son_24h['hareket_tipi'] == 'Çıkış']['miktar'].sum() if 'hareket_tipi' in son_24h.columns else 0
+                
+                st.metric("Giriş", f"{giris_24h:.1f} T", delta=f"+{giris_24h:.1f}")
+                st.metric("Çıkış", f"{cikis_24h:.1f} T", delta=f"-{cikis_24h:.1f}")
+            else:
+                st.metric("Toplam Stok", f"{toplam_stok:,.0f} Ton")
 
     st.divider()
 
-    # --- SİLO KARTLARI (KAPSAMI VE GÖRÜNÜMü KORUNAN BÖLÜM) ---
+    # ===== 2. TREND GRAFİĞİ + KALİTE SKORKART + UYARILAR =====
+    col_trend, col_quality = st.columns([2, 1])
+    
+    with col_trend:
+        st.subheader("📈 Son 7 Günlük Stok Hareketi")
+        
+        if not df_hareket.empty and 'tarih' in df_hareket.columns:
+            # Son 7 günü filtrele
+            son_7gun = df_hareket[df_hareket['tarih'] >= (datetime.now() - timedelta(days=7))].copy()
+            
+            if not son_7gun.empty:
+                # Günlük toplam giriş/çıkış
+                son_7gun['gun'] = son_7gun['tarih'].dt.date
+                
+                gunluk_giris = son_7gun[son_7gun['hareket_tipi'] == 'Giriş'].groupby('gun')['miktar'].sum().reset_index()
+                gunluk_giris.columns = ['Tarih', 'Giriş']
+                
+                gunluk_cikis = son_7gun[son_7gun['hareket_tipi'] == 'Çıkış'].groupby('gun')['miktar'].sum().reset_index()
+                gunluk_cikis.columns = ['Tarih', 'Çıkış']
+                
+                # Merge
+                gunluk = pd.merge(gunluk_giris, gunluk_cikis, on='Tarih', how='outer').fillna(0)
+                gunluk['Net'] = gunluk['Giriş'] - gunluk['Çıkış']
+                gunluk = gunluk.sort_values('Tarih')
+                
+                # Plotly grafiği
+                try:
+                    import plotly.graph_objects as go
+                    
+                    fig = go.Figure()
+                    
+                    fig.add_trace(go.Bar(
+                        x=gunluk['Tarih'],
+                        y=gunluk['Giriş'],
+                        name='Giriş',
+                        marker_color='#4CAF50'
+                    ))
+                    
+                    fig.add_trace(go.Bar(
+                        x=gunluk['Tarih'],
+                        y=gunluk['Çıkış'],
+                        name='Çıkış',
+                        marker_color='#F44336'
+                    ))
+                    
+                    fig.add_trace(go.Scatter(
+                        x=gunluk['Tarih'],
+                        y=gunluk['Net'],
+                        name='Net Değişim',
+                        mode='lines+markers',
+                        line=dict(color='#2196F3', width=3),
+                        marker=dict(size=8)
+                    ))
+                    
+                    fig.update_layout(
+                        barmode='group',
+                        height=250,
+                        margin=dict(l=20, r=20, t=20, b=20),
+                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                        xaxis_title="",
+                        yaxis_title="Tonaj"
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                except ImportError:
+                    # Fallback: Basit metrik gösterimi
+                    st.info("📊 Grafik için plotly kütüphanesi gerekli")
+                    col_g1, col_g2, col_g3 = st.columns(3)
+                    col_g1.metric("Toplam Giriş", f"{gunluk['Giriş'].sum():.1f} T")
+                    col_g2.metric("Toplam Çıkış", f"{gunluk['Çıkış'].sum():.1f} T")
+                    col_g3.metric("Net", f"{gunluk['Net'].sum():+.1f} T")
+            else:
+                st.info("📭 Son 7 günde hareket kaydı yok")
+        else:
+            st.info("📭 Henüz stok hareketi kaydı bulunmuyor")
+    
+    with col_quality:
+        st.subheader("🧪 Kalite Profili")
+        
+        with st.container(border=True):
+            # Ağırlıklı ortalama kalite parametreleri
+            toplam_tonaj = df_silo['mevcut_miktar'].sum()
+            
+            if toplam_tonaj > 0:
+                # Protein ortalaması
+                avg_protein = (df_silo['mevcut_miktar'] * df_silo['protein']).sum() / toplam_tonaj
+                # Gluten ortalaması (eğer varsa)
+                avg_gluten = (df_silo['mevcut_miktar'] * df_silo['gluten']).sum() / toplam_tonaj if 'gluten' in df_silo.columns else 0
+                # Hektolitre ortalaması (eğer varsa)
+                avg_hektolitre = (df_silo['mevcut_miktar'] * df_silo['hektolitre']).sum() / toplam_tonaj if 'hektolitre' in df_silo.columns else 0
+                
+                # Protein skoru (10-15 arası ideal)
+                protein_skor = min(100, max(0, (avg_protein - 10) / 5 * 100)) if avg_protein > 0 else 0
+                
+                st.metric("Ort. Protein", f"{avg_protein:.2f}%")
+                st.progress(protein_skor / 100)
+                
+                if avg_gluten > 0:
+                    gluten_skor = min(100, max(0, (avg_gluten - 20) / 15 * 100))
+                    st.metric("Ort. Gluten", f"{avg_gluten:.2f}%")
+                    st.progress(gluten_skor / 100)
+                
+                if avg_hektolitre > 0:
+                    hekto_skor = min(100, max(0, (avg_hektolitre - 70) / 15 * 100))
+                    st.metric("Ort. Hektolitre", f"{avg_hektolitre:.1f}")
+                    st.progress(hekto_skor / 100)
+                
+                # Genel skor
+                genel_skor = protein_skor
+                if genel_skor >= 80:
+                    st.success(f"📊 Genel Skor: {genel_skor:.0f}/100 (MÜKEMMEL)")
+                elif genel_skor >= 60:
+                    st.info(f"📊 Genel Skor: {genel_skor:.0f}/100 (İYİ)")
+                else:
+                    st.warning(f"📊 Genel Skor: {genel_skor:.0f}/100 (ORTA)")
+            else:
+                st.info("📭 Henüz stok bulunmuyor")
+
+    st.divider()
+
+    # ===== 3. AKILLI UYARI SİSTEMİ =====
+    st.subheader("⚠️ Akıllı Uyarı Sistemi")
+    
+    uyarilar = []
+    
+    for _, silo in df_silo.iterrows():
+        kapasite = float(silo.get('kapasite', 1))
+        mevcut = float(silo.get('mevcut_miktar', 0))
+        
+        if kapasite > 0:
+            doluluk = mevcut / kapasite
+            
+            # Taşma riski
+            if doluluk > 0.95:
+                uyarilar.append({
+                    'tip': 'critical',
+                    'mesaj': f"🔴 **{silo['isim']}**: Kapasite %{doluluk*100:.0f} - TAŞMA RİSKİ!"
+                })
+            elif doluluk > 0.85:
+                uyarilar.append({
+                    'tip': 'warning',
+                    'mesaj': f"🟡 **{silo['isim']}**: Kapasite %{doluluk*100:.0f} - Yakında dolacak"
+                })
+            
+            # Düşük stok uyarısı
+            if doluluk < 0.15 and mevcut > 0:
+                uyarilar.append({
+                    'tip': 'info',
+                    'mesaj': f"🔵 **{silo['isim']}**: Stok azalıyor (%{doluluk*100:.0f})"
+                })
+        
+        # Kalite uyarıları
+        protein = float(silo.get('protein', 0))
+        if protein > 0 and protein < 11.5:
+            uyarilar.append({
+                'tip': 'warning',
+                'mesaj': f"🟡 **{silo['isim']}**: Düşük protein ({protein:.1f}%)"
+            })
+    
+    # Uyarıları göster
+    if uyarilar:
+        col_u1, col_u2 = st.columns(2)
+        
+        critical_warnings = [u for u in uyarilar if u['tip'] == 'critical']
+        other_warnings = [u for u in uyarilar if u['tip'] != 'critical']
+        
+        with col_u1:
+            if critical_warnings:
+                for uyari in critical_warnings:
+                    st.error(uyari['mesaj'])
+        
+        with col_u2:
+            if other_warnings:
+                for uyari in other_warnings:
+                    if uyari['tip'] == 'warning':
+                        st.warning(uyari['mesaj'])
+                    else:
+                        st.info(uyari['mesaj'])
+        
+        if not critical_warnings and not other_warnings:
+            st.success("🟢 Tüm sistemler normal - Kritik durum yok")
+    else:
+        st.success("🟢 Tüm sistemler normal - Kritik durum yok")
+
+    st.divider()
+
+    # ===== 4. ANLIK SİLO DURUMU (MEVCUT SİSTEM) =====
     st.subheader("🏭 Anlık Silo Durumu")
+    
     num_silos = len(df_silo)
     for i in range(0, num_silos, 4):
         cols = st.columns(4)
@@ -181,3 +391,56 @@ def show_dashboard():
             if i + j < num_silos:
                 with cols[j]:
                     show_silo_card(df_silo.iloc[i + j])
+
+    st.divider()
+
+    # ===== 5. SON AKTİVİTE AKIŞI =====
+    st.subheader("📜 Son İşlemler (Son 5 Hareket)")
+    
+    if not df_hareket.empty:
+        # Son 5 hareketi al
+        son_5 = df_hareket.head(5).copy()
+        
+        if 'tarih' in son_5.columns:
+            son_5['tarih'] = pd.to_datetime(son_5['tarih'], errors='coerce')
+            son_5['Tarih'] = son_5['tarih'].dt.strftime('%d.%m.%Y %H:%M')
+        
+        # Hareket tipine göre ikon ekle
+        if 'hareket_tipi' in son_5.columns:
+            son_5['Tip'] = son_5['hareket_tipi'].apply(lambda x: 
+                f"🔵 {x}" if x == "Giriş" else 
+                f"🔴 {x}" if x == "Çıkış" else 
+                f"🔄 {x}"
+            )
+        
+        # Görüntülenecek sütunlar
+        display_cols = []
+        if 'Tarih' in son_5.columns:
+            display_cols.append('Tarih')
+        if 'Tip' in son_5.columns:
+            display_cols.append('Tip')
+        if 'silo_isim' in son_5.columns:
+            display_cols.append('silo_isim')
+            son_5 = son_5.rename(columns={'silo_isim': 'Silo'})
+            display_cols[display_cols.index('silo_isim')] = 'Silo'
+        if 'miktar' in son_5.columns:
+            display_cols.append('miktar')
+            son_5 = son_5.rename(columns={'miktar': 'Miktar (Ton)'})
+            display_cols[display_cols.index('miktar')] = 'Miktar (Ton)'
+        if 'tedarikci' in son_5.columns:
+            display_cols.append('tedarikci')
+            son_5 = son_5.rename(columns={'tedarikci': 'Tedarikçi'})
+            display_cols[display_cols.index('tedarikci')] = 'Tedarikçi'
+        
+        # Tablo gösterimi
+        st.dataframe(
+            son_5[display_cols] if display_cols else son_5,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Miktar (Ton)": st.column_config.NumberColumn("Miktar (Ton)", format="%.1f")
+            }
+        )
+    else:
+        st.info("📭 Henüz hareket kaydı bulunmuyor")
+
