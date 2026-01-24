@@ -12,16 +12,35 @@ def get_baseline_data():
         if not df.empty:
             latest = df.iloc[0].to_dict()
             
-            # ===== AYLIK SABİT GİDER HESAPLA (BASELINE'DAN) =====
+            # ===== AYLIK SABİT GİDER HESAPLA (SADECE SABİT KALEMLER) =====
             aylik_sabit = (
-                float(latest.get('personel_maasi', 1200000)) +
-                float(latest.get('bakim_maliyeti', 100000)) +
-                float(latest.get('elektrik_gideri', 1500000)) +
-                500000  # Kira/Amortisman (sabit)
+                float(latest.get('personel_maasi', 1200000)) +      # Personel
+                float(latest.get('bakim_maliyeti', 100000)) +       # Bakım
+                float(latest.get('mutfak_gideri', 50000)) +         # Mutfak
+                float(latest.get('finans_gideri', 0)) +             # Finans
+                float(latest.get('diger_giderler', 0)) +            # Diğer
+                500000  # Kira/Amortisman (sabit varsayım)
             )
             
-            latest['aylik_sabit_gider'] = aylik_sabit  # YENİ ALAN
-            latest['ton_basi_degisken_gider'] = 500  # YENİ ALAN (sabit varsayım)
+            # ELEKTRİK: Ton başı değeri al (daha doğru)
+            ton_basi_elektrik = float(latest.get('ton_bugday_elektrik', 500))  # TL/Ton
+            
+            # DEĞİŞKEN GİDER: Çuval başı giderleri topla
+            cuval_basi_degisken = (
+                float(latest.get('nakliye', 20)) +
+                float(latest.get('satis_pazarlama', 20.5)) +
+                float(latest.get('pp_cuval', 15)) +
+                float(latest.get('katki_maliyeti', 9))
+            )  # ≈ 64.5 TL/çuval
+            
+            # Ton başına değişken gider hesapla
+            # 1 ton = 0.7 ton un = 14 çuval (50kg) 
+            # 14 çuval × 64.5 TL = ~903 TL/ton
+            # Elektrik ekle: 500 TL/ton
+            ton_basi_degisken = (cuval_basi_degisken * 14) + ton_basi_elektrik  # ≈ 1403 TL/ton
+            
+            latest['aylik_sabit_gider'] = aylik_sabit  # YENİ ALAN (≈ 1.85M TL)
+            latest['ton_basi_degisken_gider'] = ton_basi_degisken  # YENİ ALAN (≈ 1403 TL/ton)
             
             return latest
     except Exception as e:
@@ -35,9 +54,12 @@ def get_baseline_data():
         'un_satis_fiyati': 980.0,
         'personel_maasi': 1200000.0,
         'bakim_maliyeti': 100000.0,
-        'elektrik_gideri': 1500000.0,
-        'aylik_sabit_gider': 3300000.0,  # YENİ
-        'ton_basi_degisken_gider': 500,  # YENİ
+        'mutfak_gideri': 50000.0,
+        'finans_gideri': 0.0,
+        'diger_giderler': 0.0,
+        'ton_bugday_elektrik': 500.0,
+        'aylik_sabit_gider': 1850000.0,  # YENİ (1.85M TL)
+        'ton_basi_degisken_gider': 1403,  # YENİ (~1400 TL/ton)
         'un_cesidi': 'Standart Ekmeklik'
     }
 
@@ -275,6 +297,7 @@ def show_strategy_module():
             st.divider()
             diff = p_optimistic - p_pessimistic
             st.info(f"📊 İyimser ve Kötümser senaryo arasındaki fark: **{diff:,.0f} TL**")
+
 
 
 
