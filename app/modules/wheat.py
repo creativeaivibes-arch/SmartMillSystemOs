@@ -1055,19 +1055,19 @@ def show_stok_hareketleri():
             f"🔄 {x}"
         )
     if 'notlar' in df_display.columns:
-    def temizle_notlar(not_text):
-        if not isinstance(not_text, str):
+        def temizle_notlar(not_text):
+            if not isinstance(not_text, str):
             return ""
-        # "Plaka: XX YY ZZZ |" kısmını kaldır
-        import re
-        temiz = re.sub(r'Plaka:\s*[A-Z0-9\s]+\|', '', not_text)
-        temiz = temiz.strip()
-        # Başta | varsa kaldır
-        if temiz.startswith('|'):
-            temiz = temiz[1:].strip()
-        return temiz if temiz else "-"
+            # "Plaka: XX YY ZZZ |" kısmını kaldır
+            import re
+            temiz = re.sub(r'Plaka:\s*[A-Z0-9\s]+\|', '', not_text)
+            temiz = temiz.strip()
+            # Başta | varsa kaldır
+            if temiz.startswith('|'):
+                temiz = temiz[1:].strip()
+            return temiz if temiz else "-"
     
-    df_display['notlar'] = df_display['notlar'].apply(temizle_notlar)
+        df_display['notlar'] = df_display['notlar'].apply(temizle_notlar)
     
     # Türkçe başlıkları uygula
     df_display = df_display.rename(columns=tum_kolonlar)
@@ -1678,6 +1678,7 @@ def show_wheat_yonetimi():
         with tab_db2:
             with st.container(border=True):
                 show_stok_hareketleri()
+
 
 
 
