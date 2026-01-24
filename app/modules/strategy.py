@@ -10,8 +10,19 @@ def get_baseline_data():
     try:
         df = get_un_maliyet_gecmisi()
         if not df.empty:
-            # En son kaydı al (Tarihe göre sıralı geliyor zaten)
             latest = df.iloc[0].to_dict()
+            
+            # ===== AYLIK SABİT GİDER HESAPLA (BASELINE'DAN) =====
+            aylik_sabit = (
+                float(latest.get('personel_maasi', 1200000)) +
+                float(latest.get('bakim_maliyeti', 100000)) +
+                float(latest.get('elektrik_gideri', 1500000)) +
+                500000  # Kira/Amortisman (sabit)
+            )
+            
+            latest['aylik_sabit_gider'] = aylik_sabit  # YENİ ALAN
+            latest['ton_basi_degisken_gider'] = 500  # YENİ ALAN (sabit varsayım)
+            
             return latest
     except Exception as e:
         st.warning(f"⚠️ Baseline veri çekilemedi: {e}")
@@ -25,7 +36,8 @@ def get_baseline_data():
         'personel_maasi': 1200000.0,
         'bakim_maliyeti': 100000.0,
         'elektrik_gideri': 1500000.0,
-        'toplam_gider': 45000000.0,
+        'aylik_sabit_gider': 3300000.0,  # YENİ
+        'ton_basi_degisken_gider': 500,  # YENİ
         'un_cesidi': 'Standart Ekmeklik'
     }
 
@@ -263,6 +275,7 @@ def show_strategy_module():
             st.divider()
             diff = p_optimistic - p_pessimistic
             st.info(f"📊 İyimser ve Kötümser senaryo arasındaki fark: **{diff:,.0f} TL**")
+
 
 
 
