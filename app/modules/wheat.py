@@ -905,19 +905,264 @@ def show_stok_hareketleri():
 
 
 def show_bugday_giris_arsivi():
-    """Arşiv Ekranı"""
-    st.header("🗄️ Giriş Arşivi")
+    """
+    Buğday Giriş Arşivi - PROFESYONEL VERSİYON
+    - Sayfalandırma (10 kayıt/sayfa)
+    - Çoklu filtre sistemi
+    - Profesyonel Excel export
+    """
+    st.header("🗄️ Buğday Giriş Arşivi")
+    
     df = get_bugday_arsiv()
-    if not df.empty:
-        st.dataframe(df, use_container_width=True)
-        # Excel İndir Butonu
-        try:
-            shared_download(df, "bugday_arsiv.xlsx")
-        except:
-            pass
-    else:
-        st.info("Kayıt yok")
+    
+    if df.empty:
+        st.info("📭 Henüz arşiv kaydı bulunmuyor.")
+        return
+    
+    # ===== FİLTRE SİSTEMİ =====
+    with st.expander("🔍 Gelişmiş Filtreleme Sistemi", expanded=True):
+        col_f1, col_f2, col_f3 = st.columns(3)
+        
+        with col_f1:
+            # Tarih Aralığı Filtresi
+            st.markdown("**📅 Tarih Aralığı**")
+            if 'tarih' in df.columns:
+                df['tarih'] = pd.to_datetime(df['tarih'], errors='coerce')
+                min_tarih = df['tarih'].min().date() if not df['tarih'].isna().all() else datetime.now().date()
+                max_tarih = df['tarih'].max().date() if not df['tarih'].isna().all() else datetime.now().date()
+                
+                baslangic = st.date_input("Başlangıç", min_tarih, key="arsiv_baslangic")
+                bitis = st.date_input("Bitiş", max_tarih, key="arsiv_bitis")
+            else:
+                baslangic = bitis = datetime.now().date()
+        
+        with col_f2:
+            # Tedarikçi Filtresi
+            st.markdown("**🏢 Tedarikçi**")
+            tedarikci_list = ["Tümü"] + sorted(df['tedarikci'].dropna().unique().tolist()) if 'tedarikci' in df.columns else ["Tümü"]
+            secili_tedarikci = st.selectbox("Seçiniz", tedarikci_list, key="arsiv_tedarikci")
+            
+            # Buğday Cinsi Filtresi
+            st.markdown("**🌾 Buğday Cinsi**")
+            cins_list = ["Tümü"] + sorted(df['bugday_cinsi'].dropna().unique().tolist()) if 'bugday_cinsi' in df.columns else ["Tümü"]
+            secili_cins = st.selectbox("Seçiniz", cins_list, key="arsiv_cins")
+        
+        with col_f3:
+            # Yöre Filtresi
+            st.markdown("**🗺️ Yöre/Bölge**")
+            yore_list = ["Tümü"] + sorted(df['yore'].dropna().unique().tolist()) if 'yore' in df.columns else ["Tümü"]
+            secili_yore = st.selectbox("Seçiniz", yore_list, key="arsiv_yore")
+            
+            # Arama Kutusu (Lot No / Plaka)
+            st.markdown("**🔎 Hızlı Arama**")
+            arama = st.text_input("Lot No / Plaka", placeholder="BUGDAY-241225...", key="arsiv_arama")
+    
+    # ===== FİLTRE UYGULAMA =====
+    df_filtered = df.copy()
+    
+    # Tarih Filtresi
+    if 'tarih' in df_filtered.columns:
+        df_filtered = df_filtered[
+            (df_filtered['tarih'].dt.date >= baslangic) & 
+            (df_filtered['tarih'].dt.date <= bitis)
+        ]
+    
+    # Tedarikçi Filtresi
+    if secili_tedarikci != "Tümü" and 'tedarikci' in df_filtered.columns:
+        df_filtered = df_filtered[df_filtered['tedarikci'] == secili_tedarikci]
+    
+    # Buğday Cinsi Filtresi
+    if secili_cins != "Tümü" and 'bugday_cinsi' in df_filtered.columns:
+        df_filtered = df_filtered[df_filtered['bugday_cinsi'] == secili_cins]
+    
+    # Yöre Filtresi
+    if secili_yore != "Tümü" and 'yore' in df_filtered.columns:
+        df_filtered = df_filtered[df_filtered['yore'] == secili_yore]
+    
+    # Arama Filtresi
+    if arama:
+        arama_mask = pd.Series([False] * len(df_filtered), index=df_filtered.index)
+        if 'lot_no' in df_filtered.columns:
+            arama_mask |= df_filtered['lot_no'].str.contains(arama, case=False, na=False)
+        if 'plaka' in df_filtered.columns:
+            arama_mask |= df_filtered['plaka'].str.contains(arama, case=False, na=False)
+        df_filtered = df_filtered[arama_mask]
+    
+    # ===== İSTATİSTİK ÖZETİ =====
+    if not df_filtered.empty:
+        col_s1, col_s2, col_s3, col_s4 = st.columns(4)
+        col_s1.metric("📊 Toplam Kayıt", len(df_filtered))
+        col_s2.metric("🚛 Toplam Tonaj", f"{df_filtered['tonaj'].sum():.1f} Ton" if 'tonaj' in df_filtered.columns else "N/A")
+        col_s3.metric("🏢 Tedarikçi Sayısı", df_filtered['tedarikci'].nunique() if 'tedarikci' in df_filtered.columns else 0)
+        col_s4.metric("🌾 Buğday Çeşidi", df_filtered['bugday_cinsi'].nunique() if 'bugday_cinsi' in df_filtered.columns else 0)
+    
+    st.divider()
+    
+    # ===== TABLO HAZIRLAMA =====
+    if df_filtered.empty:
+        st.warning("⚠️ Filtre kriterlerine uygun kayıt bulunamadı.")
+        return
+    
+    # Sütun Sıralaması ve Türkçe Başlıklar
+    kolon_map = {
+        'tarih': 'Tarih',
+        'lot_no': 'Lot No',
+        'bugday_cinsi': 'Buğday Cinsi',
+        'tedarikci': 'Tedarikçi / Firma',
+        'yore': 'Yöre / Bölge',
+        'plaka': 'Plaka',
+        'hektolitre': 'Hektolitre',
+        'protein': 'Protein (%)',
+        'gluten': 'Gluten (%)',
+        'gluten_index': 'Gluten Index',
+        'sedim': 'Sedim (ml)',
+        'gecikmeli_sedim': 'G. Sedim (ml)',
+        'sune': 'Süne (%)',
+        'kirik_ciliz': 'Kırık & Cılız (%)',
+        'yabanci_tane': 'Yabancı Tane (%)',
+        'tonaj': 'Tonaj',
+        'fiyat': 'Fiyat (TL)'
+    }
+    
+    # Sadece var olan sütunları seç
+    mevcut_kolonlar = [k for k in kolon_map.keys() if k in df_filtered.columns]
+    df_display = df_filtered[mevcut_kolonlar].copy()
+    
+    # Tarih formatı düzelt (sadece gün-ay-yıl)
+    if 'tarih' in df_display.columns:
+        df_display['tarih'] = df_display['tarih'].dt.strftime('%d.%m.%Y')
+    
+    # Haşere bilgisi (notlardan çıkar - opsiyonel)
+    if 'notlar' in df_filtered.columns:
+        df_display['Haşere'] = df_filtered['notlar'].apply(
+            lambda x: 'Var' if isinstance(x, str) and 'HAŞ' in x.upper() else 'Yok'
+        )
+    
+    # Türkçe başlıkları uygula
+    df_display = df_display.rename(columns=kolon_map)
+    
+    # ID sütunu ekle (1, 2, 3...)
+    df_display.insert(0, 'ID', range(1, len(df_display) + 1))
+    
+    # ===== SAYFALANDIRMA =====
+    sayfa_basi = 10
+    toplam_sayfa = (len(df_display) - 1) // sayfa_basi + 1
+    
+    col_page1, col_page2, col_page3 = st.columns([2, 1, 2])
+    with col_page2:
+        sayfa = st.number_input(
+            f"Sayfa (1-{toplam_sayfa})", 
+            min_value=1, 
+            max_value=toplam_sayfa, 
+            value=1, 
+            key="arsiv_sayfa"
+        )
+    
+    # İlgili sayfayı göster
+    baslangic_idx = (sayfa - 1) * sayfa_basi
+    bitis_idx = min(sayfa * sayfa_basi, len(df_display))
+    df_sayfa = df_display.iloc[baslangic_idx:bitis_idx]
+    
+    # ===== TABLO GÖRÜNÜMÜ =====
+    st.dataframe(
+        df_sayfa,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "ID": st.column_config.NumberColumn("ID", width="small"),
+            "Tarih": st.column_config.TextColumn("Tarih", width="medium"),
+            "Lot No": st.column_config.TextColumn("Lot No", width="medium"),
+            "Protein (%)": st.column_config.NumberColumn("Protein (%)", format="%.2f"),
+            "Gluten (%)": st.column_config.NumberColumn("Gluten (%)", format="%.2f"),
+            "Hektolitre": st.column_config.NumberColumn("Hektolitre", format="%.1f"),
+            "Tonaj": st.column_config.NumberColumn("Tonaj", format="%.1f"),
+            "Fiyat (TL)": st.column_config.NumberColumn("Fiyat", format="%.2f ₺")
+        }
+    )
+    
+    st.caption(f"Gösterilen: {baslangic_idx + 1}-{bitis_idx} / Toplam: {len(df_filtered)} kayıt")
+    
+    # ===== EXCEL EXPORT (PROFESYONEL) =====
+    st.divider()
+    
+    if st.button("📥 Excel İndir (Tüm Filtreli Veriler)", type="primary", use_container_width=True):
+        export_profesyonel_excel(df_display, "Bugday_Giris_Arsivi")
 
+def export_profesyonel_excel(df, dosya_adi="Arsiv"):
+    """
+    Profesyonel Excel Export (SADECE XLSX)
+    - Renkli başlıklar
+    - Hücre kenarlıkları
+    - Otomatik sütun genişliği
+    """
+    try:
+        from io import BytesIO
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
+        from openpyxl.utils.dataframe import dataframe_to_rows
+        
+        # Yeni workbook oluştur
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Arşiv"
+        
+        # DataFrame'i satır satır ekle
+        for r_idx, row in enumerate(dataframe_to_rows(df, index=False, header=True), 1):
+            for c_idx, value in enumerate(row, 1):
+                cell = ws.cell(row=r_idx, column=c_idx, value=value)
+                
+                # Kenarlık tanımla
+                border = Border(
+                    left=Side(style='thin', color='000000'),
+                    right=Side(style='thin', color='000000'),
+                    top=Side(style='thin', color='000000'),
+                    bottom=Side(style='thin', color='000000')
+                )
+                cell.border = border
+                
+                # Başlık satırı ise (1. satır)
+                if r_idx == 1:
+                    cell.fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+                    cell.font = Font(bold=True, color="FFFFFF", size=11)
+                    cell.alignment = Alignment(horizontal='center', vertical='center')
+                else:
+                    # Veri hücreleri
+                    cell.alignment = Alignment(vertical='center')
+        
+        # Sütun genişliklerini ayarla
+        for column in ws.columns:
+            max_length = 0
+            column_letter = column[0].column_letter
+            for cell in column:
+                try:
+                    if cell.value:
+                        max_length = max(max_length, len(str(cell.value)))
+                except:
+                    pass
+            adjusted_width = min(max_length + 3, 50)
+            ws.column_dimensions[column_letter].width = adjusted_width
+        
+        # BytesIO buffer'a kaydet
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+        
+        # Download butonu
+        st.download_button(
+            label="📄 Excel Dosyasını İndir (.xlsx)",
+            data=output.getvalue(),
+            file_name=f"{dosya_adi}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            type="secondary",
+            use_container_width=True
+        )
+        
+        st.success("✅ Excel dosyası hazır!")
+        
+    except ImportError:
+        st.error("❌ openpyxl kütüphanesi eksik! requirements.txt'e ekleyin.")
+    except Exception as e:
+        st.error(f"❌ Excel oluşturma hatası: {e}")
 
 def show_bugday_spec_yonetimi():
     """Buğday Spesifikasyon Yönetimi - GELİŞTİRİLMİŞ TASARIM"""
@@ -1135,6 +1380,7 @@ def show_wheat_yonetimi():
         with tab_db2:
             with st.container(border=True):
                 show_stok_hareketleri()
+
 
 
 
