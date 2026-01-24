@@ -1101,7 +1101,7 @@ def show_stok_hareketleri():
     # ===== EXCEL EXPORT =====
     st.divider()
     
-    if st.button("📥 Excel İndir (Tüm Filtreli Veriler)", type="primary", use_container_width=True):
+    if st.button("📥 Excel İndir (Tüm Filtreli Veriler)", type="primary", use_container_width=True, key="excel_stok_hareketleri"):
         export_stok_hareketleri_excel(df_display, "Stok_Hareketleri")
 def export_stok_hareketleri_excel(df, dosya_adi="Stok_Hareketleri"):
     """
@@ -1663,6 +1663,7 @@ def show_wheat_yonetimi():
         with tab_db2:
             with st.container(border=True):
                 show_stok_hareketleri()
+
 
 
 
