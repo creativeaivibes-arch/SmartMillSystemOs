@@ -37,62 +37,74 @@ def get_baseline_data():
     # Veri yoksa boş döndür (Varsayılan değerleri hesaplama fonksiyonu yönetecek)
     return {}
 
-def calculate_profit_from_baseline(bugday_fiyat_override=None, un_fiyat_override=None, tonaj_override=None, baseline=None):
+def calculate_profit_dynamic(bugday_fiyat, un_fiyat, tonaj, baseline=None):
     """
-    Baseline'dan gelen GERÇEK KAYITLI VERİYİ kullanarak kar hesapla.
-    Sadece belirtilen parametreleri değiştir, geri kalanı kayıttan al.
-    
-    Args:
-        bugday_fiyat_override: Simülasyon için buğday fiyatı (None ise baseline'dan alır)
-        un_fiyat_override: Simülasyon için un fiyatı (None ise baseline'dan alır)
-        tonaj_override: Simülasyon için tonaj (None ise baseline'dan alır)
-        baseline: get_baseline_data() ile çekilen kayıt
-    
-    Returns:
-        net_kar: Net kar (TL)
+    Dinamik Kar Hesaplama Motoru
+    Tüm değişkenleri (randıman, çuval maliyetleri vb.) veritabanından alır,
+    Sadece Fiyat ve Tonaj senaryosunu değiştirir.
     """
-    if baseline is None:
+    # Baseline verisi yoksa çekelim
+    if baseline is None or not baseline:
         baseline = get_baseline_data()
-    
-    # Simülasyon parametreleri (override varsa kullan, yoksa baseline'dan al)
-    bugday_fiyat = bugday_fiyat_override if bugday_fiyat_override is not None else float(baseline.get('bugday_pacal_maliyeti', 14.6))
-    un_fiyat = un_fiyat_override if un_fiyat_override is not None else float(baseline.get('un_satis_fiyati', 980))
-    kirilan_tonaj = tonaj_override if tonaj_override is not None else float(baseline.get('aylik_kirilan_bugday', 3000))
-    
-    # GERİ KALAN HER ŞEY BASELINE'DAN GELİYOR!
+        # Eğer hala veri yoksa program çökmesin diye varsayılan değerler
+        if not baseline: 
+             baseline = {
+                'un_randimani': 70.0, 'un2_orani': 7.0, 'bongalite_orani': 1.5,
+                'kepek_orani': 9.0, 'razmol_orani': 11.0,
+                'un2_fiyati': 15.0, 'bongalite_fiyati': 10.0, 'kepek_fiyati': 8.0, 'razmol_fiyati': 8.0,
+                'ton_bugday_elektrik': 500.0, 'nakliye': 20.0, 'satis_pazarlama': 20.0,
+                'pp_cuval': 15.0, 'katki_maliyeti': 9.0, 'aylik_sabit_gider_toplam': 1500000.0
+             }
+
+    # 1. TEMEL DEĞERLER (Veritabanından)
     randiman = float(baseline.get('un_randimani', 70))
     
-    # === GELİRLER ===
-    # 1. Ana Un Geliri
-    un_tonaj = kirilan_tonaj * (randiman / 100)
-    cuval_sayisi = (un_tonaj * 1000) / 50
-    un_geliri = cuval_sayisi * un_fiyat
+    # 2. ÜRETİM MİKTARLARI (Tonaj değişirse bunlar da değişir)
+    toplam_bugday_kg = tonaj * 1000
+    un_kg = toplam_bugday_kg * (randiman / 100)
+    cuval_sayisi = un_kg / 50
     
-    # 2. Yan Ürün Gelirleri (BASELINE'DAN!)
-    toplam_bugday_kg = kirilan_tonaj * 1000
+    # 3. GELİRLER
+    # a) Ana Un Geliri (Simülasyon Fiyatı ile)
+    gelir_un = cuval_sayisi * un_fiyat
     
-    un2_geliri = (toplam_bugday_kg * float(baseline.get('un2_orani', 7)) / 100) * float(baseline.get('un2_fiyati', 17))
-    bon_geliri = (toplam_bugday_kg * float(baseline.get('bongalite_orani', 1.5)) / 100) * float(baseline.get('bongalite_fiyati', 11.6))
-    kep_geliri = (toplam_bugday_kg * float(baseline.get('kepek_orani', 9)) / 100) * float(baseline.get('kepek_fiyati', 8.9))
-    raz_geliri = (toplam_bugday_kg * float(baseline.get('razmol_orani', 11)) / 100) * float(baseline.get('razmol_fiyati', 9.1))
-    belge_geliri = float(baseline.get('belge_geliri', 0)) * cuval_sayisi
-    kirik_geliri = float(baseline.get('kirik_tonaj', 0)) * float(baseline.get('kirik_fiyat', 0))
-    basak_geliri = float(baseline.get('basak_tonaj', 0)) * float(baseline.get('basak_fiyat', 0))
+    # b) Yan Ürün Gelirleri (Veritabanındaki oran ve fiyatlar sabit kalır)
+    # Yan ürün gelirleri tonaj arttıkça artar
+    gelir_yan_urunler = (
+        (toplam_bugday_kg * float(baseline.get('un2_orani', 0)) / 100) * float(baseline.get('un2_fiyati', 0)) +
+        (toplam_bugday_kg * float(baseline.get('bongalite_orani', 0)) / 100) * float(baseline.get('bongalite_fiyati', 0)) +
+        (toplam_bugday_kg * float(baseline.get('kepek_orani', 0)) / 100) * float(baseline.get('kepek_fiyati', 0)) +
+        (toplam_bugday_kg * float(baseline.get('razmol_orani', 0)) / 100) * float(baseline.get('razmol_fiyati', 0)) +
+        (float(baseline.get('belge_geliri', 0)) * cuval_sayisi) + 
+        (float(baseline.get('kirik_tonaj', 0)) * float(baseline.get('kirik_fiyat', 0))) +
+        (float(baseline.get('basak_tonaj', 0)) * float(baseline.get('basak_fiyat', 0)))
+    )
     
-    toplam_gelir = un_geliri + un2_geliri + bon_geliri + kep_geliri + raz_geliri + belge_geliri + kirik_geliri + basak_geliri
+    toplam_gelir = gelir_un + gelir_yan_urunler
     
-    # === GİDERLER ===
-    bugday_maliyeti = kirilan_tonaj * 1000 * bugday_fiyat
+    # 4. GİDERLER
+    # a) Buğday Maliyeti (Simülasyon Fiyatı ile)
+    gider_bugday = toplam_bugday_kg * bugday_fiyat
     
-    # Sabit giderler (BASELINE'DAN!)
-    sabit_gider = float(baseline.get('aylik_sabit_gider', 1850000))
+    # b) Sabit Giderler (1. Adımda düzelttiğimiz "aylik_sabit_gider_toplam" alanından gelir)
+    gider_sabit = float(baseline.get('aylik_sabit_gider_toplam', 0))
     
-    # Değişken giderler (BASELINE'DAN!)
-    degisken_gider = float(baseline.get('ton_basi_degisken_gider', 1403)) * kirilan_tonaj
+    # c) Değişken Giderler (Üretim miktarına göre dinamik hesaplanır)
+    # Çuval sayısına bağlı giderler (Nakliye, Çuval, Katkı vb.):
+    cuval_maliyeti_birim = (
+        float(baseline.get('nakliye', 0)) +
+        float(baseline.get('satis_pazarlama', 0)) +
+        float(baseline.get('pp_cuval', 0)) +
+        float(baseline.get('katki_maliyeti', 0))
+    )
+    gider_cuval_bazli = cuval_sayisi * cuval_maliyeti_birim
     
-    toplam_gider = bugday_maliyeti + sabit_gider + degisken_gider
+    # Tona bağlı giderler (Elektrik):
+    gider_elektrik = tonaj * float(baseline.get('ton_bugday_elektrik', 0))
     
-    # === NET KAR ===
+    toplam_gider = gider_bugday + gider_sabit + gider_cuval_bazli + gider_elektrik
+    
+    # 5. NET KAR SONUCU
     return toplam_gelir - toplam_gider
 
 def show_strategy_module():
@@ -454,6 +466,7 @@ def show_strategy_module():
             else:
                 st.warning("⚠️ **ORTA RİSK:** Piyasa kötüye giderse kar marjı düşüyor.")
                 
+
 
 
 
