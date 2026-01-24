@@ -134,9 +134,9 @@ def show_strategy_module():
                 with st.expander("📝 Varsayımları Düzenle", expanded=False):
                     g_bugday_fiyat = st.number_input("Buğday Fiyatı (TL/kg)", value=float(baseline.get('bugday_pacal_maliyeti', 14.6)), step=0.10)
                     g_tonaj = st.number_input("Kırılan Buğday (Ton)", value=float(baseline.get('aylik_kirilan_bugday', 3000)), step=100.0)
-                    g_sabit_gider = st.number_input("Aylık Sabit Giderler (TL)", value=float(baseline.get('toplam_gider', 45000000)) * 0.10, step=100000.0)
+                    g_sabit_gider = st.number_input("Aylık Sabit Giderler (TL)", value=float(baseline.get('aylik_sabit_gider', 1950000)), step=100000.0)  # ← DÜZELTME!
+                    g_degisken_gider = st.number_input("Ton Başı Değişken Gider (TL)", value=float(baseline.get('ton_basi_degisken_gider', 1403)), step=50.0)  # ← YENİ ALAN!
                     current_market_price = st.number_input("Piyasa Un Fiyatı (TL/50kg)", value=float(baseline.get('un_satis_fiyati', 980)), step=5.0)
-
             with col_g2:
                 # Hesaplamalar
                 randiman = float(baseline.get('un_randimani', 70))
@@ -289,6 +289,7 @@ def show_strategy_module():
             st.divider()
             diff = p_optimistic - p_pessimistic
             st.info(f"📊 İyimser ve Kötümser senaryo arasındaki fark: **{diff:,.0f} TL**")
+
 
 
 
