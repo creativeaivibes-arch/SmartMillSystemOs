@@ -234,7 +234,7 @@ def show_strategy_module():
             with col_s1:
                 st.markdown("##### ⚙️ Parametreler")
                 
-                # ✅ DÜZELTİLDİ: Baseline'dan çek!
+                # ✅ Baseline'dan çek!
                 base_bugday = st.number_input(
                     "Baz Buğday (TL/kg)", 
                     value=float(baseline.get('bugday_pacal_maliyeti', 14.60)), 
@@ -248,19 +248,19 @@ def show_strategy_module():
                     key="sens_un"
                 )
                 sens_tonaj = st.number_input(
-                    "Kırılan Tonaj", 
+                    "Kırılan Tonaj (Ton)", 
                     value=float(baseline.get('aylik_kirilan_bugday', 3000.0)), 
                     step=100.0, 
                     key="sens_tonaj"
                 )
                 sens_sabit = st.number_input(
-                    "Sabit Gider", 
+                    "Sabit Gider (TL)", 
                     value=float(baseline.get('aylik_sabit_gider', 1850000)), 
                     step=100000.0, 
                     key="sens_sabit"
                 )
                 sens_degisken = st.number_input(
-                    "Ton Başı Değişken", 
+                    "Ton Başı Değişken (TL)", 
                     value=float(baseline.get('ton_basi_degisken_gider', 1403)), 
                     step=50.0, 
                     key="sens_degisken"
@@ -268,26 +268,15 @@ def show_strategy_module():
                 
                 st.divider()
                 
-                # ✅ DÜZELTME: Kritik sınır hesabı
-                kritik_bugday = hesapla_kritik_bugday_fiyati(
-                    un_fiyat=base_un,
-                    kirilan_tonaj=sens_tonaj,
-                    randiman=float(baseline.get('un_randimani', 70)),
-                    sabit_giderler=sens_sabit,
-                    degisken_gider_ton_basi=sens_degisken
-                )
+                # ✅ TEMİZ VE AÇIK BİLGİLENDİRME
+                st.info(f"""
+                📊 **Mevcut Koşullar:**
+                - Buğday: **{base_bugday:.2f} TL/kg**
+                - Un Satış: **{base_un:.0f} TL/50kg**
+                - Kırılan: **{sens_tonaj:,.0f} ton/ay**
+                """)
                 
-                if kritik_bugday > 0:
-                    st.error(f"⚠️ **KRİTİK SINIR:** Buğday **{kritik_bugday:.2f} TL/kg** olursa kar SIFIRLANIR.")
-                    
-                    # Kritik noktaya ne kadar yakınız?
-                    kritik_mesafe = kritik_bugday - base_bugday
-                    if kritik_mesafe < 1.0:
-                        st.warning(f"🚨 **ACİL:** Kritik noktaya sadece **{kritik_mesafe:.2f} TL** kaldı!")
-                    else:
-                        st.info(f"📊 Kritik noktaya **{kritik_mesafe:.2f} TL** mesafe var.")
-                else:
-                    st.success("✅ Mevcut fiyatlarla zarar edilmiyor.")
+                st.caption("👇 Aşağıdaki tabloda farklı fiyat senaryolarının kar/zarar etkisini görebilirsiniz.")
 
             with col_s2:
                 # Matris aralıkları (baz değerlerin etrafında ±2 adım)
@@ -311,20 +300,69 @@ def show_strategy_module():
                 df_long = pd.DataFrame(records)
                 
                 base_chart = alt.Chart(df_long).encode(
-                    x=alt.X('Un Fiyatı:O', title='Un Satış Fiyatı (TL/50kg)'),
+                    x=alt.X('Un Fiyatı:O', title='Un Satış Fiyatı (TL/50kg)', axis=alt.Axis(labelAngle=0)),
                     y=alt.Y('Buğday:O', title='Buğday Maliyeti (TL/kg)'),
-                    tooltip=['Buğday', 'Un Fiyatı', 'Net Kar (Bin TL)']
+                    tooltip=[
+                        alt.Tooltip('Buğday:N', title='Buğday Fiyatı'),
+                        alt.Tooltip('Un Fiyatı:N', title='Un Fiyatı'),
+                        alt.Tooltip('Net Kar (Bin TL):Q', title='Net Kar (Bin TL)', format=',')
+                    ]
                 )
                 heatmap = base_chart.mark_rect().encode(
-                    color=alt.Color('Net Kar (Bin TL):Q', scale=alt.Scale(scheme='redyellowgreen'))
+                    color=alt.Color(
+                        'Net Kar (Bin TL):Q', 
+                        scale=alt.Scale(scheme='redyellowgreen', domain=[-6000, 6000]),
+                        legend=alt.Legend(title="Net Kar (Bin TL)")
+                    )
                 )
-                text = base_chart.mark_text().encode(
-                    text='Net Kar (Bin TL):Q',
-                    color=alt.condition(alt.datum['Net Kar (Bin TL)'] > 0, alt.value('black'), alt.value('white'))
+                text = base_chart.mark_text(fontSize=11, fontWeight='bold').encode(
+                    text=alt.Text('Net Kar (Bin TL):Q', format=','),
+                    color=alt.condition(
+                        alt.datum['Net Kar (Bin TL)'] > 500, 
+                        alt.value('black'), 
+                        alt.value('white')
+                    )
                 )
                 st.altair_chart(heatmap + text, use_container_width=True)
                 
-                st.caption("📊 **Renk Kodu:** Yeşil = Kar, Sarı = Düşük Kar, Kırmızı = Zarar")
+                # Yorum Paneli
+                st.markdown("---")
+                st.markdown("##### 🔍 Hızlı Yorum")
+                
+                # Mevcut durum karı
+                current_profit = calculate_generic_profit(
+                    base_bugday, base_un, sens_tonaj, 
+                    float(baseline.get('un_randimani', 70)), 
+                    sens_sabit, sens_degisken
+                )
+                
+                col_y1, col_y2 = st.columns(2)
+                with col_y1:
+                    st.metric("💼 Mevcut Kar", f"{current_profit/1000:,.0f} Bin TL")
+                
+                with col_y2:
+                    # En kötü senaryo
+                    worst_profit = calculate_generic_profit(
+                        max(bugday_prices), min(un_prices), sens_tonaj, 
+                        float(baseline.get('un_randimani', 70)), 
+                        sens_sabit, sens_degisken
+                    )
+                    st.metric(
+                        "⚠️ En Kötü Senaryo", 
+                        f"{worst_profit/1000:,.0f} Bin TL",
+                        delta=f"{(worst_profit - current_profit)/1000:,.0f} Bin TL",
+                        delta_color="inverse"
+                    )
+                
+                # Risk değerlendirmesi
+                if worst_profit < 0:
+                    st.error("🚨 **YÜKSEK RİSK:** Buğday zamlanıp un düşerse zarar riski var!")
+                elif worst_profit > current_profit * 0.5:
+                    st.success("✅ **DÜŞÜK RİSK:** En kötü senaryoda bile makul kar var.")
+                else:
+                    st.warning("⚠️ **ORTA RİSK:** Kötü senaryoda kar önemli ölçüde azalıyor.")
+                
+                st.caption("📊 **Renk Kodu:** Koyu Yeşil = Yüksek Kar | Açık Yeşil = Orta Kar | Sarı = Düşük Kar | Kırmızı = Zarar")
 
     # --- 3. KIRILMA NOKTASI ---
     elif "Kapasite" in analiz_secimi:
@@ -437,4 +475,5 @@ def show_strategy_module():
             else:
                 st.warning("⚠️ **ORTA RİSK:** Piyasa kötüye giderse kar marjı düşüyor.")
                 
+
 
