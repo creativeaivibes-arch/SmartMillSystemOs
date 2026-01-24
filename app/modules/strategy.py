@@ -99,8 +99,7 @@ def show_strategy_module():
     </div>
     """, unsafe_allow_html=True)
     
-    # Baseline veriyi çek
-    baseline = get_baseline_data()
+   
     python    # Baseline veriyi çek
     baseline = get_baseline_data()
     
@@ -369,6 +368,7 @@ def show_strategy_module():
             st.divider()
             diff = p_optimistic - p_pessimistic
             st.info(f"📊 İyimser ve Kötümser senaryo arasındaki fark: **{diff:,.0f} TL**")
+
 
 
 
