@@ -100,7 +100,7 @@ def show_strategy_module():
     """, unsafe_allow_html=True)
     
    
-    python    # Baseline veriyi çek
+    # Baseline veriyi çek
     baseline = get_baseline_data()
     
     # ===== DEBUG: BASELINE VERİLERİNİ GÖSTER (GEÇİCİ TEST) =====
@@ -169,10 +169,6 @@ def show_strategy_module():
         st.write(f"- Elektrik (ton): {baseline.get('ton_bugday_elektrik', 0):.2f} TL")
         st.markdown(f"**TOPLAM DEĞİŞKEN:** {baseline.get('ton_basi_degisken_gider', 0):,.0f} TL/Ton")
     
-    # ===== DEBUG SONU =====
-    
-    # --- VERİ GÜNCELLİĞİ UYARISI ---
-    if baseline and 'tarih' in baseline:
     # --- VERİ GÜNCELLİĞİ UYARISI ---
     if baseline and 'tarih' in baseline:
         try:
@@ -368,6 +364,7 @@ def show_strategy_module():
             st.divider()
             diff = p_optimistic - p_pessimistic
             st.info(f"📊 İyimser ve Kötümser senaryo arasındaki fark: **{diff:,.0f} TL**")
+
 
 
 
