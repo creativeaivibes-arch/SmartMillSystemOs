@@ -631,8 +631,9 @@ def show_mal_kabul():
             return
         
         # ===== VALİDASYON BAŞARILI - KAYIT İŞLEMİ =====
-        note_final = f"Plaka: {plaka} | {notlar}"
-        if hasere == "Var": note_final += " | HAŞERE RİSKİ"
+        note_final = notlar if notlar else ""
+        if hasere == "Var": 
+            note_final = f"{note_final} | HAŞERE RİSKİ" if note_final else "HAŞERE RİSKİ"
         
         # Kayıt (Stok Hareketi + Arşiv)
         ok_log = log_stok_hareketi(
@@ -1663,6 +1664,7 @@ def show_wheat_yonetimi():
         with tab_db2:
             with st.container(border=True):
                 show_stok_hareketleri()
+
 
 
 
