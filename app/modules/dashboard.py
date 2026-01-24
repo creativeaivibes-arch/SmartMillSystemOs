@@ -139,13 +139,12 @@ def show_silo_card(silo_data):
 # --------------------------------------------------------------------------
 def show_dashboard():
     """
-    OPTIMAL DASHBOARD - PROFESYONEL VERSİYON
+    OPTIMAL DASHBOARD - PROFESYONEL VERSİYON (REVİZE EDİLMİŞ)
     - Finansal özet
-    - 7 günlük trend grafiği
+    - Akıllı uyarı sistemi (ÜST KISIMDA)
+    - 7 günlük trend grafiği (TARİH FORMATI DÜZELTİLDİ)
     - Kalite skorkart
-    - Akıllı uyarı sistemi
     - Silo kartları
-    - Son aktivite akışı
     """
     df_silo, df_hareket = get_dashboard_data()
     if df_silo.empty:
@@ -194,7 +193,73 @@ def show_dashboard():
 
     st.divider()
 
-    # ===== 2. TREND GRAFİĞİ + KALİTE SKORKART + UYARILAR =====
+    # ===== 2. AKILLI UYARI SİSTEMİ (ÜST KISIM) =====
+    st.subheader("⚠️ Akıllı Uyarı Sistemi")
+    
+    uyarilar = []
+    
+    for _, silo in df_silo.iterrows():
+        kapasite = float(silo.get('kapasite', 1))
+        mevcut = float(silo.get('mevcut_miktar', 0))
+        
+        if kapasite > 0:
+            doluluk = mevcut / kapasite
+            
+            # Taşma riski
+            if doluluk > 0.95:
+                uyarilar.append({
+                    'tip': 'critical',
+                    'mesaj': f"🔴 **{silo['isim']}**: Kapasite %{doluluk*100:.0f} - TAŞMA RİSKİ!"
+                })
+            elif doluluk > 0.85:
+                uyarilar.append({
+                    'tip': 'warning',
+                    'mesaj': f"🟡 **{silo['isim']}**: Kapasite %{doluluk*100:.0f} - Yakında dolacak"
+                })
+            
+            # Düşük stok uyarısı
+            if doluluk < 0.15 and mevcut > 0:
+                uyarilar.append({
+                    'tip': 'info',
+                    'mesaj': f"🔵 **{silo['isim']}**: Stok azalıyor (%{doluluk*100:.0f})"
+                })
+        
+        # Kalite uyarıları
+        protein = float(silo.get('protein', 0))
+        if protein > 0 and protein < 11.5:
+            uyarilar.append({
+                'tip': 'warning',
+                'mesaj': f"🟡 **{silo['isim']}**: Düşük protein ({protein:.1f}%)"
+            })
+    
+    # Uyarıları göster
+    if uyarilar:
+        col_u1, col_u2 = st.columns(2)
+        
+        critical_warnings = [u for u in uyarilar if u['tip'] == 'critical']
+        other_warnings = [u for u in uyarilar if u['tip'] != 'critical']
+        
+        with col_u1:
+            if critical_warnings:
+                for uyari in critical_warnings:
+                    st.error(uyari['mesaj'])
+        
+        with col_u2:
+            if other_warnings:
+                for uyari in other_warnings:
+                    if uyari['tip'] == 'warning':
+                        st.warning(uyari['mesaj'])
+                    else:
+                        st.info(uyari['mesaj'])
+        
+        if not critical_warnings and not other_warnings:
+            st.success("🟢 Tüm sistemler normal - Kritik durum yok")
+    else:
+        st.success("🟢 Tüm sistemler normal - Kritik durum yok")
+
+    st.divider()
+
+    # ===== 3. TREND GRAFİĞİ + KALİTE SKORKART =====
     col_trend, col_quality = st.columns([2, 1])
     
     with col_trend:
@@ -219,6 +284,9 @@ def show_dashboard():
                 gunluk['Net'] = gunluk['Giriş'] - gunluk['Çıkış']
                 gunluk = gunluk.sort_values('Tarih')
                 
+                # Tarih formatını düzelt (sadece gün.ay)
+                gunluk['Tarih_Formatli'] = pd.to_datetime(gunluk['Tarih']).dt.strftime('%d.%m')
+                
                 # Plotly grafiği
                 try:
                     import plotly.graph_objects as go
@@ -226,21 +294,21 @@ def show_dashboard():
                     fig = go.Figure()
                     
                     fig.add_trace(go.Bar(
-                        x=gunluk['Tarih'],
+                        x=gunluk['Tarih_Formatli'],
                         y=gunluk['Giriş'],
                         name='Giriş',
                         marker_color='#4CAF50'
                     ))
                     
                     fig.add_trace(go.Bar(
-                        x=gunluk['Tarih'],
+                        x=gunluk['Tarih_Formatli'],
                         y=gunluk['Çıkış'],
                         name='Çıkış',
                         marker_color='#F44336'
                     ))
                     
                     fig.add_trace(go.Scatter(
-                        x=gunluk['Tarih'],
+                        x=gunluk['Tarih_Formatli'],
                         y=gunluk['Net'],
                         name='Net Değişim',
                         mode='lines+markers',
@@ -315,72 +383,6 @@ def show_dashboard():
 
     st.divider()
 
-    # ===== 3. AKILLI UYARI SİSTEMİ =====
-    st.subheader("⚠️ Akıllı Uyarı Sistemi")
-    
-    uyarilar = []
-    
-    for _, silo in df_silo.iterrows():
-        kapasite = float(silo.get('kapasite', 1))
-        mevcut = float(silo.get('mevcut_miktar', 0))
-        
-        if kapasite > 0:
-            doluluk = mevcut / kapasite
-            
-            # Taşma riski
-            if doluluk > 0.95:
-                uyarilar.append({
-                    'tip': 'critical',
-                    'mesaj': f"🔴 **{silo['isim']}**: Kapasite %{doluluk*100:.0f} - TAŞMA RİSKİ!"
-                })
-            elif doluluk > 0.85:
-                uyarilar.append({
-                    'tip': 'warning',
-                    'mesaj': f"🟡 **{silo['isim']}**: Kapasite %{doluluk*100:.0f} - Yakında dolacak"
-                })
-            
-            # Düşük stok uyarısı
-            if doluluk < 0.15 and mevcut > 0:
-                uyarilar.append({
-                    'tip': 'info',
-                    'mesaj': f"🔵 **{silo['isim']}**: Stok azalıyor (%{doluluk*100:.0f})"
-                })
-        
-        # Kalite uyarıları
-        protein = float(silo.get('protein', 0))
-        if protein > 0 and protein < 11.5:
-            uyarilar.append({
-                'tip': 'warning',
-                'mesaj': f"🟡 **{silo['isim']}**: Düşük protein ({protein:.1f}%)"
-            })
-    
-    # Uyarıları göster
-    if uyarilar:
-        col_u1, col_u2 = st.columns(2)
-        
-        critical_warnings = [u for u in uyarilar if u['tip'] == 'critical']
-        other_warnings = [u for u in uyarilar if u['tip'] != 'critical']
-        
-        with col_u1:
-            if critical_warnings:
-                for uyari in critical_warnings:
-                    st.error(uyari['mesaj'])
-        
-        with col_u2:
-            if other_warnings:
-                for uyari in other_warnings:
-                    if uyari['tip'] == 'warning':
-                        st.warning(uyari['mesaj'])
-                    else:
-                        st.info(uyari['mesaj'])
-        
-        if not critical_warnings and not other_warnings:
-            st.success("🟢 Tüm sistemler normal - Kritik durum yok")
-    else:
-        st.success("🟢 Tüm sistemler normal - Kritik durum yok")
-
-    st.divider()
-
     # ===== 4. ANLIK SİLO DURUMU (MEVCUT SİSTEM) =====
     st.subheader("🏭 Anlık Silo Durumu")
     
@@ -391,56 +393,3 @@ def show_dashboard():
             if i + j < num_silos:
                 with cols[j]:
                     show_silo_card(df_silo.iloc[i + j])
-
-    st.divider()
-
-    # ===== 5. SON AKTİVİTE AKIŞI =====
-    st.subheader("📜 Son İşlemler (Son 5 Hareket)")
-    
-    if not df_hareket.empty:
-        # Son 5 hareketi al
-        son_5 = df_hareket.head(5).copy()
-        
-        if 'tarih' in son_5.columns:
-            son_5['tarih'] = pd.to_datetime(son_5['tarih'], errors='coerce')
-            son_5['Tarih'] = son_5['tarih'].dt.strftime('%d.%m.%Y %H:%M')
-        
-        # Hareket tipine göre ikon ekle
-        if 'hareket_tipi' in son_5.columns:
-            son_5['Tip'] = son_5['hareket_tipi'].apply(lambda x: 
-                f"🔵 {x}" if x == "Giriş" else 
-                f"🔴 {x}" if x == "Çıkış" else 
-                f"🔄 {x}"
-            )
-        
-        # Görüntülenecek sütunlar
-        display_cols = []
-        if 'Tarih' in son_5.columns:
-            display_cols.append('Tarih')
-        if 'Tip' in son_5.columns:
-            display_cols.append('Tip')
-        if 'silo_isim' in son_5.columns:
-            display_cols.append('silo_isim')
-            son_5 = son_5.rename(columns={'silo_isim': 'Silo'})
-            display_cols[display_cols.index('silo_isim')] = 'Silo'
-        if 'miktar' in son_5.columns:
-            display_cols.append('miktar')
-            son_5 = son_5.rename(columns={'miktar': 'Miktar (Ton)'})
-            display_cols[display_cols.index('miktar')] = 'Miktar (Ton)'
-        if 'tedarikci' in son_5.columns:
-            display_cols.append('tedarikci')
-            son_5 = son_5.rename(columns={'tedarikci': 'Tedarikçi'})
-            display_cols[display_cols.index('tedarikci')] = 'Tedarikçi'
-        
-        # Tablo gösterimi
-        st.dataframe(
-            son_5[display_cols] if display_cols else son_5,
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "Miktar (Ton)": st.column_config.NumberColumn("Miktar (Ton)", format="%.1f")
-            }
-        )
-    else:
-        st.info("📭 Henüz hareket kaydı bulunmuyor")
-
