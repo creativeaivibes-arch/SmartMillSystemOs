@@ -23,9 +23,7 @@ def get_baseline_data():
             )
             
             # DEĞİŞKEN GİDER (x14 Çuval Hesabı) BURADAN KALDIRILDI.
-            # Randıman değişebileceği için "ton başına sabit gider" hesaplamak yanlıştı.
-            # Nakliye, çuval parası gibi birim maliyetleri olduğu gibi bırakıyoruz.
-            # Hesaplamayı aşağıda 'calculate_profit_dynamic' fonksiyonu anlık yapacak.
+            # Randıman değişebileceği için hesaplamayı dinamik fonksiyona bıraktık.
             
             latest['aylik_sabit_gider_toplam'] = aylik_sabit
             
@@ -34,7 +32,7 @@ def get_baseline_data():
     except Exception as e:
         st.warning(f"⚠️ Baseline veri çekilemedi: {e}")
     
-    # Veri yoksa boş döndür (Varsayılan değerleri hesaplama fonksiyonu yönetecek)
+    # Veri yoksa boş döndür
     return {}
 
 def calculate_profit_dynamic(bugday_fiyat, un_fiyat, tonaj, baseline=None):
@@ -150,38 +148,32 @@ def show_strategy_module():
                     current_market_price = st.number_input("Piyasa Un Fiyatı (TL/50kg)", value=float(baseline.get('un_satis_fiyati', 980)), step=5.0)
             
             with col_g2:
-                # Hesaplamalar
+                # --- HESAPLAMA MOTORU GÜNCELLENDİ ---
+                
+                # 1. Üretim Miktarları
                 randiman = float(baseline.get('un_randimani', 70))
                 un_tonaj = g_tonaj * (randiman / 100)
                 cuval_sayisi = (un_tonaj * 1000) / 50
                 
-                # Yan ürün ve diğer gelirler (BASELINE'DAN)
-                toplam_bugday_kg = g_tonaj * 1000
-                yan_urun_geliri = (
-                    (toplam_bugday_kg * float(baseline.get('un2_orani', 7)) / 100) * float(baseline.get('un2_fiyati', 17)) +
-                    (toplam_bugday_kg * float(baseline.get('bongalite_orani', 1.5)) / 100) * float(baseline.get('bongalite_fiyati', 11.6)) +
-                    (toplam_bugday_kg * float(baseline.get('kepek_orani', 9)) / 100) * float(baseline.get('kepek_fiyati', 8.9)) +
-                    (toplam_bugday_kg * float(baseline.get('razmol_orani', 11)) / 100) * float(baseline.get('razmol_fiyati', 9.1)) +
-                    float(baseline.get('belge_geliri', 0)) * cuval_sayisi +
-                    float(baseline.get('kirik_tonaj', 0)) * float(baseline.get('kirik_fiyat', 0)) +
-                    float(baseline.get('basak_tonaj', 0)) * float(baseline.get('basak_fiyat', 0))
-                )
+                # 2. Tersine Mühendislik (Goal Seek)
+                # Un fiyatını '0' vererek sistemin (Yan Gelir - Gider) dengesini ölçüyoruz.
+                # Bu bize "Un satmasaydık ne kadar zarar/kar ederdik?" sorusunun cevabını verir (genelde zarar).
+                base_balance = calculate_profit_dynamic(g_bugday_fiyat, 0, g_tonaj, baseline)
                 
-                # Giderler
-                bugday_maliyeti = g_tonaj * 1000 * g_bugday_fiyat
-                sabit_gider = float(baseline.get('aylik_sabit_gider', 1850000))
-                degisken_gider_toplam = float(baseline.get('ton_basi_degisken_gider', 1403)) * g_tonaj
-                toplam_gider = bugday_maliyeti + sabit_gider + degisken_gider_toplam
+                # Formül: Hedef Kar = (Un Geliri) + base_balance
+                # Buradan Un Geliri'ni çekiyoruz:
+                gerekli_un_geliri = target_profit_net - base_balance
                 
-                # Gerekli gelir
-                gerekli_toplam_gelir = target_profit_net + toplam_gider
-                gerekli_un_geliri = gerekli_toplam_gelir - yan_urun_geliri
-                gerekli_cuval_fiyati = gerekli_un_geliri / cuval_sayisi if cuval_sayisi > 0 else 0
+                # Çuval fiyatını buluyoruz
+                if cuval_sayisi > 0:
+                    gerekli_cuval_fiyati = gerekli_un_geliri / cuval_sayisi
+                else:
+                    gerekli_cuval_fiyati = 0
                 
+                # 3. Sonuçları Göster
                 fark_tl = gerekli_cuval_fiyati - current_market_price
                 fark_yuzde = (fark_tl / current_market_price) * 100 if current_market_price > 0 else 0
                 
-                # SONUÇ KARTLARI
                 res_c1, res_c2 = st.columns(2)
                 with res_c1:
                     st.metric("🎯 SATMANIZ GEREKEN FİYAT", f"{gerekli_cuval_fiyati:,.2f} TL", delta=f"Piyasa farkı: {fark_tl:,.2f} TL")
@@ -196,20 +188,15 @@ def show_strategy_module():
                     st.success(f"✅ **HARİKA:** Piyasanın **%{abs(fark_yuzde):.1f}** altında kalarak bile bu karı yapabilirsiniz.")
                 
                 with st.expander("📋 Detaylı Hesaplama Özeti", expanded=False):
+                    # Kontrol için detaylı hesap (fonksiyonu tekrar çağırarak teyit ediyoruz)
+                    final_check = calculate_profit_dynamic(g_bugday_fiyat, gerekli_cuval_fiyati, g_tonaj, baseline)
+                    
                     st.markdown(f"""
-                    **GELİRLER:**
-                    - Üretilecek Un: {un_tonaj:,.0f} ton ({cuval_sayisi:,.0f} çuval)
-                    - Un Geliri: {gerekli_un_geliri:,.0f} TL
-                    - Yan Ürün Geliri: {yan_urun_geliri:,.0f} TL
-                    - **Toplam Gelir:** {gerekli_toplam_gelir:,.0f} TL
-                    
-                    **GİDERLER:**
-                    - Buğday Maliyeti: {bugday_maliyeti:,.0f} TL
-                    - Sabit Giderler: {sabit_gider:,.0f} TL
-                    - Değişken Giderler: {degisken_gider_toplam:,.0f} TL
-                    - **Toplam Gider:** {toplam_gider:,.0f} TL
-                    
-                    **NET KAR:** {target_profit_net:,.0f} TL
+                    **SİMÜLASYON SONUCU:**
+                    - **Hedeflenen Kar:** {target_profit_net:,.0f} TL
+                    - **Hesaplanan Kar:** {final_check:,.0f} TL (Doğrulama)
+                    - **Gerekli Ciro (Un):** {gerekli_un_geliri:,.0f} TL
+                    - **Üretim:** {cuval_sayisi:,.0f} Çuval
                     """)
 
     # --- 2. DUYARLILIK MATRİSİ ---
@@ -223,52 +210,36 @@ def show_strategy_module():
             with col_s1:
                 st.markdown("##### ⚙️ Parametreler")
                 
-                # ✅ Baseline'dan çek!
-                base_bugday = st.number_input(
-                    "Baz Buğday (TL/kg)", 
-                    value=float(baseline.get('bugday_pacal_maliyeti', 14.60)), 
-                    step=0.10, 
-                    key="sens_bugday"
-                )
-                base_un = st.number_input(
-                    "Baz Un (TL/50kg)", 
-                    value=float(baseline.get('un_satis_fiyati', 980.0)), 
-                    step=10.0, 
-                    key="sens_un"
-                )
-                sens_tonaj = st.number_input(
-                    "Kırılan Tonaj (Ton)", 
-                    value=float(baseline.get('aylik_kirilan_bugday', 3000.0)), 
-                    step=100.0, 
-                    key="sens_tonaj"
-                )
+                # Baseline'dan varsayılan değerleri çekiyoruz
+                def_bugday = float(baseline.get('bugday_pacal_maliyeti', 14.60))
+                def_un = float(baseline.get('un_satis_fiyati', 980.0))
+                def_tonaj = float(baseline.get('aylik_kirilan_bugday', 3000.0))
+
+                # Kullanıcı girişleri
+                base_bugday = st.number_input("Baz Buğday (TL/kg)", value=def_bugday, step=0.10, key="sens_bugday")
+                base_un = st.number_input("Baz Un (TL/50kg)", value=def_un, step=10.0, key="sens_un")
+                sens_tonaj = st.number_input("Kırılan Tonaj (Ton)", value=def_tonaj, step=100.0, key="sens_tonaj")
                 
                 st.divider()
-                
-                # ✅ TEMİZ VE AÇIK BİLGİLENDİRME
                 st.info(f"""
                 📊 **Mevcut Koşullar:**
                 - Buğday: **{base_bugday:.2f} TL/kg**
                 - Un Satış: **{base_un:.0f} TL/50kg**
                 - Kırılan: **{sens_tonaj:,.0f} ton/ay**
                 """)
-                
                 st.caption("👇 Aşağıdaki tabloda farklı fiyat senaryolarının kar/zarar etkisini görebilirsiniz.")
 
             with col_s2:
                 # Matris aralıkları (baz değerlerin etrafında ±2 adım)
-                bugday_prices = [base_bugday + (i * 0.50) for i in range(-2, 3)]  # ±1 TL aralık
-                un_prices = [base_un + (i * 50) for i in range(-2, 3)]  # ±100 TL aralık
+                bugday_prices = [base_bugday + (i * 0.25) for i in range(-2, 3)]  # ±0.50 TL yerine ±0.25 TL daha hassas
+                un_prices = [base_un + (i * 25) for i in range(-2, 3)]            # ±50 TL yerine ±25 TL daha hassas
                 
                 records = []
                 for bf in bugday_prices:
                     for uf in un_prices:
-                        profit = calculate_profit_from_baseline(
-                            bugday_fiyat_override=bf,
-                            un_fiyat_override=uf,
-                            tonaj_override=sens_tonaj,
-                            baseline=baseline
-                        )
+                        # --- YENİ FONKSİYON BURADA KULLANILIYOR ---
+                        profit = calculate_profit_dynamic(bf, uf, sens_tonaj, baseline)
+                        
                         records.append({
                             "Buğday": f"{bf:.2f}",
                             "Un Fiyatı": f"{uf:.0f}",
@@ -289,7 +260,7 @@ def show_strategy_module():
                 heatmap = base_chart.mark_rect().encode(
                     color=alt.Color(
                         'Net Kar (Bin TL):Q', 
-                        scale=alt.Scale(scheme='redyellowgreen', domain=[-6000, 6000]),
+                        scale=alt.Scale(scheme='redyellowgreen', domain=[-5000, 5000]), # Renk skalasını sabitledik
                         legend=alt.Legend(title="Net Kar (Bin TL)")
                     )
                 )
@@ -307,26 +278,17 @@ def show_strategy_module():
                 st.markdown("---")
                 st.markdown("##### 🔍 Hızlı Yorum")
                 
-                # Mevcut durum karı
-                current_profit = calculate_profit_from_baseline(
-                    bugday_fiyat_override=base_bugday,
-                    un_fiyat_override=base_un,
-                    tonaj_override=sens_tonaj,
-                    baseline=baseline
-                )
+                # Mevcut durum karı (Yeni Fonksiyon ile)
+                current_profit = calculate_profit_dynamic(base_bugday, base_un, sens_tonaj, baseline)
                 
                 col_y1, col_y2 = st.columns(2)
                 with col_y1:
                     st.metric("💼 Mevcut Kar", f"{current_profit/1000:,.0f} Bin TL")
                 
                 with col_y2:
-                    # En kötü senaryo
-                    worst_profit = calculate_profit_from_baseline(
-                        bugday_fiyat_override=max(bugday_prices),
-                        un_fiyat_override=min(un_prices),
-                        tonaj_override=sens_tonaj,
-                        baseline=baseline
-                    )
+                    # En kötü senaryo (En yüksek buğday, en düşük un fiyatı)
+                    worst_profit = calculate_profit_dynamic(max(bugday_prices), min(un_prices), sens_tonaj, baseline)
+                    
                     st.metric(
                         "⚠️ En Kötü Senaryo", 
                         f"{worst_profit/1000:,.0f} Bin TL",
@@ -358,21 +320,19 @@ def show_strategy_module():
                 tam_kapasite = st.number_input("Tam Kapasite (Ton/Ay)", value=4500.0, step=100.0, key="kap_tam")
                 
             with col_b2:
-                # Başabaş tonajı bulmak için binary search
+                # Başabaş tonajı bulmak için binary search (İkili Arama)
                 min_tonaj = 100
                 max_tonaj = tam_kapasite
                 break_even_tonaj = 0
                 
-                for _ in range(50):  # 50 iterasyon yeterli
+                # Binary search ile zararsızlık noktasını buluyoruz
+                for _ in range(50):  # 50 iterasyon yeterli hassasiyeti sağlar
                     mid_tonaj = (min_tonaj + max_tonaj) / 2
-                    profit = calculate_profit_from_baseline(
-                        bugday_fiyat_override=b_bugday_fiyat,
-                        un_fiyat_override=b_un_fiyat,
-                        tonaj_override=mid_tonaj,
-                        baseline=baseline
-                    )
                     
-                    if abs(profit) < 10000:  # 10K TL tolerans
+                    # YENİ FONKSİYON KULLANIMI
+                    profit = calculate_profit_dynamic(b_bugday_fiyat, b_un_fiyat, mid_tonaj, baseline)
+                    
+                    if abs(profit) < 5000:  # 5.000 TL hata payı kabul edilebilir
                         break_even_tonaj = mid_tonaj
                         break
                     elif profit < 0:
@@ -380,6 +340,7 @@ def show_strategy_module():
                     else:
                         max_tonaj = mid_tonaj
                 
+                # Eğer bulunamadıysa (hep kar veya hep zarar)
                 if break_even_tonaj == 0:
                     break_even_tonaj = min_tonaj
                 
@@ -391,52 +352,58 @@ def show_strategy_module():
                     st.metric("📊 Minimum Kapasite Kullanımı", f"%{kapasite_yuzdesi:.1f}")
                 
                 # Kapasite grafiği
-                caps = np.linspace(break_even_tonaj if break_even_tonaj > 0 else 500, tam_kapasite, 20)
+                # Zararsızlık noktasından biraz öncesinden başlatıp tam kapasiteye kadar çizdiriyoruz
+                start_point = max(100, break_even_tonaj - 1000)
+                caps = np.linspace(start_point, tam_kapasite, 20)
                 profits = []
+                
                 for cap in caps:
-                    profit = calculate_profit_from_baseline(
-                        bugday_fiyat_override=b_bugday_fiyat,
-                        un_fiyat_override=b_un_fiyat,
-                        tonaj_override=cap,
-                        baseline=baseline
-                    )
+                    # YENİ FONKSİYON KULLANIMI
+                    profit = calculate_profit_dynamic(b_bugday_fiyat, b_un_fiyat, cap, baseline)
                     profits.append(profit / 1000)  # Bin TL
                 
                 df_cap = pd.DataFrame({"Kapasite (Ton)": caps, "Net Kar (Bin TL)": profits})
                 
                 c = alt.Chart(df_cap).mark_line(point=True, color='#2ecc71', strokeWidth=3).encode(
-                    x=alt.X('Kapasite (Ton)'),
-                    y=alt.Y('Net Kar (Bin TL)'),
+                    x=alt.X('Kapasite (Ton)', title='Üretim Kapasitesi (Ton/Ay)'),
+                    y=alt.Y('Net Kar (Bin TL)', title='Aylık Net Kar (Bin TL)'),
                     tooltip=['Kapasite (Ton)', 'Net Kar (Bin TL)']
                 ).interactive()
                 
-                # Başabaş çizgisi
+                # Başabaş (Sıfır Kar) çizgisi
                 break_line = alt.Chart(pd.DataFrame({'y': [0]})).mark_rule(color='red', strokeDash=[5, 5]).encode(y='y:Q')
                 
                 st.altair_chart(c + break_line, use_container_width=True)
-                st.warning(f"⚠️ **{break_even_tonaj:,.0f} ton**'un altında çalışmak ZARAR getirir!")
+                
+                if break_even_tonaj > tam_kapasite:
+                    st.error("🚨 **KRİTİK:** Tam kapasite çalışsanız bile bu fiyatlarla kar edemezsiniz!")
+                else:
+                    st.warning(f"⚠️ Fabrikanın kar etmesi için en az **{break_even_tonaj:,.0f} ton** üretim yapılması şart!")
     # --- 4. SENARYO KARŞILAŞTIRMA ---
     elif "Senaryo" in analiz_secimi:
         with st.container(border=True):
             st.subheader("⚖️ Çoklu Senaryo Karşılaştırma")
             st.info("💡 **Simülasyon:** Piyasa iyiye veya kötüye giderse ne olur?")
             
-            # Ortak parametreler
+            # Ortak parametre (Sadece Tonajı soruyoruz, diğer giderler veritabanından otomatik geliyor)
             sc_tonaj = st.number_input("Kırılan Tonaj (Ton)", value=3000.0, step=100.0, key="sc_tonaj")
-            sc_sabit = st.number_input("Sabit Giderler (TL)", value=float(baseline.get('aylik_sabit_gider', 1850000)), step=100000.0, key="sc_sabit")
-            sc_degisken = st.number_input("Ton Başı Değişken (TL)", value=float(baseline.get('ton_basi_degisken_gider', 1403)), step=50.0, key="sc_degisken")
             
             st.divider()
             
             c_sc1, c_sc2, c_sc3 = st.columns(3)
             
-            def scenario_card(col, title, emoji, default_bugday, default_un):
+            # Varsayılan fiyatlar
+            def_bugday = float(baseline.get('bugday_pacal_maliyeti', 14.60))
+            def_un = float(baseline.get('un_satis_fiyati', 980.0))
+            
+            def scenario_card(col, title, emoji, bugday_val, un_val):
                 with col:
                     st.markdown(f"### {emoji} {title}")
-                    s_bugday = st.number_input("Buğday (TL/kg)", value=default_bugday, key=f"s_b_{title}", step=0.10)
-                    s_un = st.number_input("Un (TL/50kg)", value=default_un, key=f"s_u_{title}", step=5.0)
+                    s_bugday = st.number_input("Buğday (TL/kg)", value=bugday_val, key=f"s_b_{title}", step=0.10, format="%.2f")
+                    s_un = st.number_input("Un (TL/50kg)", value=un_val, key=f"s_u_{title}", step=5.0, format="%.0f")
                     
-                    profit = calculate_generic_profit(s_bugday, s_un, sc_tonaj, 70, sc_sabit, sc_degisken)
+                    # --- YENİ DİNAMİK FONKSİYON ---
+                    profit = calculate_profit_dynamic(s_bugday, s_un, sc_tonaj, baseline)
                     
                     if profit < 0:
                         st.error(f"⚠️ ZARAR: {abs(profit):,.0f} TL")
@@ -444,9 +411,10 @@ def show_strategy_module():
                         st.success(f"✅ KAR: {profit:,.0f} TL")
                     return profit
 
-            p_pessimistic = scenario_card(c_sc1, "Kötümser", "🐻", 15.50, 920.0)
-            p_realistic = scenario_card(c_sc2, "Gerçekçi", "⚖️", 14.60, 980.0)
-            p_optimistic = scenario_card(c_sc3, "İyimser", "🐂", 13.80, 1050.0)
+            # Senaryoları oluşturuyoruz (Varsayılan değerlere göre otomatik ayarlanır)
+            p_pessimistic = scenario_card(c_sc1, "Kötümser", "🐻", def_bugday * 1.05, def_un * 0.95) # %5 Kötü
+            p_realistic = scenario_card(c_sc2, "Gerçekçi", "⚖️", def_bugday, def_un)                   # Mevcut
+            p_optimistic = scenario_card(c_sc3, "İyimser", "🐂", def_bugday * 0.95, def_un * 1.05)   # %5 İyi
             
             st.divider()
             diff = p_optimistic - p_pessimistic
@@ -466,6 +434,7 @@ def show_strategy_module():
             else:
                 st.warning("⚠️ **ORTA RİSK:** Piyasa kötüye giderse kar marjı düşüyor.")
                 
+
 
 
 
