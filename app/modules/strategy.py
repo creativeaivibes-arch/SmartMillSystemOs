@@ -14,16 +14,16 @@ def get_baseline_data():
             
             # ===== AYLIK SABİT GİDER HESAPLA (SADECE SABİT KALEMLER) =====
             aylik_sabit = (
-                float(latest.get('personel_maasi', 1200000)) +      # Personel
-                float(latest.get('bakim_maliyeti', 100000)) +       # Bakım
-                float(latest.get('mutfak_gideri', 50000)) +         # Mutfak
-                float(latest.get('finans_gideri', 0)) +             # Finans
-                float(latest.get('diger_giderler', 0)) +            # Diğer
+                float(latest.get('personel_maasi', 1200000)) +
+                float(latest.get('bakim_maliyeti', 100000)) +
+                float(latest.get('mutfak_gideri', 50000)) +
+                float(latest.get('finans_gideri', 0)) +
+                float(latest.get('diger_giderler', 0)) +
                 500000  # Kira/Amortisman (sabit varsayım)
             )
             
             # ELEKTRİK: Ton başı değeri al (DEĞİŞKEN GİDER!)
-            ton_basi_elektrik = float(latest.get('ton_bugday_elektrik', 500))  # TL/Ton
+            ton_basi_elektrik = float(latest.get('ton_bugday_elektrik', 500))
             
             # DEĞİŞKEN GİDER: Çuval başı giderleri topla
             cuval_basi_degisken = (
@@ -31,16 +31,13 @@ def get_baseline_data():
                 float(latest.get('satis_pazarlama', 20.5)) +
                 float(latest.get('pp_cuval', 15)) +
                 float(latest.get('katki_maliyeti', 9))
-            )  # ≈ 64.5 TL/çuval
+            )
             
             # Ton başına değişken gider hesapla
-            # 1 ton buğday → 0.7 ton un → 14 çuval (50kg) 
-            # 14 çuval × 64.5 TL = ~903 TL/ton (ambalaj+nakliye+pazarlama+katkı)
-            # + Elektrik: 500 TL/ton
-            ton_basi_degisken = (cuval_basi_degisken * 14) + ton_basi_elektrik  # ≈ 1403 TL/ton
+            ton_basi_degisken = (cuval_basi_degisken * 14) + ton_basi_elektrik
             
-            latest['aylik_sabit_gider'] = aylik_sabit  # YENİ ALAN (≈ 1.85M TL)
-            latest['ton_basi_degisken_gider'] = ton_basi_degisken  # YENİ ALAN (≈ 1403 TL/ton)
+            latest['aylik_sabit_gider'] = aylik_sabit
+            latest['ton_basi_degisken_gider'] = ton_basi_degisken
             
             return latest
     except Exception as e:
@@ -58,73 +55,81 @@ def get_baseline_data():
         'finans_gideri': 0.0,
         'diger_giderler': 0.0,
         'ton_bugday_elektrik': 500.0,
-        'aylik_sabit_gider': 1850000.0,  # YENİ (1.85M TL)
-        'ton_basi_degisken_gider': 1403,  # YENİ (~1400 TL/ton)
-        'un_cesidi': 'Standart Ekmeklik'
+        'aylik_sabit_gider': 1850000.0,
+        'ton_basi_degisken_gider': 1403,
+        'un_cesidi': 'Standart Ekmeklik',
+        'un2_orani': 7.0,
+        'un2_fiyati': 17.0,
+        'bongalite_orani': 1.5,
+        'bongalite_fiyati': 11.6,
+        'kepek_orani': 9.0,
+        'kepek_fiyati': 8.9,
+        'razmol_orani': 11.0,
+        'razmol_fiyati': 9.1,
+        'belge_geliri': 0.0,
+        'kirik_tonaj': 0.0,
+        'kirik_fiyat': 0.0,
+        'basak_tonaj': 0.0,
+        'basak_fiyat': 0.0
     }
 
-def calculate_generic_profit(bugday_fiyat, un_fiyat, kirilan_tonaj, randiman, sabit_giderler, degisken_gider_ton_basi):
+def calculate_profit_from_baseline(bugday_fiyat_override=None, un_fiyat_override=None, tonaj_override=None, baseline=None):
     """
-    Hızlı simülasyon hesaplayıcısı.
-    Karmaşık yan ürün detaylarına girmeden ana kalemler üzerinden tahmin yapar.
+    Baseline'dan gelen GERÇEK KAYITLI VERİYİ kullanarak kar hesapla.
+    Sadece belirtilen parametreleri değiştir, geri kalanı kayıttan al.
     
-    ÖNEMLİ: Bu fonksiyon artık DEĞİŞKEN GİDERLERİ doğru hesaplıyor!
+    Args:
+        bugday_fiyat_override: Simülasyon için buğday fiyatı (None ise baseline'dan alır)
+        un_fiyat_override: Simülasyon için un fiyatı (None ise baseline'dan alır)
+        tonaj_override: Simülasyon için tonaj (None ise baseline'dan alır)
+        baseline: get_baseline_data() ile çekilen kayıt
+    
+    Returns:
+        net_kar: Net kar (TL)
     """
+    if baseline is None:
+        baseline = get_baseline_data()
+    
+    # Simülasyon parametreleri (override varsa kullan, yoksa baseline'dan al)
+    bugday_fiyat = bugday_fiyat_override if bugday_fiyat_override is not None else float(baseline.get('bugday_pacal_maliyeti', 14.6))
+    un_fiyat = un_fiyat_override if un_fiyat_override is not None else float(baseline.get('un_satis_fiyati', 980))
+    kirilan_tonaj = tonaj_override if tonaj_override is not None else float(baseline.get('aylik_kirilan_bugday', 3000))
+    
+    # GERİ KALAN HER ŞEY BASELINE'DAN GELİYOR!
+    randiman = float(baseline.get('un_randimani', 70))
+    
     # === GELİRLER ===
+    # 1. Ana Un Geliri
     un_tonaj = kirilan_tonaj * (randiman / 100)
     cuval_sayisi = (un_tonaj * 1000) / 50
     un_geliri = cuval_sayisi * un_fiyat
     
-    # Basit Yan Ürün Tahmini
-    # Kırılan Buğday'ın geri kalanı (%30) yan üründür
-    # Yan ürün ortalama fiyatı (Kepek/Razmol karışık): 9.0 TL/kg
-    yan_urun_miktari_kg = (kirilan_tonaj * 1000) * ((100 - randiman) / 100)
-    yan_urun_geliri = yan_urun_miktari_kg * 9.0 
+    # 2. Yan Ürün Gelirleri (BASELINE'DAN!)
+    toplam_bugday_kg = kirilan_tonaj * 1000
     
-    toplam_gelir = un_geliri + yan_urun_geliri
+    un2_geliri = (toplam_bugday_kg * float(baseline.get('un2_orani', 7)) / 100) * float(baseline.get('un2_fiyati', 17))
+    bon_geliri = (toplam_bugday_kg * float(baseline.get('bongalite_orani', 1.5)) / 100) * float(baseline.get('bongalite_fiyati', 11.6))
+    kep_geliri = (toplam_bugday_kg * float(baseline.get('kepek_orani', 9)) / 100) * float(baseline.get('kepek_fiyati', 8.9))
+    raz_geliri = (toplam_bugday_kg * float(baseline.get('razmol_orani', 11)) / 100) * float(baseline.get('razmol_fiyati', 9.1))
+    belge_geliri = float(baseline.get('belge_geliri', 0)) * cuval_sayisi
+    kirik_geliri = float(baseline.get('kirik_tonaj', 0)) * float(baseline.get('kirik_fiyat', 0))
+    basak_geliri = float(baseline.get('basak_tonaj', 0)) * float(baseline.get('basak_fiyat', 0))
+    
+    toplam_gelir = un_geliri + un2_geliri + bon_geliri + kep_geliri + raz_geliri + belge_geliri + kirik_geliri + basak_geliri
     
     # === GİDERLER ===
     bugday_maliyeti = kirilan_tonaj * 1000 * bugday_fiyat
-    degisken_gider = degisken_gider_ton_basi * kirilan_tonaj  # TON BAŞI DEĞİŞKEN GİDER
     
-    toplam_gider = bugday_maliyeti + sabit_giderler + degisken_gider
+    # Sabit giderler (BASELINE'DAN!)
+    sabit_gider = float(baseline.get('aylik_sabit_gider', 1850000))
     
-    net_kar = toplam_gelir - toplam_gider
-    return net_kar
-
-def hesapla_kritik_bugday_fiyati(un_fiyat, kirilan_tonaj, randiman, sabit_giderler, degisken_gider_ton_basi):
-    """
-    🎯 KRİTİK BUĞDAY FİYATI HESAPLAYICI (DÜZELTME!)
+    # Değişken giderler (BASELINE'DAN!)
+    degisken_gider = float(baseline.get('ton_basi_degisken_gider', 1403)) * kirilan_tonaj
     
-    Net Kar = 0 olduğu noktada buğday fiyatını bulur.
+    toplam_gider = bugday_maliyeti + sabit_gider + degisken_gider
     
-    Formül:
-    Gelir = Gider
-    (Un Geliri + Yan Ürün Geliri) = (Buğday Maliyeti + Sabit Gider + Değişken Gider)
-    
-    Bilinmeyen: Buğday Fiyatı
-    """
-    un_tonaj = kirilan_tonaj * (randiman / 100)
-    cuval_sayisi = (un_tonaj * 1000) / 50
-    un_geliri = cuval_sayisi * un_fiyat
-    
-    # Yan ürün geliri (sabit - buğday fiyatından bağımsız)
-    yan_urun_kg = (kirilan_tonaj * 1000) * ((100 - randiman) / 100)
-    yan_urun_geliri = yan_urun_kg * 9.0
-    
-    toplam_gelir = un_geliri + yan_urun_geliri
-    
-    # Sabit ve değişken giderler
-    isletme_gideri = sabit_giderler + (degisken_gider_ton_basi * kirilan_tonaj)
-    
-    # Kritik buğday fiyatı:
-    # Buğday Maliyeti = Toplam Gelir - İşletme Gideri
-    # Buğday Fiyatı (TL/kg) = Buğday Maliyeti / (Kırılan Tonaj × 1000)
-    
-    kritik_bugday_maliyeti = toplam_gelir - isletme_gideri
-    kritik_bugday_fiyati = kritik_bugday_maliyeti / (kirilan_tonaj * 1000)
-    
-    return kritik_bugday_fiyati
+    # === NET KAR ===
+    return toplam_gelir - toplam_gider
 
 def show_strategy_module():
     # Başlık Alanı
@@ -166,8 +171,6 @@ def show_strategy_module():
                 with st.expander("🔧 Varsayımları Düzenle", expanded=False):
                     g_bugday_fiyat = st.number_input("Buğday Fiyatı (TL/kg)", value=float(baseline.get('bugday_pacal_maliyeti', 14.6)), step=0.10)
                     g_tonaj = st.number_input("Kırılan Buğday (Ton)", value=float(baseline.get('aylik_kirilan_bugday', 3000)), step=100.0)
-                    g_sabit_gider = st.number_input("Aylık Sabit Giderler (TL)", value=float(baseline.get('aylik_sabit_gider', 1850000)), step=100000.0)
-                    g_degisken_gider = st.number_input("Ton Başı Değişken Gider (TL)", value=float(baseline.get('ton_basi_degisken_gider', 1403)), step=50.0)
                     current_market_price = st.number_input("Piyasa Un Fiyatı (TL/50kg)", value=float(baseline.get('un_satis_fiyati', 980)), step=5.0)
             
             with col_g2:
@@ -176,13 +179,23 @@ def show_strategy_module():
                 un_tonaj = g_tonaj * (randiman / 100)
                 cuval_sayisi = (un_tonaj * 1000) / 50
                 
-                # Yan ürün geliri
-                yan_urun_geliri = (g_tonaj * 1000) * ((100 - randiman) / 100) * 9.0 
+                # Yan ürün ve diğer gelirler (BASELINE'DAN)
+                toplam_bugday_kg = g_tonaj * 1000
+                yan_urun_geliri = (
+                    (toplam_bugday_kg * float(baseline.get('un2_orani', 7)) / 100) * float(baseline.get('un2_fiyati', 17)) +
+                    (toplam_bugday_kg * float(baseline.get('bongalite_orani', 1.5)) / 100) * float(baseline.get('bongalite_fiyati', 11.6)) +
+                    (toplam_bugday_kg * float(baseline.get('kepek_orani', 9)) / 100) * float(baseline.get('kepek_fiyati', 8.9)) +
+                    (toplam_bugday_kg * float(baseline.get('razmol_orani', 11)) / 100) * float(baseline.get('razmol_fiyati', 9.1)) +
+                    float(baseline.get('belge_geliri', 0)) * cuval_sayisi +
+                    float(baseline.get('kirik_tonaj', 0)) * float(baseline.get('kirik_fiyat', 0)) +
+                    float(baseline.get('basak_tonaj', 0)) * float(baseline.get('basak_fiyat', 0))
+                )
                 
                 # Giderler
                 bugday_maliyeti = g_tonaj * 1000 * g_bugday_fiyat
-                degisken_gider_toplam = g_degisken_gider * g_tonaj
-                toplam_gider = bugday_maliyeti + g_sabit_gider + degisken_gider_toplam
+                sabit_gider = float(baseline.get('aylik_sabit_gider', 1850000))
+                degisken_gider_toplam = float(baseline.get('ton_basi_degisken_gider', 1403)) * g_tonaj
+                toplam_gider = bugday_maliyeti + sabit_gider + degisken_gider_toplam
                 
                 # Gerekli gelir
                 gerekli_toplam_gelir = target_profit_net + toplam_gider
@@ -216,7 +229,7 @@ def show_strategy_module():
                     
                     **GİDERLER:**
                     - Buğday Maliyeti: {bugday_maliyeti:,.0f} TL
-                    - Sabit Giderler: {g_sabit_gider:,.0f} TL
+                    - Sabit Giderler: {sabit_gider:,.0f} TL
                     - Değişken Giderler: {degisken_gider_toplam:,.0f} TL
                     - **Toplam Gider:** {toplam_gider:,.0f} TL
                     
@@ -253,18 +266,6 @@ def show_strategy_module():
                     step=100.0, 
                     key="sens_tonaj"
                 )
-                sens_sabit = st.number_input(
-                    "Sabit Gider (TL)", 
-                    value=float(baseline.get('aylik_sabit_gider', 1850000)), 
-                    step=100000.0, 
-                    key="sens_sabit"
-                )
-                sens_degisken = st.number_input(
-                    "Ton Başı Değişken (TL)", 
-                    value=float(baseline.get('ton_basi_degisken_gider', 1403)), 
-                    step=50.0, 
-                    key="sens_degisken"
-                )
                 
                 st.divider()
                 
@@ -286,11 +287,12 @@ def show_strategy_module():
                 records = []
                 for bf in bugday_prices:
                     for uf in un_prices:
-                        profit = calculate_generic_profit(
-                            bf, uf, sens_tonaj, 
-                            float(baseline.get('un_randimani', 70)), 
-                            sens_sabit, sens_degisken
-                        ) 
+                        profit = calculate_profit_from_baseline(
+                            bugday_fiyat_override=bf,
+                            un_fiyat_override=uf,
+                            tonaj_override=sens_tonaj,
+                            baseline=baseline
+                        )
                         records.append({
                             "Buğday": f"{bf:.2f}",
                             "Un Fiyatı": f"{uf:.0f}",
@@ -330,10 +332,11 @@ def show_strategy_module():
                 st.markdown("##### 🔍 Hızlı Yorum")
                 
                 # Mevcut durum karı
-                current_profit = calculate_generic_profit(
-                    base_bugday, base_un, sens_tonaj, 
-                    float(baseline.get('un_randimani', 70)), 
-                    sens_sabit, sens_degisken
+                current_profit = calculate_profit_from_baseline(
+                    bugday_fiyat_override=base_bugday,
+                    un_fiyat_override=base_un,
+                    tonaj_override=sens_tonaj,
+                    baseline=baseline
                 )
                 
                 col_y1, col_y2 = st.columns(2)
@@ -342,10 +345,11 @@ def show_strategy_module():
                 
                 with col_y2:
                     # En kötü senaryo
-                    worst_profit = calculate_generic_profit(
-                        max(bugday_prices), min(un_prices), sens_tonaj, 
-                        float(baseline.get('un_randimani', 70)), 
-                        sens_sabit, sens_degisken
+                    worst_profit = calculate_profit_from_baseline(
+                        bugday_fiyat_override=max(bugday_prices),
+                        un_fiyat_override=min(un_prices),
+                        tonaj_override=sens_tonaj,
+                        baseline=baseline
                     )
                     st.metric(
                         "⚠️ En Kötü Senaryo", 
@@ -373,29 +377,35 @@ def show_strategy_module():
             col_b1, col_b2 = st.columns([1, 2])
             
             with col_b1:
-                b_sabit = st.number_input("Sabit Giderler (TL)", value=float(baseline.get('aylik_sabit_gider', 1850000)), step=100000.0, key="kap_sabit")
-                b_bugday_fiyat = st.number_input("Buğday Fiyatı (TL/kg)", value=14.60, step=0.10, key="kap_bugday")
-                b_un_fiyat = st.number_input("Un Satış (TL/50kg)", value=980.0, step=10.0, key="kap_un")
-                b_degisken = st.number_input("Ton Başı Değişken (TL)", value=float(baseline.get('ton_basi_degisken_gider', 1403)), step=50.0, key="kap_degisken")
+                b_bugday_fiyat = st.number_input("Buğday Fiyatı (TL/kg)", value=float(baseline.get('bugday_pacal_maliyeti', 14.60)), step=0.10, key="kap_bugday")
+                b_un_fiyat = st.number_input("Un Satış (TL/50kg)", value=float(baseline.get('un_satis_fiyati', 980.0)), step=10.0, key="kap_un")
                 tam_kapasite = st.number_input("Tam Kapasite (Ton/Ay)", value=4500.0, step=100.0, key="kap_tam")
                 
             with col_b2:
-                # Ton başı brüt kar marjı
-                un_tonaj_per_ton = 0.7  # %70 randıman
-                cuval_per_ton = (un_tonaj_per_ton * 1000) / 50  # 14 çuval
-                un_geliri_per_ton = cuval_per_ton * b_un_fiyat
+                # Başabaş tonajı bulmak için binary search
+                min_tonaj = 100
+                max_tonaj = tam_kapasite
+                break_even_tonaj = 0
                 
-                yan_urun_per_ton = (1000 * 0.3) * 9.0  # 300 kg × 9 TL = 2700 TL
+                for _ in range(50):  # 50 iterasyon yeterli
+                    mid_tonaj = (min_tonaj + max_tonaj) / 2
+                    profit = calculate_profit_from_baseline(
+                        bugday_fiyat_override=b_bugday_fiyat,
+                        un_fiyat_override=b_un_fiyat,
+                        tonaj_override=mid_tonaj,
+                        baseline=baseline
+                    )
+                    
+                    if abs(profit) < 10000:  # 10K TL tolerans
+                        break_even_tonaj = mid_tonaj
+                        break
+                    elif profit < 0:
+                        min_tonaj = mid_tonaj
+                    else:
+                        max_tonaj = mid_tonaj
                 
-                toplam_gelir_per_ton = un_geliri_per_ton + yan_urun_per_ton
-                
-                bugday_maliyet_per_ton = 1000 * b_bugday_fiyat
-                degisken_maliyet_per_ton = b_degisken
-                
-                brut_kar_per_ton = toplam_gelir_per_ton - bugday_maliyet_per_ton - degisken_maliyet_per_ton
-                
-                # Başabaş tonajı
-                break_even_tonaj = b_sabit / brut_kar_per_ton if brut_kar_per_ton > 0 else 0
+                if break_even_tonaj == 0:
+                    break_even_tonaj = min_tonaj
                 
                 kpi_c1, kpi_c2 = st.columns(2)
                 with kpi_c1:
@@ -408,7 +418,12 @@ def show_strategy_module():
                 caps = np.linspace(break_even_tonaj if break_even_tonaj > 0 else 500, tam_kapasite, 20)
                 profits = []
                 for cap in caps:
-                    profit = calculate_generic_profit(b_bugday_fiyat, b_un_fiyat, cap, 70, b_sabit, b_degisken)
+                    profit = calculate_profit_from_baseline(
+                        bugday_fiyat_override=b_bugday_fiyat,
+                        un_fiyat_override=b_un_fiyat,
+                        tonaj_override=cap,
+                        baseline=baseline
+                    )
                     profits.append(profit / 1000)  # Bin TL
                 
                 df_cap = pd.DataFrame({"Kapasite (Ton)": caps, "Net Kar (Bin TL)": profits})
@@ -475,5 +490,6 @@ def show_strategy_module():
             else:
                 st.warning("⚠️ **ORTA RİSK:** Piyasa kötüye giderse kar marjı düşüyor.")
                 
+
 
 
