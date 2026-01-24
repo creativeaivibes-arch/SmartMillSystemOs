@@ -13,65 +13,29 @@ def get_baseline_data():
             latest = df.iloc[0].to_dict()
             
             # ===== AYLIK SABİT GİDER HESAPLA (SADECE SABİT KALEMLER) =====
+            # Manuel eklenen 500.000 TL (Kira/Amortisman) KALDIRILDI.
             aylik_sabit = (
                 float(latest.get('personel_maasi', 1200000)) +
                 float(latest.get('bakim_maliyeti', 100000)) +
                 float(latest.get('mutfak_gideri', 50000)) +
                 float(latest.get('finans_gideri', 0)) +
-                float(latest.get('diger_giderler', 0)) +
-                500000  # Kira/Amortisman (sabit varsayım)
+                float(latest.get('diger_giderler', 0))
             )
             
-            # ELEKTRİK: Ton başı değeri al (DEĞİŞKEN GİDER!)
-            ton_basi_elektrik = float(latest.get('ton_bugday_elektrik', 500))
+            # DEĞİŞKEN GİDER (x14 Çuval Hesabı) BURADAN KALDIRILDI.
+            # Randıman değişebileceği için "ton başına sabit gider" hesaplamak yanlıştı.
+            # Nakliye, çuval parası gibi birim maliyetleri olduğu gibi bırakıyoruz.
+            # Hesaplamayı aşağıda 'calculate_profit_dynamic' fonksiyonu anlık yapacak.
             
-            # DEĞİŞKEN GİDER: Çuval başı giderleri topla
-            cuval_basi_degisken = (
-                float(latest.get('nakliye', 20)) +
-                float(latest.get('satis_pazarlama', 20.5)) +
-                float(latest.get('pp_cuval', 15)) +
-                float(latest.get('katki_maliyeti', 9))
-            )
-            
-            # Ton başına değişken gider hesapla
-            ton_basi_degisken = (cuval_basi_degisken * 14) + ton_basi_elektrik
-            
-            latest['aylik_sabit_gider'] = aylik_sabit
-            latest['ton_basi_degisken_gider'] = ton_basi_degisken
+            latest['aylik_sabit_gider_toplam'] = aylik_sabit
             
             return latest
+
     except Exception as e:
         st.warning(f"⚠️ Baseline veri çekilemedi: {e}")
     
-    # Veri yoksa varsayılan değerler
-    return {
-        'bugday_pacal_maliyeti': 14.60,
-        'aylik_kirilan_bugday': 3000.0,
-        'un_randimani': 70.0,
-        'un_satis_fiyati': 980.0,
-        'personel_maasi': 1200000.0,
-        'bakim_maliyeti': 100000.0,
-        'mutfak_gideri': 50000.0,
-        'finans_gideri': 0.0,
-        'diger_giderler': 0.0,
-        'ton_bugday_elektrik': 500.0,
-        'aylik_sabit_gider': 1850000.0,
-        'ton_basi_degisken_gider': 1403,
-        'un_cesidi': 'Standart Ekmeklik',
-        'un2_orani': 7.0,
-        'un2_fiyati': 17.0,
-        'bongalite_orani': 1.5,
-        'bongalite_fiyati': 11.6,
-        'kepek_orani': 9.0,
-        'kepek_fiyati': 8.9,
-        'razmol_orani': 11.0,
-        'razmol_fiyati': 9.1,
-        'belge_geliri': 0.0,
-        'kirik_tonaj': 0.0,
-        'kirik_fiyat': 0.0,
-        'basak_tonaj': 0.0,
-        'basak_fiyat': 0.0
-    }
+    # Veri yoksa boş döndür (Varsayılan değerleri hesaplama fonksiyonu yönetecek)
+    return {}
 
 def calculate_profit_from_baseline(bugday_fiyat_override=None, un_fiyat_override=None, tonaj_override=None, baseline=None):
     """
@@ -490,6 +454,7 @@ def show_strategy_module():
             else:
                 st.warning("⚠️ **ORTA RİSK:** Piyasa kötüye giderse kar marjı düşüyor.")
                 
+
 
 
 
