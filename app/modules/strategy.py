@@ -233,11 +233,38 @@ def show_strategy_module():
             
             with col_s1:
                 st.markdown("##### ⚙️ Parametreler")
-                base_bugday = st.number_input("Baz Buğday (TL/kg)", value=14.60, step=0.10, key="sens_bugday")
-                base_un = st.number_input("Baz Un (TL/50kg)", value=980.0, step=10.0, key="sens_un")
-                sens_tonaj = st.number_input("Kırılan Tonaj", value=3000.0, step=100.0, key="sens_tonaj")
-                sens_sabit = st.number_input("Sabit Gider", value=float(baseline.get('aylik_sabit_gider', 1850000)), step=100000.0, key="sens_sabit")
-                sens_degisken = st.number_input("Ton Başı Değişken", value=float(baseline.get('ton_basi_degisken_gider', 1403)), step=50.0, key="sens_degisken")
+                
+                # ✅ DÜZELTİLDİ: Baseline'dan çek!
+                base_bugday = st.number_input(
+                    "Baz Buğday (TL/kg)", 
+                    value=float(baseline.get('bugday_pacal_maliyeti', 14.60)), 
+                    step=0.10, 
+                    key="sens_bugday"
+                )
+                base_un = st.number_input(
+                    "Baz Un (TL/50kg)", 
+                    value=float(baseline.get('un_satis_fiyati', 980.0)), 
+                    step=10.0, 
+                    key="sens_un"
+                )
+                sens_tonaj = st.number_input(
+                    "Kırılan Tonaj", 
+                    value=float(baseline.get('aylik_kirilan_bugday', 3000.0)), 
+                    step=100.0, 
+                    key="sens_tonaj"
+                )
+                sens_sabit = st.number_input(
+                    "Sabit Gider", 
+                    value=float(baseline.get('aylik_sabit_gider', 1850000)), 
+                    step=100000.0, 
+                    key="sens_sabit"
+                )
+                sens_degisken = st.number_input(
+                    "Ton Başı Değişken", 
+                    value=float(baseline.get('ton_basi_degisken_gider', 1403)), 
+                    step=50.0, 
+                    key="sens_degisken"
+                )
                 
                 st.divider()
                 
@@ -245,25 +272,36 @@ def show_strategy_module():
                 kritik_bugday = hesapla_kritik_bugday_fiyati(
                     un_fiyat=base_un,
                     kirilan_tonaj=sens_tonaj,
-                    randiman=70,
+                    randiman=float(baseline.get('un_randimani', 70)),
                     sabit_giderler=sens_sabit,
                     degisken_gider_ton_basi=sens_degisken
                 )
                 
                 if kritik_bugday > 0:
                     st.error(f"⚠️ **KRİTİK SINIR:** Buğday **{kritik_bugday:.2f} TL/kg** olursa kar SIFIRLANIR.")
+                    
+                    # Kritik noktaya ne kadar yakınız?
+                    kritik_mesafe = kritik_bugday - base_bugday
+                    if kritik_mesafe < 1.0:
+                        st.warning(f"🚨 **ACİL:** Kritik noktaya sadece **{kritik_mesafe:.2f} TL** kaldı!")
+                    else:
+                        st.info(f"📊 Kritik noktaya **{kritik_mesafe:.2f} TL** mesafe var.")
                 else:
                     st.success("✅ Mevcut fiyatlarla zarar edilmiyor.")
 
             with col_s2:
-                # Matris aralıkları
+                # Matris aralıkları (baz değerlerin etrafında ±2 adım)
                 bugday_prices = [base_bugday + (i * 0.50) for i in range(-2, 3)]  # ±1 TL aralık
                 un_prices = [base_un + (i * 50) for i in range(-2, 3)]  # ±100 TL aralık
                 
                 records = []
                 for bf in bugday_prices:
                     for uf in un_prices:
-                        profit = calculate_generic_profit(bf, uf, sens_tonaj, 70, sens_sabit, sens_degisken) 
+                        profit = calculate_generic_profit(
+                            bf, uf, sens_tonaj, 
+                            float(baseline.get('un_randimani', 70)), 
+                            sens_sabit, sens_degisken
+                        ) 
                         records.append({
                             "Buğday": f"{bf:.2f}",
                             "Un Fiyatı": f"{uf:.0f}",
@@ -399,3 +437,4 @@ def show_strategy_module():
             else:
                 st.warning("⚠️ **ORTA RİSK:** Piyasa kötüye giderse kar marjı düşüyor.")
                 
+
