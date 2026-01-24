@@ -101,7 +101,79 @@ def show_strategy_module():
     
     # Baseline veriyi çek
     baseline = get_baseline_data()
+    python    # Baseline veriyi çek
+    baseline = get_baseline_data()
     
+    # ===== DEBUG: BASELINE VERİLERİNİ GÖSTER (GEÇİCİ TEST) =====
+    with st.expander("🔍 DEBUG: Baseline Verileri (Test Amaçlı)", expanded=False):
+        st.markdown("##### 📊 Hesaplanan Değerler:")
+        
+        col_d1, col_d2, col_d3 = st.columns(3)
+        
+        with col_d1:
+            st.metric(
+                "💰 Aylık Sabit Gider", 
+                f"{baseline.get('aylik_sabit_gider', 0):,.0f} TL",
+                help="Personel + Bakım + Mutfak + Finans + Diğer + Kira"
+            )
+        
+        with col_d2:
+            st.metric(
+                "⚡ Ton Başı Değişken Gider", 
+                f"{baseline.get('ton_basi_degisken_gider', 0):,.0f} TL/Ton",
+                help="Elektrik + Nakliye + Pazarlama + Çuval + Katkı (çuval bazında)"
+            )
+        
+        with col_d3:
+            st.metric(
+                "🌾 Buğday Paçal Maliyet", 
+                f"{baseline.get('bugday_pacal_maliyeti', 0):.2f} TL/kg"
+            )
+        
+        st.divider()
+        st.markdown("##### 📋 Detaylı Breakdown:")
+        
+        # Sabit Gider Detayı
+        st.markdown("**Sabit Gider Bileşenleri:**")
+        sabit_breakdown = {
+            'Personel Maaşı': baseline.get('personel_maasi', 0),
+            'Bakım Maliyeti': baseline.get('bakim_maliyeti', 0),
+            'Mutfak Gideri': baseline.get('mutfak_gideri', 0),
+            'Finans Gideri': baseline.get('finans_gideri', 0),
+            'Diğer Giderler': baseline.get('diger_giderler', 0),
+            'Kira/Amortisman (Varsayım)': 500000
+        }
+        
+        for key, val in sabit_breakdown.items():
+            st.write(f"- {key}: {val:,.0f} TL")
+        
+        st.markdown(f"**TOPLAM SABİT:** {sum(sabit_breakdown.values()):,.0f} TL")
+        
+        st.divider()
+        
+        # Değişken Gider Detayı
+        st.markdown("**Değişken Gider Bileşenleri (Ton Başı):**")
+        
+        cuval_basi = (
+            baseline.get('nakliye', 20) +
+            baseline.get('satis_pazarlama', 20.5) +
+            baseline.get('pp_cuval', 15) +
+            baseline.get('katki_maliyeti', 9)
+        )
+        
+        st.write(f"- Nakliye (çuval): {baseline.get('nakliye', 0):.2f} TL")
+        st.write(f"- Pazarlama (çuval): {baseline.get('satis_pazarlama', 0):.2f} TL")
+        st.write(f"- PP Çuval: {baseline.get('pp_cuval', 0):.2f} TL")
+        st.write(f"- Katkı: {baseline.get('katki_maliyeti', 0):.2f} TL")
+        st.write(f"**Çuval Başı Toplam:** {cuval_basi:.2f} TL")
+        st.write(f"**1 Ton = 14 Çuval:** {cuval_basi * 14:.2f} TL")
+        st.write(f"- Elektrik (ton): {baseline.get('ton_bugday_elektrik', 0):.2f} TL")
+        st.markdown(f"**TOPLAM DEĞİŞKEN:** {baseline.get('ton_basi_degisken_gider', 0):,.0f} TL/Ton")
+    
+    # ===== DEBUG SONU =====
+    
+    # --- VERİ GÜNCELLİĞİ UYARISI ---
+    if baseline and 'tarih' in baseline:
     # --- VERİ GÜNCELLİĞİ UYARISI ---
     if baseline and 'tarih' in baseline:
         try:
@@ -297,6 +369,7 @@ def show_strategy_module():
             st.divider()
             diff = p_optimistic - p_pessimistic
             st.info(f"📊 İyimser ve Kötümser senaryo arasındaki fark: **{diff:,.0f} TL**")
+
 
 
 
