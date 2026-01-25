@@ -11,9 +11,10 @@ from app.core.database import fetch_data, add_data, get_conn
 
 # Sistemin ana menüde ve yetkilendirmede kullandığı roller
 ROLES = {
-    "admin": "Sistem Yöneticisi",
-    "operations": "Operasyon Sorumlusu",
-    "viewer": "İzleyici"
+    "admin": "Yönetici",
+    "quality": "Kalite Kontrol",
+    "operations": "Operasyon",
+    "management": "Üst Yönetim"
 }
 
 def hash_password(password):
@@ -335,5 +336,6 @@ def migrate_user_to_bcrypt(username, plain_password):
     except Exception as e:
         st.error(f"Bcrypt geçiş hatası: {e}")
         return False
+
 
 
