@@ -476,8 +476,8 @@ def delete_bugday_spec_group(cins):
 
 def show_mal_kabul():
     """Mal Kabul Ekranı - Tüm Analiz Parametreleri Dahil"""
-    if st.session_state.get('user_role') not in ["admin", "operations"]:
-        st.warning("Yetkisiz")
+    if st.session_state.get('user_role') not in ["admin", "operations", "quality"]:
+        st.warning("Bu modüle erişim yetkiniz bulunmamaktadır.")
         return
 
     st.header("🚜 Mal Kabul ve Stok Girişi")
@@ -1680,6 +1680,7 @@ def show_wheat_yonetimi():
         with tab_db2:
             with st.container(border=True):
                 show_stok_hareketleri()
+
 
 
 
