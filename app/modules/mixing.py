@@ -156,7 +156,7 @@ def calculate_pacal_metrics(oranlar, tavli_analizler):
 def show_pacal_hesaplayici():
     """Paçal Hesaplayıcı modülü"""
     
-    if st.session_state.get('user_role') not in ["admin", "operations"]:
+    if st.session_state.get('user_role') not in ["admin", "operations", "quality"]:
         st.warning("⛔ Bu modüle erişim izniniz yok!")
         return
     
@@ -473,3 +473,4 @@ def show_pacal_gecmisi():
                         
         except Exception as e:
             st.error(f"Veri hatası: {e}")
+
