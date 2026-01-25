@@ -137,17 +137,20 @@ with st.sidebar:
     
     st.divider()
     
-    # --- MENÜ YAPISI (Rol Bazlı Dinamik Menü) ---
+    # --- MENÜ YAPISI (Senin Belirlediğin Başlıklarla) ---
     user_role = st.session_state.get('user_role', 'viewer')
     
-    # Rol bazlı menü listesi oluşturma
     if user_role == "admin":
-        menu_secenekleri = ["Dashboard", "Kalite Kontrol", "Değirmen", "Depo & Silo", "Finans & Strateji", "Yönetim Paneli"]
+        # Admin her şeyi görür
+        menu_secenekleri = ["Dashboard", "Kalite Kontrol", "Değirmen", "Finans & Strateji", "Yönetim Paneli"]
     elif user_role == "quality":
-        menu_secenekleri = ["Dashboard", "Kalite Kontrol", "Depo & Silo"]
+        # Kaliteci sadece Dashboard ve Kalite Kontrol görür
+        menu_secenekleri = ["Dashboard", "Kalite Kontrol"]
     elif user_role == "operations":
+        # Operasyon sadece Dashboard ve Değirmen görür
         menu_secenekleri = ["Dashboard", "Değirmen"]
     elif user_role == "management":
+        # Üst Yönetim sadece Dashboard ve Finans & Strateji görür
         menu_secenekleri = ["Dashboard", "Finans & Strateji"]
     else:
         menu_secenekleri = ["Dashboard"]
@@ -170,20 +173,16 @@ with st.sidebar:
         st.sidebar.markdown("### 🧪 Kalite Kontrol")
         kk_bolum = st.sidebar.radio(
             "Bölüm Seçiniz", 
-            ["🌾 Giriş & Buğday", "🍞 Un & Katkı"]
+            ["🌾 Buğday Yönetimi", "🍞 Un Yönetimi"]
         )
-        # Yeni sayfa isimlerini atıyoruz (Alt kısımdaki yönlendirme için)
-        if kk_bolum == "🌾 Giriş & Buğday":
+        if kk_bolum == "🌾 Buğday Yönetimi":
             selected_page = "KK_BUGDAY"
-        elif kk_bolum == "🍞 Un & Katkı":
+        elif kk_bolum == "🍞 Un Yönetimi":
             selected_page = "KK_UN"
 
     elif ana_menu == "Değirmen":
         selected_page = "PRODUCTION_MANAGER"
         
-    elif ana_menu == "Depo & Silo":
-        selected_page = "SILO_MANAGER"
-
     elif ana_menu == "Finans & Strateji":
         selected_page = "FINANCE_DASHBOARD"
         
@@ -276,6 +275,7 @@ if st.session_state.get('user_role') == "admin":
                 {'bugday_cinsi': 'TEST'}
             )
             st.write(f"Sonuç: {msg}")
+
 
 
 
