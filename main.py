@@ -195,28 +195,28 @@ with st.sidebar:
 if selected_page == "Dashboard":
     dashboard.show_dashboard()
 
-# 🌾 KALİTE KONTROL: BUĞDAY YÖNETİMİ
+# --- A) KALİTE KONTROL: BUĞDAY YÖNETİMİ ---
 elif selected_page == "KK_BUGDAY":
     st.markdown("## 🌾 Giriş & Buğday Kalite Yönetimi")
     
-    # 7 Sekmeli Yapı
     tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
-        "📋 Kalite Standartları", 
-        "🚛 Hammadde Giriş", 
-        "🧪 Tavlı Analiz", 
-        "🧮 Akıllı Paçal", 
-        "📜 Reçete Geçmişi", 
-        "📉 Stok Çıkışı", 
+        "📏 Kalite Standartları",
+        "🚛 Hammadde Giriş",
+        "🧪 Tavlı Analiz",
+        "🧮 Akıllı Paçal",
+        "📜 Reçete Geçmişi",
+        "📉 Stok Çıkışı",
         "📂 İzlenebilirlik"
     ])
     
-    with tab1: wheat.show_bugday_spekleri()
-    with tab2: wheat.show_hammadde_giris()
-    with tab3: wheat.show_tavli_analiz_kayit()
+    # wheat.py içindeki GERÇEK fonksiyon isimleri şunlar:
+    with tab1: wheat.show_bugday_spec_yonetimi()      
+    with tab2: wheat.show_mal_kabul()                
+    with tab3: wheat.show_tavli_analiz()             
     with tab4: mixing.show_pacal_hesaplayici()
     with tab5: mixing.show_recete_gecmisi()
-    with tab6: wheat.show_stok_cikis_kalite()
-    with tab7: wheat.show_izlenebilirlik()
+    with tab6: wheat.show_stok_cikis()               
+    with tab7: wheat.show_bugday_giris_arsivi()      
 
 # 🍞 KALİTE KONTROL: UN YÖNETİMİ
 elif selected_page == "KK_UN":
@@ -287,3 +287,4 @@ elif selected_page == "ADMIN" or selected_page == "PROFILE":
 # 🚪 PROFİL SAYFASI
 elif selected_page == "PROFILE":
     show_profile_settings()
+
