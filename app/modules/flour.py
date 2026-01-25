@@ -203,7 +203,7 @@ def save_un_analiz(lot_no, islem_tipi, **analiz_degerleri):
         return False, f"Hata: {str(e)}"
 
 def show_un_analiz_kaydi():
-    if st.session_state.get('user_role') not in ["admin", "operations"]:
+    if st.session_state.get('user_role') not in ["admin", "operations", "quality"]:
         st.warning("⛔ Yetkisiz Erişim")
         return
     st.header("📝 Un Analiz Kaydı")
@@ -728,6 +728,7 @@ def show_flour_yonetimi():
                 st.error("⚠️ Enzim modülü (calculations.py) bulunamadı.")
             except Exception as e:
                 st.error(f"⚠️ Modül yüklenirken hata oluştu: {e}")
+
 
 
 
