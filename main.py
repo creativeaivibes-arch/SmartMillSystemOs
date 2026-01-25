@@ -190,6 +190,11 @@ with st.sidebar:
         selected_page = "ADMIN"
         
     
+Python (Streamlit) kodlarında girinti (indentation) hayati önem taşır. if/elif blokları ana uygulama akışında (genelde en solda) olmalıdır.
+
+Hata almaman için kodun en temiz ve doğru hizalanmış halini aşağıya ekliyorum. Lütfen bu bloğu # --- YÖNLENDIRME (ROUTING) --- satırından başlayarak dosyanın sonuna kadar yapıştır:
+Python
+
 # --- YÖNLENDIRME (ROUTING) ---
 
 if selected_page == "Dashboard":
@@ -199,15 +204,15 @@ if selected_page == "Dashboard":
 elif selected_page == "KK_BUGDAY":
     st.markdown("## 🌾 Giriş & Buğday Kalite Yönetimi")
     
-    # Senin belirlediğin 7 Kritik Sekme
+    # 7 Sekmeli Yapı
     tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
-        "📏 Kalite Standartları", # Spek Belirleme
-        "🚛 Hammadde Giriş",     # Analiz Girişi
-        "🧪 Tavlı Analiz",       # Üretim Öncesi
-        "🧮 Akıllı Paçal",       # Reçete Hesaplama
-        "📜 Reçete Geçmişi",     # Kayıtlar
-        "📉 Stok Çıkışı",        # Silodan Düşüş
-        "📂 İzlenebilirlik"      # Arşiv
+        "📏 Kalite Standartları", 
+        "🚛 Hammadde Giriş", 
+        "🧪 Tavlı Analiz", 
+        "🧮 Akıllı Paçal", 
+        "📜 Reçete Geçmişi", 
+        "📉 Stok Çıkışı", 
+        "📂 İzlenebilirlik"
     ])
     
     with tab1: wheat.show_bugday_spekleri()
@@ -222,12 +227,12 @@ elif selected_page == "KK_BUGDAY":
 elif selected_page == "KK_UN":
     st.markdown("## 🍞 Un Kalite & Katkı Yönetimi")
     
-    # Senin belirlediğin 4 Kritik Sekme
+    # 4 Sekmeli Yapı
     tab1, tab2, tab3, tab4 = st.tabs([
-        "🎯 Un Spekleri",       # Hedefler
-        "📝 Un Analiz Gir",     # Sonuç Girişi
-        "📚 Analiz Arşivi",     # Geçmiş Kayıtlar
-        "🧬 Enzim Dozaj"        # Hesaplama
+        "🎯 Un Spekleri", 
+        "📝 Un Analiz Gir", 
+        "📚 Analiz Arşivi", 
+        "🧬 Enzim Dozaj"
     ])
     
     with tab1: flour.show_un_spekleri()
@@ -280,13 +285,13 @@ elif selected_page == "ADMIN" or selected_page == "PROFILE":
         with tab5: admin.show_system_logs()
         with tab6: admin.show_debug_panel()
     else:
+        # Diğer roller sadece profil görür
         tab1, = st.tabs(["👤 Profil Ayarları"])
         with tab1: show_profile_settings()
 
-# --- SİLO DÜZELTME YETKİSİ (EKSTRA) ---
-# Kaliteci veya Admin ise Dashboard'da veya Silo sayfasında 
-# cins değiştirme butonu bu mantıkla çalışacak:
-is_tech_user = st.session_state.user_role in ["admin", "quality"]
+# 🚪 PROFİL SAYFASI
+elif selected_page == "PROFILE":
+    show_profile_settings()
 
 
 
