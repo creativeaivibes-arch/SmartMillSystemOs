@@ -137,41 +137,54 @@ with st.sidebar:
     
     st.divider()
     
-    # --- MENÜ YAPISI ---
+    # --- MENÜ YAPISI (Rol Bazlı Dinamik Menü) ---
+    user_role = st.session_state.get('user_role', 'viewer')
     
+    # Rol bazlı menü listesi oluşturma
+    if user_role == "admin":
+        menu_secenekleri = ["Dashboard", "Kalite Kontrol", "Değirmen", "Depo & Silo", "Finans & Strateji", "Yönetim Paneli"]
+    elif user_role == "quality":
+        menu_secenekleri = ["Dashboard", "Kalite Kontrol", "Depo & Silo"]
+    elif user_role == "operations":
+        menu_secenekleri = ["Dashboard", "Değirmen"]
+    elif user_role == "management":
+        menu_secenekleri = ["Dashboard", "Finans & Strateji"]
+    else:
+        menu_secenekleri = ["Dashboard"]
+
     ana_menu = st.sidebar.radio(
         "📂 Ana Menü",
-        ["Dashboard", "Kalite Kontrol", "Değirmen", "Finans & Strateji", "Yönetim Paneli"], # İsim değişti
+        menu_secenekleri,
         label_visibility="collapsed"
     )
     
     st.sidebar.divider()
     
+    # --- SAYFA BELİRLEME (Routing) ---
     selected_page = None
     
     if ana_menu == "Dashboard":
         selected_page = "Dashboard"
-        
+
     elif ana_menu == "Kalite Kontrol":
         st.sidebar.markdown("### 🧪 Kalite Kontrol")
-        # Menü sıralaması
-        kk_bolum = st.sidebar.radio("Bölüm Seçiniz", ["🌾 Buğday Yönetimi", "🍞 Un Yönetimi"])
-        st.sidebar.markdown("---")
-        
-        # 1. Koşul (Her zaman 'if' ile başlar)
-        if kk_bolum == "🌾 Buğday Yönetimi":
-            selected_page = "WHEAT_MANAGER"
-            
-        # 2. Koşul ('elif' ile devam eder)
-        elif kk_bolum == "🍞 Un Yönetimi":
-            selected_page = "FLOUR_MANAGER"
+        kk_bolum = st.sidebar.radio(
+            "Bölüm Seçiniz", 
+            ["🌾 Giriş & Buğday", "🍞 Un & Katkı"]
+        )
+        # Yeni sayfa isimlerini atıyoruz (Alt kısımdaki yönlendirme için)
+        if kk_bolum == "🌾 Giriş & Buğday":
+            selected_page = "KK_BUGDAY"
+        elif kk_bolum == "🍞 Un & Katkı":
+            selected_page = "KK_UN"
 
     elif ana_menu == "Değirmen":
-        
         selected_page = "PRODUCTION_MANAGER"
         
+    elif ana_menu == "Depo & Silo":
+        selected_page = "SILO_MANAGER"
+
     elif ana_menu == "Finans & Strateji":
-        # Alt menü yok, direkt sayfa kodu atanıyor. Sekmeler sonra gelecek.
         selected_page = "FINANCE_DASHBOARD"
         
     elif ana_menu == "Yönetim Paneli":
@@ -263,6 +276,7 @@ if st.session_state.get('user_role') == "admin":
                 {'bugday_cinsi': 'TEST'}
             )
             st.write(f"Sonuç: {msg}")
+
 
 
 
