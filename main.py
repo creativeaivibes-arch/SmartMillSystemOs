@@ -201,7 +201,7 @@ elif selected_page == "KK_BUGDAY":
     
     # 7 Sekmeli Yapı
     tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
-        "📏 Kalite Standartları", 
+        "📋 Kalite Standartları", 
         "🚛 Hammadde Giriş", 
         "🧪 Tavlı Analiz", 
         "🧮 Akıllı Paçal", 
@@ -287,24 +287,3 @@ elif selected_page == "ADMIN" or selected_page == "PROFILE":
 # 🚪 PROFİL SAYFASI
 elif selected_page == "PROFILE":
     show_profile_settings()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
