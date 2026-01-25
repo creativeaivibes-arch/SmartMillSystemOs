@@ -195,23 +195,54 @@ with st.sidebar:
 if selected_page == "Dashboard":
     dashboard.show_dashboard()
 
-# WHEAT (BUĞDAY)
-elif selected_page == "WHEAT_MANAGER": 
-    wheat.show_wheat_yonetimi()
+# 🌾 KALİTE KONTROL: BUĞDAY YÖNETİMİ
+elif selected_page == "KK_BUGDAY":
+    st.markdown("## 🌾 Giriş & Buğday Kalite Yönetimi")
+    
+    # Senin belirlediğin 7 Kritik Sekme
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+        "📏 Kalite Standartları", # Spek Belirleme
+        "🚛 Hammadde Giriş",     # Analiz Girişi
+        "🧪 Tavlı Analiz",       # Üretim Öncesi
+        "🧮 Akıllı Paçal",       # Reçete Hesaplama
+        "📜 Reçete Geçmişi",     # Kayıtlar
+        "📉 Stok Çıkışı",        # Silodan Düşüş
+        "📂 İzlenebilirlik"      # Arşiv
+    ])
+    
+    with tab1: wheat.show_bugday_spekleri()
+    with tab2: wheat.show_hammadde_giris()
+    with tab3: wheat.show_tavli_analiz_kayit()
+    with tab4: mixing.show_pacal_hesaplayici()
+    with tab5: mixing.show_recete_gecmisi()
+    with tab6: wheat.show_stok_cikis_kalite()
+    with tab7: wheat.show_izlenebilirlik()
 
-# FLOUR
-elif selected_page == "FLOUR_MANAGER": 
-    flour.show_flour_yonetimi()
+# 🍞 KALİTE KONTROL: UN YÖNETİMİ
+elif selected_page == "KK_UN":
+    st.markdown("## 🍞 Un Kalite & Katkı Yönetimi")
+    
+    # Senin belirlediğin 4 Kritik Sekme
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "🎯 Un Spekleri",       # Hedefler
+        "📝 Un Analiz Gir",     # Sonuç Girişi
+        "📚 Analiz Arşivi",     # Geçmiş Kayıtlar
+        "🧬 Enzim Dozaj"        # Hesaplama
+    ])
+    
+    with tab1: flour.show_un_spekleri()
+    with tab2: flour.show_un_analiz_giris()
+    with tab3: flour.show_analiz_arsivi()
+    with tab4: flour.show_enzim_hesaplama()
 
-# PRODUCTION
-elif selected_page == "PRODUCTION_MANAGER": 
+# 🏭 DEĞİRMEN (PRODUCTION)
+elif selected_page == "PRODUCTION_MANAGER":
     production.show_production_yonetimi()
 
-# --- FİNANS & STRATEJİ (SEKMELİ YAPI) ---
+# 💰 FİNANS & STRATEJİ
 elif selected_page == "FINANCE_DASHBOARD":
     st.markdown("## 💰 Finansal Yönetim & Strateji")
     
-    # 5 Sekmeli Panel Oluşturuyoruz
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "💵 Un Maliyet", 
         "📉 Maliyet Geçmişi", 
@@ -220,25 +251,18 @@ elif selected_page == "FINANCE_DASHBOARD":
         "🧪 Katkı Maliyet"
     ])
     
-    with tab1:
-        flour.show_un_maliyet_hesaplama()
-    with tab2:
-        flour.show_un_maliyet_gecmisi()
+    with tab1: flour.show_un_maliyet_hesaplama()
+    with tab2: flour.show_un_maliyet_gecmisi()
     with tab3:
-        # Strateji modülü kontrolü
         try:
             import app.modules.strategy as strategy
             strategy.show_strategy_module()
-        except ImportError:
-            st.warning("Strateji modülü (app/modules/strategy.py) bulunamadı.")
-        except Exception as e:
-            st.error(f"Strateji modülü hatası: {e}")
-    with tab4:
-        calculations.show_fire_maliyet_hesaplama()
-    with tab5:
-        calculations.show_katki_maliyeti_modulu()
+        except:
+            st.warning("Strateji modülü bulunamadı.")
+    with tab4: calculations.show_fire_maliyet_hesaplama()
+    with tab5: calculations.show_katki_maliyeti_modulu()
 
-# ADMIN
+# 🛠️ YÖNETİM PANELİ (ADMIN)
 elif selected_page == "ADMIN" or selected_page == "PROFILE":
     if st.session_state.user_role == "admin":
         tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
@@ -256,25 +280,14 @@ elif selected_page == "ADMIN" or selected_page == "PROFILE":
         with tab5: admin.show_system_logs()
         with tab6: admin.show_debug_panel()
     else:
-        # Admin olmayanlar (operations/viewer) sadece profil sekmesini görsün
         tab1, = st.tabs(["👤 Profil Ayarları"])
         with tab1: show_profile_settings()
 
-# PROFILE
-elif selected_page == "PROFILE":
-    show_profile_settings()
+# --- SİLO DÜZELTME YETKİSİ (EKSTRA) ---
+# Kaliteci veya Admin ise Dashboard'da veya Silo sayfasında 
+# cins değiştirme butonu bu mantıkla çalışacak:
+is_tech_user = st.session_state.user_role in ["admin", "quality"]
 
-# main.py'nin EN ALTINA (geçici test için)
-if st.session_state.get('user_role') == "admin":
-    with st.sidebar.expander("🧪 Test: Yeni DB Fonksiyonları"):
-        if st.button("Test Update"):
-            from app.core.database import update_row_by_filter
-            success, msg = update_row_by_filter(
-                'silolar',
-                {'isim': 'CELIK SILO 1'},
-                {'bugday_cinsi': 'TEST'}
-            )
-            st.write(f"Sonuç: {msg}")
 
 
 
