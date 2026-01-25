@@ -469,6 +469,10 @@ def show_yonetim_dashboard():
 
 def show_uretim_arsivi():
     """Üretim Arşivi - Geliştirilmiş Versiyon"""
+    # ✅ YETKİ KONTROLÜ: Admin, Operasyon ve Kalite Kontrol görebilir.
+    if st.session_state.get('user_role') not in ["admin", "operations", "quality"]:
+        st.warning("⛔ Bu modüle erişim izniniz yok!")
+        return
     st.header("🗄️ Üretim Arşivi ve Raporlama")
     
     df = get_uretim_kayitlari()
@@ -678,6 +682,7 @@ def show_production_yonetimi():
     elif secim == "📊 Üretim Performans Analizi":
         with st.container(border=True):
             show_yonetim_dashboard()
+
 
 
 
