@@ -122,7 +122,12 @@ with st.sidebar:
         with col_prof2:
             st.markdown(f"**{st.session_state.username}**")
             
-        role_map = {"admin": "Yönetici", "operations": "Operasyon", "viewer": "İzleyici"}
+        role_map = {
+            "admin": "Yönetici", 
+            "operations": "Operasyon", 
+            "quality": "Kalite Kontrol",
+            "management": "Üst Yönetim"  # 'viewer' yerine 'management' ekledik
+        }
         user_role_tr = role_map.get(st.session_state.user_role, "Kullanıcı")
         
         st.caption(f"{user_role_tr} | 🟢 Çevrimiçi")
@@ -258,6 +263,7 @@ if st.session_state.get('user_role') == "admin":
                 {'bugday_cinsi': 'TEST'}
             )
             st.write(f"Sonuç: {msg}")
+
 
 
 
