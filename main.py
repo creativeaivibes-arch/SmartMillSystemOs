@@ -151,7 +151,7 @@ with st.sidebar:
         menu_secenekleri = ["Dashboard", "Değirmen"]
     elif user_role == "management":
         # Üst Yönetim sadece Dashboard ve Finans & Strateji görür
-        menu_secenekleri = ["Dashboard", "Finans & Strateji"]
+        menu_secenekleri = ["Dashboard","Kalite Kontrol","Finans & Strateji"]
     else:
         menu_secenekleri = ["Dashboard"]
 
@@ -295,6 +295,7 @@ elif selected_page == "ADMIN" or selected_page == "PROFILE":
 # 🚪 PROFİL SAYFASI
 elif selected_page == "PROFILE":
     show_profile_settings()
+
 
 
 
