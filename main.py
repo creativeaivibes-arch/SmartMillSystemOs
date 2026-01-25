@@ -188,13 +188,8 @@ with st.sidebar:
         
     elif ana_menu == "Yönetim Paneli":
         selected_page = "ADMIN"
-        
+      
     
-Python (Streamlit) kodlarında girinti (indentation) hayati önem taşır. if/elif blokları ana uygulama akışında (genelde en solda) olmalıdır.
-
-Hata almaman için kodun en temiz ve doğru hizalanmış halini aşağıya ekliyorum. Lütfen bu bloğu # --- YÖNLENDIRME (ROUTING) --- satırından başlayarak dosyanın sonuna kadar yapıştır:
-Python
-
 # --- YÖNLENDIRME (ROUTING) ---
 
 if selected_page == "Dashboard":
@@ -292,6 +287,7 @@ elif selected_page == "ADMIN" or selected_page == "PROFILE":
 # 🚪 PROFİL SAYFASI
 elif selected_page == "PROFILE":
     show_profile_settings()
+
 
 
 
