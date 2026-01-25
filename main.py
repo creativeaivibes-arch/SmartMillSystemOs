@@ -244,6 +244,7 @@ elif selected_page == "KK_UN":
 
 # 🏭 DEĞİRMEN (PRODUCTION)
 elif selected_page == "PRODUCTION_MANAGER":
+    # mill.py içindeki sekmeli ana fonksiyonu çağırıyoruz
     production.show_production_yonetimi()
 
 # 💰 FİNANS & STRATEJİ
@@ -294,6 +295,7 @@ elif selected_page == "ADMIN" or selected_page == "PROFILE":
 # 🚪 PROFİL SAYFASI
 elif selected_page == "PROFILE":
     show_profile_settings()
+
 
 
 
