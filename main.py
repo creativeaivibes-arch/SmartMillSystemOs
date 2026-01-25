@@ -218,11 +218,11 @@ elif selected_page == "KK_BUGDAY":
     with tab6: wheat.show_stok_cikis()               
     with tab7: wheat.show_bugday_giris_arsivi()      
 
-# 🍞 KALİTE KONTROL: UN YÖNETİMİ
+# --- B) KALİTE KONTROL: UN YÖNETİMİ ---
 elif selected_page == "KK_UN":
     st.markdown("## 🍞 Un Kalite & Katkı Yönetimi")
     
-    # 4 Sekmeli Yapı
+    # Senin belirlediğin 4 Kritik Sekme
     tab1, tab2, tab3, tab4 = st.tabs([
         "🎯 Un Spekleri", 
         "📝 Un Analiz Gir", 
@@ -230,10 +230,16 @@ elif selected_page == "KK_UN":
         "🧬 Enzim Dozaj"
     ])
     
-    with tab1: flour.show_un_spekleri()
-    with tab2: flour.show_un_analiz_giris()
-    with tab3: flour.show_analiz_arsivi()
-    with tab4: flour.show_enzim_hesaplama()
+    # flour.py içindeki GERÇEK fonksiyon isimleri ile eşleştirme:
+    with tab1: flour.show_spec_yonetimi()          # show_un_spekleri -> show_spec_yonetimi
+    with tab2: flour.show_un_analiz_kaydi()       # show_un_analiz_giris -> show_un_analiz_kaydi
+    with tab3: flour.show_un_analiz_kayitlari()    # show_analiz_arsivi -> show_un_analiz_kayitlari
+    with tab4: 
+        try:
+            import app.modules.calculations as calc_module
+            calc_module.show_enzim_dozajlama()    # flour.show_enzim_hesaplama yerine doğrudan calculations modülünden çağırdık
+        except:
+            st.error("Enzim modülü bulunamadı.")
 
 # 🏭 DEĞİRMEN (PRODUCTION)
 elif selected_page == "PRODUCTION_MANAGER":
@@ -287,4 +293,5 @@ elif selected_page == "ADMIN" or selected_page == "PROFILE":
 # 🚪 PROFİL SAYFASI
 elif selected_page == "PROFILE":
     show_profile_settings()
+
 
