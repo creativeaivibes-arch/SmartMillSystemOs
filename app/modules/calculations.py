@@ -328,14 +328,25 @@ def show_enzim_dozajlama():
             st.info("Kayıt bulunamadı.")
 
 def show_fire_maliyet_hesaplama():
-    """Fire Maliyet Hesaplama Modülü - NET ZARAR GÖSTERGELİ"""
+    """Fire Maliyet Hesaplama Modülü - NET ZARAR GÖSTERGELİ & TR FORMATLI"""
     
+    # --- YARDIMCI: TÜRKÇE PARA FORMATI ---
+    def tr_fmt(deger):
+        """12345.67 -> 12.345,67 formatına çevirir"""
+        try:
+            # Önce standart format (12,345.67)
+            s = "{:,.2f}".format(float(deger))
+            # Sonra karakterleri değiştir (12.345,67)
+            return s.replace(",", "X").replace(".", ",").replace("X", ".")
+        except:
+            return "0,00"
+
     if 'fire_calc_state' not in st.session_state:
         st.session_state.fire_calc_state = {
             "bugday_tonaji": 27.0,
             "bugday_fiyati": 14500.0,
-            "fire_yuzdesi": 4,
-            "fire_satis_fiyati": 13000.0
+            "fire_yuzdesi": 5.00,
+            "fire_satis_fiyati": 13500.0
         }
     
     st.markdown("""
@@ -379,32 +390,45 @@ def show_fire_maliyet_hesaplama():
         birim_maliyet = net_cebimizden_cikan / net_bugday_miktari if net_bugday_miktari > 0 else 0
         fiyat_farki = birim_maliyet - bugday_fiyati
         
-        # 4. NET ZARAR HESABI (YENİ EKLENEN KISIM)
-        # Mantık: Fireye ödediğimiz para - Fireden geri aldığımız para
+        # 4. NET ZARAR HESABI (Buğday Fiyatına alıp Fire Fiyatına sattığımız aradaki fark)
         fireye_odenen_para = fire_miktari * bugday_fiyati
         net_zarar_tutari = fireye_odenen_para - fire_geliri
 
         st.divider()
         st.markdown("### 📊 Sonuçlar")
         
-        # İlk Satır: Miktar ve Birim Maliyet
+        # İlk Satır: Miktar ve Birim Maliyet (TÜRKÇE FORMATLI)
         c1, c2, c3 = st.columns(3)
         with c1:
-            st.metric("📦 Net Buğday", f"{net_bugday_miktari:,.2f} Ton", delta=f"-{fire_miktari:,.2f} Ton Fire", delta_color="inverse")
+            st.metric(
+                "📦 Net Buğday", 
+                f"{tr_fmt(net_bugday_miktari)} Ton", 
+                delta=f"-{tr_fmt(fire_miktari)} Ton Fire", 
+                delta_color="inverse"
+            )
         with c2:
-            st.metric("💰 Gerçek Ton Maliyeti", f"{birim_maliyet:,.2f} TL", delta=f"+{fiyat_farki:,.2f} TL Fark", delta_color="inverse")
+            st.metric(
+                "💰 Gerçek Ton Maliyeti", 
+                f"{tr_fmt(birim_maliyet)} TL", 
+                delta=f"+{tr_fmt(fiyat_farki)} TL Fark", 
+                delta_color="inverse"
+            )
         with c3:
-            st.metric("💵 Toplam Net Maliyet", f"{net_cebimizden_cikan:,.0f} TL")
+            st.metric(
+                "💵 Toplam Net Maliyet", 
+                f"{tr_fmt(net_cebimizden_cikan)} TL"
+            )
             
         st.divider()
         
-        # İkinci Satır: NET ZARAR VURGUSU (Kırmızı Alan)
+        # İkinci Satır: NET ZARAR VURGUSU (TÜRKÇE FORMATLI)
         st.markdown(f"""
         <div style='background-color: #fee2e2; padding: 20px; border-radius: 10px; border: 1px solid #ef4444; text-align: center;'>
             <h3 style='color: #991b1b; margin:0;'>🚨 TOPLAM FİRE ZARARI</h3>
-            <h1 style='color: #dc2626; margin: 10px 0;'>-{net_zarar_tutari:,.2f} TL</h1>
+            <h1 style='color: #dc2626; margin: 10px 0;'>-{tr_fmt(net_zarar_tutari)} TL</h1>
             <p style='color: #7f1d1d; margin:0;'>Bu fire olmasaydı (veya %0 olsaydı) cebinizde kalacak olan tutar.</p>
         </div>
         """, unsafe_allow_html=True)
+
 
 
