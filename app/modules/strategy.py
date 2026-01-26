@@ -137,9 +137,10 @@ def show_strategy_module():
             
             with col_g1:
                 st.markdown("##### 💰 Hedef Tanımlama")
+                last_net_profit = float(baseline.get('net_kar_toplam', 1000000.0))
                 target_profit_net = st.number_input(
-                    "🎯 Hedeflenen Aylık Net Kar (TL)", 
-                    value=2000000.0, step=100000.0, format="%.0f"
+                    "🎯 Hedeflenen Aylık Net Kar (TL)",
+                    value=last_net_profit * 1.10,
                 )
                 
                 with st.expander("🔧 Varsayımları Düzenle", expanded=False):
@@ -386,7 +387,7 @@ def show_strategy_module():
             st.info("💡 **Simülasyon:** Piyasa iyiye veya kötüye giderse ne olur?")
             
             # Ortak parametre (Sadece Tonajı soruyoruz, diğer giderler veritabanından otomatik geliyor)
-            sc_tonaj = st.number_input("Kırılan Tonaj (Ton)", value=3000.0, step=100.0, key="sc_tonaj")
+            sc_tonaj = st.number_input("Kırılan Tonaj (Ton)", value=float(baseline.get('aylik_kirilan_bugday', 3000.0)), step=100.0, key="sc_tonaj")
             
             st.divider()
             
@@ -434,6 +435,7 @@ def show_strategy_module():
             else:
                 st.warning("⚠️ **ORTA RİSK:** Piyasa kötüye giderse kar marjı düşüyor.")
                 
+
 
 
 
