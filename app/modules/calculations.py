@@ -328,19 +328,19 @@ def show_enzim_dozajlama():
             st.info("Kayıt bulunamadı.")
 
 def show_fire_maliyet_hesaplama():
-    """Fire Maliyet Hesaplama Modülü"""
+    """Fire Maliyet Hesaplama Modülü - NET ZARAR GÖSTERGELİ"""
     
     if 'fire_calc_state' not in st.session_state:
         st.session_state.fire_calc_state = {
-            "bugday_tonaji": 100.0,
-            "bugday_fiyati": 10000.0,
-            "fire_yuzdesi": 0.38,
-            "fire_satis_fiyati": 3000.0
+            "bugday_tonaji": 27.0,
+            "bugday_fiyati": 14500.0,
+            "fire_yuzdesi": 4,
+            "fire_satis_fiyati": 13000.0
         }
     
     st.markdown("""
     <div style="text-align: center; margin-bottom: 30px;">
-        <h1 style="color: #0B4F6C; margin-bottom: 10px;">🔥 Buğday Fire Maliyet Hesaplama</h1>
+        <h1 style="color: #0B4F6C; margin-bottom: 10px;">🔥 Buğday Fire ve Zarar Analizi</h1>
     </div>
     """, unsafe_allow_html=True)
     
@@ -349,16 +349,16 @@ def show_fire_maliyet_hesaplama():
     with col_input1:
         st.markdown("### 📉 Buğday Bilgileri")
         with st.container(border=True):
-            bugday_tonaji = st.number_input("Buğday Tonajı (Ton)", min_value=0.0, step=1.0, value=st.session_state.fire_calc_state["bugday_tonaji"])
-            bugday_fiyati = st.number_input("Buğday Alış Fiyatı (TL/Ton)", min_value=0.0, step=10.0, value=st.session_state.fire_calc_state["bugday_fiyati"])
+            bugday_tonaji = st.number_input("Buğday Tonajı (Ton)", min_value=0.0, step=1.0, value=float(st.session_state.fire_calc_state["bugday_tonaji"]))
+            bugday_fiyati = st.number_input("Buğday Alış Fiyatı (TL/Ton)", min_value=0.0, step=10.0, value=float(st.session_state.fire_calc_state["bugday_fiyati"]))
     
     with col_input2:
         st.markdown("### 🗑️ Fire Bilgileri")
         with st.container(border=True):
-            fire_yuzdesi = st.number_input("Fire Yüzdesi (%)", min_value=0.0, max_value=100.0, step=0.01, value=st.session_state.fire_calc_state["fire_yuzdesi"], format="%.2f")
-            fire_satis_fiyati = st.number_input("Fire Satış Fiyatı (TL/Ton)", min_value=0.0, step=10.0, value=st.session_state.fire_calc_state["fire_satis_fiyati"])
+            fire_yuzdesi = st.number_input("Fire Yüzdesi (%)", min_value=0.0, max_value=100.0, step=0.01, value=float(st.session_state.fire_calc_state["fire_yuzdesi"]), format="%.2f")
+            fire_satis_fiyati = st.number_input("Fire/Kepek Satış Fiyatı (TL/Ton)", min_value=0.0, step=10.0, value=float(st.session_state.fire_calc_state["fire_satis_fiyati"]), help="Bu fireyi kaça satıyorsunuz?")
 
-    if st.button("🧮 MALİYETİ HESAPLA", type="primary", use_container_width=True):
+    if st.button("🧮 ZARAR ANALİZİNİ HESAPLA", type="primary", use_container_width=True):
         st.session_state.fire_calc_state = {
             "bugday_tonaji": bugday_tonaji,
             "bugday_fiyati": bugday_fiyati,
@@ -366,20 +366,45 @@ def show_fire_maliyet_hesaplama():
             "fire_satis_fiyati": fire_satis_fiyati
         }
 
-        toplam_bugday_maliyeti = bugday_tonaji * bugday_fiyati
+        # 1. Temel Hesaplamalar
+        toplam_odememiz_gereken = bugday_tonaji * bugday_fiyati
         fire_miktari = bugday_tonaji * (fire_yuzdesi / 100)
         net_bugday_miktari = bugday_tonaji - fire_miktari
+        
+        # 2. Fire Geliri ve Net Maliyet
         fire_geliri = fire_miktari * fire_satis_fiyati
-        net_maliyet = toplam_bugday_maliyeti - fire_geliri
-        birim_maliyet = net_maliyet / net_bugday_miktari if net_bugday_miktari > 0 else 0
+        net_cebimizden_cikan = toplam_odememiz_gereken - fire_geliri
+        
+        # 3. Birim Maliyet (Gerçekleşen)
+        birim_maliyet = net_cebimizden_cikan / net_bugday_miktari if net_bugday_miktari > 0 else 0
         fiyat_farki = birim_maliyet - bugday_fiyati
+        
+        # 4. NET ZARAR HESABI (YENİ EKLENEN KISIM)
+        # Mantık: Fireye ödediğimiz para - Fireden geri aldığımız para
+        fireye_odenen_para = fire_miktari * bugday_fiyati
+        net_zarar_tutari = fireye_odenen_para - fire_geliri
 
         st.divider()
-        col_res1, col_res2, col_res3 = st.columns(3)
-        with col_res1:
-            st.metric("📦 Net Buğday Miktarı", f"{net_bugday_miktari:,.2f} Ton", delta=f"-{fire_miktari:,.2f} Ton Fire")
-        with col_res2:
-            st.metric("💰 Gerçek Maliyet (Ton)", f"{birim_maliyet:,.2f} TL", delta=f"+{fiyat_farki:,.2f} TL Fark", delta_color="inverse")
-        with col_res3:
-            st.metric("💵 Toplam Net Maliyet", f"{net_maliyet:,.2f} TL")
+        st.markdown("### 📊 Sonuçlar")
+        
+        # İlk Satır: Miktar ve Birim Maliyet
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.metric("📦 Net Buğday", f"{net_bugday_miktari:,.2f} Ton", delta=f"-{fire_miktari:,.2f} Ton Fire", delta_color="inverse")
+        with c2:
+            st.metric("💰 Gerçek Ton Maliyeti", f"{birim_maliyet:,.2f} TL", delta=f"+{fiyat_farki:,.2f} TL Fark", delta_color="inverse")
+        with c3:
+            st.metric("💵 Toplam Net Maliyet", f"{net_cebimizden_cikan:,.0f} TL")
+            
+        st.divider()
+        
+        # İkinci Satır: NET ZARAR VURGUSU (Kırmızı Alan)
+        st.markdown(f"""
+        <div style='background-color: #fee2e2; padding: 20px; border-radius: 10px; border: 1px solid #ef4444; text-align: center;'>
+            <h3 style='color: #991b1b; margin:0;'>🚨 TOPLAM FİRE ZARARI</h3>
+            <h1 style='color: #dc2626; margin: 10px 0;'>-{net_zarar_tutari:,.2f} TL</h1>
+            <p style='color: #7f1d1d; margin:0;'>Bu fire olmasaydı (veya %0 olsaydı) cebinizde kalacak olan tutar.</p>
+        </div>
+        """, unsafe_allow_html=True)
+
 
