@@ -669,15 +669,17 @@ def show_mal_kabul():
             st.error("Stok kaydında hata oluştu.")
 
 def show_stok_cikis():
-    """Stok Çıkışı Ekranı"""
+    """Stok Çıkışı Ekranı - AKILLI TRANSFER VE KALİTE TAŞIMA ÖZELLİKLİ"""
     st.header("📉 Stok Çıkışı (Üretim/Transfer)")
+    
+    # Verileri Çek
     df = get_silo_data()
     if df.empty: 
         st.warning("Silo bulunamadı.")
         return
     
-    c1, c2 = st.columns(2)
-    with c1:
+    col1, col2 = st.columns(2)
+    with col1:
         silo = st.selectbox("Kaynak Silo", df['isim'].tolist())
         row = df[df['isim'] == silo].iloc[0]
         mevcut = float(row['mevcut_miktar'])
@@ -690,8 +692,8 @@ def show_stok_cikis():
         if neden == "Silo Transferi":
             hedef = st.selectbox("Hedef Silo", [s for s in df['isim'].tolist() if s != silo])
             
-    with c2:
-        # Önizleme
+    with col2:
+        # Görsel Önizleme
         yeni = max(0, mevcut - miktar)
         doluluk = yeni / float(row['kapasite']) if float(row['kapasite']) > 0 else 0
         st.markdown(draw_silo(doluluk, f"Kalan: {yeni:.1f}"), unsafe_allow_html=True)
@@ -699,60 +701,102 @@ def show_stok_cikis():
     st.divider()
     
     if st.button("📤 Çıkışı Onayla", type="primary", use_container_width=True):
-        # ===== VALİDASYON SİSTEMİ =====
-        from app.core.config import validate_stock_withdrawal
+        # ===== 1. VALİDASYONLAR =====
+        from app.core.config import validate_stock_withdrawal, validate_capacity
         
         validasyon_hatalari = []
         
-        # 1. Stok çıkış kontrolü
+        # Stok Yeterlilik Kontrolü
         valid, msg = validate_stock_withdrawal(mevcut, miktar)
-        if not valid:
-            validasyon_hatalari.append(msg)
+        if not valid: validasyon_hatalari.append(msg)
         
-        # 2. Transfer kontrolü (hedef silo seçilmiş mi?)
-        if neden == "Silo Transferi" and not hedef:
-            validasyon_hatalari.append("❌ Transfer için hedef silo seçmelisiniz!")
+        # Transfer Hedef Kontrolü
+        if neden == "Silo Transferi":
+            if not hedef:
+                validasyon_hatalari.append("❌ Hedef silo seçmelisiniz!")
+            else:
+                hedef_row = df[df['isim'] == hedef].iloc[0]
+                hedef_mevcut = float(hedef_row['mevcut_miktar'])
+                hedef_kapasite = float(hedef_row['kapasite'])
+                valid_cap, msg_cap, _ = validate_capacity(hedef_mevcut, hedef_kapasite, miktar)
+                if not valid_cap: validasyon_hatalari.append(f"Hedef Silo: {msg_cap}")
         
-        # 3. Transfer hedef kapasite kontrolü
-        if neden == "Silo Transferi" and hedef:
-            from app.core.config import validate_capacity
-            
-            hedef_row = df[df['isim'] == hedef].iloc[0]
-            hedef_mevcut = float(hedef_row['mevcut_miktar'])
-            hedef_kapasite = float(hedef_row['kapasite'])
-            
-            valid, msg, _ = validate_capacity(hedef_mevcut, hedef_kapasite, miktar)
-            if not valid:
-                validasyon_hatalari.append(f"Hedef Silo: {msg}")
-        
-        # ===== HATA VARSA GÖSTER VE DUR =====
         if validasyon_hatalari:
-            st.error("🚫 Lütfen aşağıdaki hataları düzeltin:")
-            for hata in validasyon_hatalari:
-                st.write(f"- {hata}")
+            st.error("🚫 Hata:")
+            for hata in validasyon_hatalari: st.write(f"- {hata}")
             return
         
-        # ===== VALİDASYON BAŞARILI - ÇIKIŞ İŞLEMİ =====
+        # ===== 2. İŞLEM BAŞLIYOR =====
+        
+        # A) Kaynak Silodan Çıkış (Standart İşlem - Google Sheets 'hareketler' tablosuna yazar)
         if log_stok_hareketi(silo, "Çıkış", miktar, notlar=neden):
             update_tavli_bugday_stok(silo, miktar, "cikar")
             
-            # Transfer ise hedefe giriş yap
+            # B) TRANSFER İSE: AKILLI KALİTE KOPYALAMA
             if neden == "Silo Transferi" and hedef:
-                log_stok_hareketi(hedef, "Giriş", miktar, 
-                                 protein=float(row['protein']), 
-                                 maliyet=float(row['maliyet']), 
-                                 notlar=f"Transfer: {silo}")
-                update_tavli_bugday_stok(hedef, miktar, "ekle")
+                try:
+                    # 1. Kaynak Silonun Kalite DNA'sını Çıkar (Mixing Modülünden)
+                    # Bu fonksiyon Google Sheets'teki 'tavli_analiz' tablosunu okuyup ağırlıklı ortalamayı hesaplar.
+                    from app.modules.mixing import get_tavli_analiz_agirlikli_ortalama
+                    
+                    kaynak_analiz = get_tavli_analiz_agirlikli_ortalama(silo)
+                    
+                    if not kaynak_analiz:
+                        # Eğer detaylı analiz yoksa, en azından temel bilgileri silolar tablosundan al
+                        kaynak_analiz = {
+                            'protein': float(row.get('protein', 0)),
+                            'gluten': float(row.get('gluten', 0)),
+                            'rutubet': float(row.get('rutubet', 0)),
+                            'hektolitre': float(row.get('hektolitre', 0)),
+                            'sedim': float(row.get('sedim', 0)),
+                            'maliyet': float(row.get('maliyet', 0))
+                        }
+                    
+                    # Gereksiz sistem alanlarını temizle
+                    if 'toplam_tonaj' in kaynak_analiz: del kaynak_analiz['toplam_tonaj']
+                    if 'analiz_sayisi' in kaynak_analiz: del kaynak_analiz['analiz_sayisi']
+                    
+                    # 2. Hedef Siloya "Giriş" Hareketi Yaz (Google Sheets 'hareketler' tablosu)
+                    log_stok_hareketi(
+                        hedef, 
+                        "Giriş", 
+                        miktar, 
+                        # Hesaplanan ortalamaları buraya aktarıyoruz
+                        protein=kaynak_analiz.get('protein', 0),
+                        gluten=kaynak_analiz.get('gluten', 0),
+                        rutubet=kaynak_analiz.get('rutubet', 0),
+                        hektolitre=kaynak_analiz.get('hektolitre', 0),
+                        sedim=kaynak_analiz.get('sedim', 0),
+                        maliyet=kaynak_analiz.get('maliyet', 0),
+                        notlar=f"Transfer: {silo} -> {hedef}"
+                    )
+                    
+                    # 3. Hedef Siloya "Tavlı Analiz" Kaydı Yaz (Google Sheets 'tavli_analiz' tablosu)
+                    # Burası Farino/Extenso gibi detaylı verilerin taşındığı kritik nokta!
+                    save_tavli_analiz(
+                        hedef, 
+                        miktar, # Transfer edilen tonaj kadar ağırlığı olur
+                        **kaynak_analiz, # Tüm analiz parametrelerini açıp kaydediyoruz
+                        notlar=f"Transfer Kaynak: {silo}"
+                    )
+                    
+                    # 4. Hedef Silonun Tavlı Stoğunu Artır (Google Sheets 'silolar' tablosu)
+                    update_tavli_bugday_stok(hedef, miktar, "ekle")
+                    
+                    st.success(f"✅ {silo} silosundaki kalite değerleri {hedef} silosuna {miktar} ton ağırlıkla işlendi.")
+                    
+                except Exception as e:
+                    st.error(f"Transfer analiz taşıma hatası: {e}")
             
-            # Silo stoklarını yeniden hesapla
+            # C) Tüm Siloları Yeniden Hesapla (Google Sheets Senkronizasyonu)
+            # Bu fonksiyon 'hareketler' tablosunu okuyup 'silolar' tablosundaki güncel stok ve ortalamaları düzeltir.
             recalculate_silos_from_logs()
             
-            st.success("✅ İşlem Başarılı!")
+            st.success("✅ Stok ve Analiz Transferi Tamamlandı!")
             time.sleep(1)
             st.rerun()
         else:
             st.error("❌ Çıkış kaydı oluşturulamadı!")
-
 def show_tavli_analiz():
     """Tavlı Buğday Analizi - TAM VE EKSİKSİZ Parametreler"""
     st.header("🧪 Tavlı Buğday Analiz Kaydı")
@@ -1456,6 +1500,7 @@ def show_wheat_yonetimi():
         with tab_db2:
             with st.container(border=True):
                 show_stok_hareketleri()
+
 
 
 
