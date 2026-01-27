@@ -199,7 +199,7 @@ if selected_page == "Dashboard":
 elif selected_page == "KK_BUGDAY":
     st.markdown("## 🌾 Giriş & Buğday Kalite Yönetimi")
     
-    # 7 Sekmeli Yapı
+    # 7 Sekmeli Yapı (Sekme isimleri aynı kalıyor)
     tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
         "📏 Kalite Standartları",
         "🚛 Hammadde Giriş",
@@ -210,14 +210,24 @@ elif selected_page == "KK_BUGDAY":
         "📂 İzlenebilirlik"
     ])
     
-    # Doğru Fonksiyon Eşleştirmeleri:
+    # Fonksiyon Eşleştirmeleri:
     with tab1: wheat.show_bugday_spec_yonetimi()
     with tab2: wheat.show_mal_kabul()
     with tab3: wheat.show_tavli_analiz()
-    with tab4: mixing.show_pacal_hesaplayici() # Fonksiyon adı 'show_pacal_hesaplayici'
-    with tab5: mixing.show_pacal_gecmisi()    # 'show_recete_gecmisi' yerine 'show_pacal_gecmisi'
+    with tab4: mixing.show_pacal_hesaplayici()
+    with tab5: mixing.show_pacal_gecmisi()
     with tab6: wheat.show_stok_cikis()
-    with tab7: wheat.show_bugday_giris_arsivi()      
+    
+    # 🔥🔥🔥 DEĞİŞEN KISIM BURASI (TAB 7) 🔥🔥🔥
+    with tab7:
+        # İzlenebilirlik sekmesinin içine İKİ TANE ALT SEKME (Sub-Tab) açıyoruz
+        sub_tab1, sub_tab2 = st.tabs(["🗄️ Buğday Giriş Arşivi", "📉 Stok Hareketleri (Dijital Defter)"])
+        
+        with sub_tab1:
+            wheat.show_bugday_giris_arsivi()  # Eski detaylı arşiv
+            
+        with sub_tab2:
+            wheat.show_stok_hareketleri()     # Yeni renkli giriş/çıkış listesi      
 
 # --- B) KALİTE KONTROL: UN YÖNETİMİ ---
 elif selected_page == "KK_UN":
@@ -295,6 +305,7 @@ elif selected_page == "ADMIN" or selected_page == "PROFILE":
 # 🚪 PROFİL SAYFASI
 elif selected_page == "PROFILE":
     show_profile_settings()
+
 
 
 
