@@ -5,7 +5,7 @@ from datetime import datetime
 import numpy as np
 
 # --- DATABASE VE CORE IMPORTLARI ---
-from app.core.database import fetch_data, add_data, get_conn
+from app.core.database import fetch_data, add_data, get_conn, update_data
 from app.core.config import INPUT_LIMITS, TERMS, get_limit
 from app.core.error_handling import error_handler, log_info, log_warning, ERROR_HANDLING_AVAILABLE
 from app.core.components import render_help_button
@@ -19,6 +19,87 @@ except ImportError:
 # --------------------------------------------------------------------------
 # YARDIMCI FONKSİYONLAR (Dashboard Bağımlılığını Kaldırmak İçin Buraya Eklendi)
 # --------------------------------------------------------------------------
+
+def delete_intake_record(lot_no):
+    """
+    Bir mal kabul kaydını SİLER.
+    Profesyonel Yaklaşım: Hem arşivden siler, hem stok hareketini siler, hem de siloyu günceller.
+    """
+    try:
+        conn = get_conn()
+        
+        # 1. Arşivden Sil
+        df_arsiv = fetch_data("bugday_giris_arsivi")
+        if not df_arsiv.empty and 'lot_no' in df_arsiv.columns:
+            df_arsiv = df_arsiv[df_arsiv['lot_no'] != lot_no]
+            update_data("bugday_giris_arsivi", df_arsiv) # update_data yoksa conn.update kullan
+        
+        # 2. Hareketlerden Sil (Stok Düşmesi İçin)
+        df_hareket = fetch_data("hareketler")
+        if not df_hareket.empty and 'lot_no' in df_hareket.columns:
+            df_hareket = df_hareket[df_hareket['lot_no'] != lot_no]
+            update_data("hareketler", df_hareket)
+            
+        # 3. Siloları Yeniden Hesapla (En Kritik Adım)
+        recalculate_silos_from_logs()
+        
+        return True, "Kayıt ve ilgili stok hareketleri başarıyla silindi."
+    except Exception as e:
+        return False, f"Silme hatası: {str(e)}"
+
+def update_intake_record(old_lot_no, new_data):
+    """
+    Bir mal kabul kaydını GÜNCELLER.
+    Eğer tonaj veya analiz değişirse, stok hareketlerini de günceller.
+    """
+    try:
+        conn = get_conn()
+        
+        # 1. Arşivi Güncelle
+        df_arsiv = fetch_data("bugday_giris_arsivi")
+        if not df_arsiv.empty and 'lot_no' in df_arsiv.columns:
+            # İlgili satırın indeksini bul
+            idx_list = df_arsiv.index[df_arsiv['lot_no'] == old_lot_no].tolist()
+            if idx_list:
+                idx = idx_list[0]
+                # Yeni verileri işle
+                for key, val in new_data.items():
+                    df_arsiv.at[idx, key] = val
+                
+                update_data("bugday_giris_arsivi", df_arsiv)
+        
+        # 2. Hareket Tablosunu Güncelle (Senkronizasyon)
+        # Sadece kritik veriler (Tonaj, Fiyat, Analizler) harekete yansır
+        df_hareket = fetch_data("hareketler")
+        if not df_hareket.empty and 'lot_no' in df_hareket.columns:
+            idx_list_h = df_hareket.index[df_hareket['lot_no'] == old_lot_no].tolist()
+            if idx_list_h:
+                idx_h = idx_list_h[0]
+                
+                # Kritik alanları güncelle
+                mapping = {
+                    'tonaj': 'miktar',
+                    'fiyat': 'maliyet',
+                    'protein': 'protein',
+                    'gluten': 'gluten',
+                    'rutubet': 'rutubet',
+                    'hektolitre': 'hektolitre',
+                    'sedim': 'sedim',
+                    'tedarikci': 'tedarikci'
+                }
+                
+                for key_arsiv, key_hareket in mapping.items():
+                    if key_arsiv in new_data:
+                         df_hareket.at[idx_h, key_hareket] = new_data[key_arsiv]
+                
+                update_data("hareketler", df_hareket)
+
+        # 3. Siloları Yeniden Hesapla
+        recalculate_silos_from_logs()
+        
+        return True, "Kayıt başarıyla güncellendi ve stoklar eşitlendi."
+    except Exception as e:
+        return False, f"Güncelleme hatası: {str(e)}"
 
 def draw_silo(fill_ratio, name):
     """Silo görseli çiz"""
@@ -1026,12 +1107,13 @@ def show_stok_hareketleri():
 
 def show_bugday_giris_arsivi():
     """
-    Buğday Giriş Arşivi - PROFESYONEL VERSİYON
-    - Sayfalandırma (10 kayıt/sayfa)
-    - Çoklu filtre sistemi
-    - Profesyonel Excel export
+    Buğday Giriş Arşivi - PROFESYONEL YÖNETİM VERSİYONU
+    - Arama, Filtreleme
+    - Kayıt Düzenleme (Update)
+    - Kayıt Silme (Delete)
+    - Stok Senkronizasyonu
     """
-    st.header("🗄️ Buğday Giriş Arşivi")
+    st.header("🗄️ Buğday Giriş Arşivi & Yönetimi")
     
     df = get_bugday_arsiv()
     
@@ -1039,174 +1121,119 @@ def show_bugday_giris_arsivi():
         st.info("📭 Henüz arşiv kaydı bulunmuyor.")
         return
     
-    # ===== FİLTRE SİSTEMİ =====
-    with st.expander("🔍 Gelişmiş Filtreleme Sistemi", expanded=True):
-        col_f1, col_f2, col_f3 = st.columns(3)
-        
+    # --- FİLTRELEME ALANI ---
+    with st.expander("🔍 Kayıt Arama ve Filtreleme", expanded=False):
+        col_f1, col_f2 = st.columns(2)
         with col_f1:
-            # Tarih Aralığı Filtresi
-            st.markdown("**📅 Tarih Aralığı**")
-            if 'tarih' in df.columns:
-                df['tarih'] = pd.to_datetime(df['tarih'], errors='coerce')
-                min_tarih = df['tarih'].min().date() if not df['tarih'].isna().all() else datetime.now().date()
-                max_tarih = df['tarih'].max().date() if not df['tarih'].isna().all() else datetime.now().date()
-                
-                baslangic = st.date_input("Başlangıç", min_tarih, key="arsiv_baslangic")
-                bitis = st.date_input("Bitiş", max_tarih, key="arsiv_bitis")
-            else:
-                baslangic = bitis = datetime.now().date()
-        
+            arama = st.text_input("Lot No, Plaka veya Tedarikçi Ara", placeholder="Örn: BUGDAY-24...")
         with col_f2:
-            # Tedarikçi Filtresi
-            st.markdown("**🏢 Tedarikçi**")
-            tedarikci_list = ["Tümü"] + sorted(df['tedarikci'].dropna().unique().tolist()) if 'tedarikci' in df.columns else ["Tümü"]
-            secili_tedarikci = st.selectbox("Seçiniz", tedarikci_list, key="arsiv_tedarikci")
-            
-            # Buğday Cinsi Filtresi
-            st.markdown("**🌾 Buğday Cinsi**")
-            cins_list = ["Tümü"] + sorted(df['bugday_cinsi'].dropna().unique().tolist()) if 'bugday_cinsi' in df.columns else ["Tümü"]
-            secili_cins = st.selectbox("Seçiniz", cins_list, key="arsiv_cins")
-        
-        with col_f3:
-            # Yöre Filtresi
-            st.markdown("**🗺️ Yöre/Bölge**")
-            yore_list = ["Tümü"] + sorted(df['yore'].dropna().unique().tolist()) if 'yore' in df.columns else ["Tümü"]
-            secili_yore = st.selectbox("Seçiniz", yore_list, key="arsiv_yore")
-            
-            # Arama Kutusu (Lot No / Plaka)
-            st.markdown("**🔎 Hızlı Arama**")
-            arama = st.text_input("Lot No / Plaka", placeholder="BUGDAY-241225...", key="arsiv_arama")
-    
-    # ===== FİLTRE UYGULAMA =====
+            silo_filter = st.selectbox("Silo Filtresi", ["Tümü"] + list(df['silo_isim'].unique()) if 'silo_isim' in df.columns else ["Tümü"])
+
+    # Filtre Uygula
     df_filtered = df.copy()
-    
-    # Tarih Filtresi
-    if 'tarih' in df_filtered.columns:
-        df_filtered = df_filtered[
-            (df_filtered['tarih'].dt.date >= baslangic) & 
-            (df_filtered['tarih'].dt.date <= bitis)
-        ]
-    
-    # Tedarikçi Filtresi
-    if secili_tedarikci != "Tümü" and 'tedarikci' in df_filtered.columns:
-        df_filtered = df_filtered[df_filtered['tedarikci'] == secili_tedarikci]
-    
-    # Buğday Cinsi Filtresi
-    if secili_cins != "Tümü" and 'bugday_cinsi' in df_filtered.columns:
-        df_filtered = df_filtered[df_filtered['bugday_cinsi'] == secili_cins]
-    
-    # Yöre Filtresi
-    if secili_yore != "Tümü" and 'yore' in df_filtered.columns:
-        df_filtered = df_filtered[df_filtered['yore'] == secili_yore]
-    
-    # Arama Filtresi
     if arama:
-        arama_mask = pd.Series([False] * len(df_filtered), index=df_filtered.index)
-        if 'lot_no' in df_filtered.columns:
-            arama_mask |= df_filtered['lot_no'].str.contains(arama, case=False, na=False)
-        if 'plaka' in df_filtered.columns:
-            arama_mask |= df_filtered['plaka'].str.contains(arama, case=False, na=False)
-        df_filtered = df_filtered[arama_mask]
-    
-    # ===== İSTATİSTİK ÖZETİ =====
-    if not df_filtered.empty:
-        col_s1, col_s2, col_s3, col_s4 = st.columns(4)
-        col_s1.metric("📊 Toplam Kayıt", len(df_filtered))
-        col_s2.metric("🚛 Toplam Tonaj", f"{df_filtered['tonaj'].sum():.1f} Ton" if 'tonaj' in df_filtered.columns else "N/A")
-        col_s3.metric("🏢 Tedarikçi Sayısı", df_filtered['tedarikci'].nunique() if 'tedarikci' in df_filtered.columns else 0)
-        col_s4.metric("🌾 Buğday Çeşidi", df_filtered['bugday_cinsi'].nunique() if 'bugday_cinsi' in df_filtered.columns else 0)
-    
-    st.divider()
-    
-    # ===== TABLO HAZIRLAMA =====
-    if df_filtered.empty:
-        st.warning("⚠️ Filtre kriterlerine uygun kayıt bulunamadı.")
-        return
-    
-    # Sütun Sıralaması ve Türkçe Başlıklar
-    kolon_map = {
-        'tarih': 'Tarih',
-        'lot_no': 'Lot No',
-        'bugday_cinsi': 'Buğday Cinsi',
-        'tedarikci': 'Tedarikçi / Firma',
-        'yore': 'Yöre / Bölge',
-        'plaka': 'Plaka',
-        'hektolitre': 'Hektolitre',
-        'protein': 'Protein (%)',
-        'gluten': 'Gluten (%)',
-        'gluten_index': 'Gluten Index',
-        'sedim': 'Sedim (ml)',
-        'gecikmeli_sedim': 'G. Sedim (ml)',
-        'sune': 'Süne (%)',
-        'kirik_ciliz': 'Kırık & Cılız (%)',
-        'yabanci_tane': 'Yabancı Tane (%)',
-        'tonaj': 'Tonaj',
-        'fiyat': 'Fiyat (TL)'
-    }
-    
-    # Sadece var olan sütunları seç
-    mevcut_kolonlar = [k for k in kolon_map.keys() if k in df_filtered.columns]
-    df_display = df_filtered[mevcut_kolonlar].copy()
-    
-    # Tarih formatı düzelt (sadece gün-ay-yıl)
-    if 'tarih' in df_display.columns:
-        df_display['tarih'] = df_display['tarih'].dt.strftime('%d.%m.%Y')
-    
-    # Haşere bilgisi (notlardan çıkar - opsiyonel)
-    if 'notlar' in df_filtered.columns:
-        df_display['Haşere'] = df_filtered['notlar'].apply(
-            lambda x: 'Var' if isinstance(x, str) and 'HAŞ' in x.upper() else 'Yok'
-        )
-    
-    # Türkçe başlıkları uygula
-    df_display = df_display.rename(columns=kolon_map)
-    
-    # ID sütunu ekle (1, 2, 3...)
-    df_display.insert(0, 'ID', range(1, len(df_display) + 1))
-    
-    # ===== SAYFALANDIRMA =====
-    sayfa_basi = 10
-    toplam_sayfa = (len(df_display) - 1) // sayfa_basi + 1
-    
-    col_page1, col_page2, col_page3 = st.columns([2, 1, 2])
-    with col_page2:
-        sayfa = st.number_input(
-            f"Sayfa (1-{toplam_sayfa})", 
-            min_value=1, 
-            max_value=toplam_sayfa, 
-            value=1, 
-            key="arsiv_sayfa"
-        )
-    
-    # İlgili sayfayı göster
-    baslangic_idx = (sayfa - 1) * sayfa_basi
-    bitis_idx = min(sayfa * sayfa_basi, len(df_display))
-    df_sayfa = df_display.iloc[baslangic_idx:bitis_idx]
-    
-    # ===== TABLO GÖRÜNÜMÜ =====
+        df_filtered = df_filtered[
+            df_filtered.astype(str).apply(lambda x: x.str.contains(arama, case=False)).any(axis=1)
+        ]
+    if silo_filter != "Tümü":
+        df_filtered = df_filtered[df_filtered['silo_isim'] == silo_filter]
+
+    # --- TABLO GÖSTERİMİ ---
     st.dataframe(
-        df_sayfa,
+        df_filtered,
         use_container_width=True,
         hide_index=True,
         column_config={
-            "ID": st.column_config.NumberColumn("ID", width="small"),
-            "Tarih": st.column_config.TextColumn("Tarih", width="medium"),
-            "Lot No": st.column_config.TextColumn("Lot No", width="medium"),
-            "Protein (%)": st.column_config.NumberColumn("Protein (%)", format="%.2f"),
-            "Gluten (%)": st.column_config.NumberColumn("Gluten (%)", format="%.2f"),
-            "Hektolitre": st.column_config.NumberColumn("Hektolitre", format="%.1f"),
-            "Tonaj": st.column_config.NumberColumn("Tonaj", format="%.1f"),
-            "Fiyat (TL)": st.column_config.NumberColumn("Fiyat", format="%.2f ₺")
+            "tarih": st.column_config.DateColumn("Tarih", format="DD.MM.YYYY"),
+            "tonaj": st.column_config.NumberColumn("Tonaj", format="%.1f Ton"),
+            "fiyat": st.column_config.NumberColumn("Fiyat", format="%.2f ₺"),
+            "protein": st.column_config.NumberColumn("Protein", format="%.1f"),
+            "gluten": st.column_config.NumberColumn("Gluten", format="%.1f"),
         }
     )
     
-    st.caption(f"Gösterilen: {baslangic_idx + 1}-{bitis_idx} / Toplam: {len(df_filtered)} kayıt")
-    
-    # ===== EXCEL EXPORT (PROFESYONEL) =====
-    st.divider()
-    
+    # Excel Export Butonu (Mevcut fonksiyonu çağırır)
     if st.button("📥 Excel İndir (Tüm Filtreli Veriler)", type="primary", use_container_width=True):
-        export_profesyonel_excel(df_display, "Bugday_Giris_Arsivi")
+        export_profesyonel_excel(df_filtered, "Bugday_Giris_Arsivi")
+    
+    st.divider()
+
+    # --- DÜZENLEME VE SİLME PANELİ ---
+    st.subheader("🛠️ Kayıt İşlemleri")
+    
+    # 1. Kayıt Seçimi
+    lot_list = df_filtered['lot_no'].tolist() if 'lot_no' in df_filtered.columns else []
+    
+    if not lot_list:
+        st.warning("İşlem yapılacak kayıt bulunamadı.")
+        return
+
+    selected_lot = st.selectbox("İşlem Yapmak İstediğiniz Kaydı Seçiniz (Lot No):", lot_list, key="selected_lot_manage")
+    
+    # Seçilen kaydın verilerini al
+    record = df[df['lot_no'] == selected_lot].iloc[0]
+    
+    # İşlem Butonları
+    # A) GÜNCELLEME MODU
+    with st.container(border=True):
+        st.markdown(f"**📝 Kayıt Düzenle:** `{selected_lot}`")
+        
+        with st.form(key="update_form"):
+            c1, c2, c3 = st.columns(3)
+            # Mevcut değerleri varsayılan olarak getir
+            new_tedarikci = c1.text_input("Tedarikçi", value=str(record.get('tedarikci', '')))
+            new_plaka = c2.text_input("Plaka", value=str(record.get('plaka', '')))
+            new_tonaj = c3.number_input("Tonaj (DİKKAT!)", value=float(record.get('tonaj', 0)), step=0.1, help="Tonaj değişirse stoklar yeniden hesaplanır.")
+            
+            c4, c5, c6 = st.columns(3)
+            new_protein = c4.number_input("Protein", value=float(record.get('protein', 0)), step=0.1)
+            new_gluten = c5.number_input("Gluten", value=float(record.get('gluten', 0)), step=0.1)
+            new_fiyat = c6.number_input("Fiyat", value=float(record.get('fiyat', 0)), step=0.1)
+            
+            new_notlar = st.text_area("Notlar", value=str(record.get('notlar', '')))
+            
+            if st.form_submit_button("✅ Güncellemeyi Kaydet"):
+                # Yeni veri paketi
+                update_payload = {
+                    'tedarikci': new_tedarikci,
+                    'plaka': new_plaka,
+                    'tonaj': new_tonaj,
+                    'protein': new_protein,
+                    'gluten': new_gluten,
+                    'fiyat': new_fiyat,
+                    'notlar': new_notlar
+                }
+                
+                success, msg = update_intake_record(selected_lot, update_payload)
+                if success:
+                    st.success(msg)
+                    time.sleep(1.5)
+                    st.rerun()
+                else:
+                    st.error(msg)
+
+    # B) SİLME MODU
+    with st.expander("🗑️ Kaydı Sil (Tehlikeli Bölge)", expanded=False):
+        st.warning(f"⚠️ DİKKAT: `{selected_lot}` numaralı kaydı silmek üzeresiniz!")
+        st.markdown("""
+        Bu işlem şunları yapacaktır:
+        1. Arşivden kaydı siler.
+        2. **Silo stoğundan bu malı düşer.**
+        3. Paçal hesaplarını etkiler.
+        """)
+        
+        # Güvenlik Kilidi
+        risk_onayi = st.checkbox("Riskleri anladım, silmek istiyorum.", key="risk_onayi_box")
+        
+        if risk_onayi:
+            if st.button("🔥 KAYDI KALICI OLARAK SİL", type="primary"):
+                success, msg = delete_intake_record(selected_lot)
+                if success:
+                    st.success(msg)
+                    time.sleep(1.5)
+                    st.rerun()
+                else:
+                    st.error(msg)
 
 def export_profesyonel_excel(df, dosya_adi="Arsiv"):
     """
@@ -1500,6 +1527,7 @@ def show_wheat_yonetimi():
         with tab_db2:
             with st.container(border=True):
                 show_stok_hareketleri()
+
 
 
 
