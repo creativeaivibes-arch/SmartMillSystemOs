@@ -45,6 +45,8 @@ def show_katki_maliyeti_modulu():
     df_enzimler = fetch_data("katki_enzimler")
     df_urunler = fetch_data("katki_urunler")
     df_recete = fetch_data("katki_recete")
+    if df_recete.empty or 'urun_id' not in df_recete.columns:
+        df_recete = pd.DataFrame(columns=['urun_id', 'enzim_id', 'gramaj'])
     
     new_usd = 43.28
     new_eur = 50.08
@@ -429,6 +431,7 @@ def show_fire_maliyet_hesaplama():
             <p style='color: #7f1d1d; margin:0;'>Bu fire olmasaydı (veya %0 olsaydı) cebinizde kalacak olan tutar.</p>
         </div>
         """, unsafe_allow_html=True)
+
 
 
 
