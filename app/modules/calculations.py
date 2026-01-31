@@ -308,18 +308,19 @@ def show_katki_maliyeti_modulu():
         
         df_arsiv_guncel = fetch_data("katki_maliyet_arsivi")
         
-        # --- KRİTİK DÜZELTME: BOZUK VERİ TEMİZLİĞİ ---
-        # Tarih sütununu zorla çevir, hatalıları (NaT) sil
+        # Veri ve Sütun Kontrolü
         if not df_arsiv_guncel.empty and 'tarih' in df_arsiv_guncel.columns:
+            # 1. Tarihleri çevir (Hatalılar NaT olur)
             df_arsiv_guncel['tarih'] = pd.to_datetime(df_arsiv_guncel['tarih'], errors='coerce')
             
-            # Bozuk kayıtları filtrele (Excel'deki hatalı satırlar burada elenir)
+            # 2. Tarihi "NaT" olan (bozuk) satırları tablodan at (Hata kaynağını temizle)
             df_show = df_arsiv_guncel.dropna(subset=['tarih']).sort_values('tarih', ascending=False)
             
             if not df_show.empty:
                 # Filtreler
                 col_f1, col_f2 = st.columns(2)
                 with col_f1:
+                    # unique() yaparken NaT'ları attığımız için hata vermez
                     tarihler = df_show['tarih'].dt.date.unique()
                     secilen_tarih = st.selectbox("Tarih Filtresi", ["Tümü"] + sorted(list(tarihler), reverse=True))
                 with col_f2:
@@ -332,7 +333,7 @@ def show_katki_maliyeti_modulu():
                 if secilen_urun != "Tümü":
                     df_show = df_show[df_show['urun_adi'] == secilen_urun]
                 
-                # Tablo
+                # Tabloyu Göster
                 st.dataframe(
                     df_show[['tarih', 'urun_adi', 'maliyet_tl', 'maliyet_usd', 'maliyet_eur']],
                     use_container_width=True,
@@ -346,25 +347,29 @@ def show_katki_maliyeti_modulu():
                 )
                 
                 st.divider()
+                
+                # --- DETAY VE SİLME ---
                 col_detay, col_sil = st.columns([3, 1])
                 
                 with col_detay:
                     st.markdown("#### 🔍 Detay İncele")
-                    # GÜVENLİ FORMATLAMA FONKSİYONU
-                    def guvenli_format(x):
+                    
+                    # FORMAT HATASINI ÖNLEYEN FONKSİYON
+                    def format_func_guvenli(x):
                         try:
-                            # Tarih kontrolü
-                            tarih_str = x['tarih'].strftime('%d.%m.%Y %H:%M') if pd.notnull(x['tarih']) else "Tarih Yok"
-                            # Ürün adı kontrolü
-                            urun = str(x.get('urun_adi', 'Bilinmeyen'))
-                            return f"{urun} - {tarih_str} (ID: {x.get('id', '-')})"
+                            # Tarih nesnesi (Timestamp) mi kontrol et
+                            ts = x.get('tarih')
+                            if pd.isnull(ts): return f"{x['urun_adi']} - (Tarih Yok)"
+                            
+                            tarih_str = ts.strftime('%d.%m.%Y %H:%M')
+                            return f"{x['urun_adi']} - {tarih_str} (ID: {x['id']})"
                         except:
                             return f"Kayıt {x.get('id', '?')}"
 
                     secilen_kayit = st.selectbox(
                         "Kayıt Seç:", 
                         df_show.to_dict('records'),
-                        format_func=guvenli_format
+                        format_func=format_func_guvenli
                     )
                     
                     if secilen_kayit:
@@ -384,7 +389,7 @@ def show_katki_maliyeti_modulu():
                             try:
                                 conn = get_conn()
                                 target_id = secilen_kayit['id']
-                                # Sadece orijinal ana tablodan sil (df_arsiv_guncel tüm veriyi içerir)
+                                # Orijinal veri setinden (df_arsiv_guncel) silme işlemi
                                 df_new_archive = df_arsiv_guncel[df_arsiv_guncel['id'] != target_id]
                                 conn.update(worksheet="katki_maliyet_arsivi", data=df_new_archive)
                                 st.success("Silindi!")
@@ -393,7 +398,7 @@ def show_katki_maliyeti_modulu():
                             except Exception as e:
                                 st.error(f"Hata: {e}")
             else:
-                st.info("Gösterilecek geçerli kayıt bulunamadı (Bozuk kayıtlar gizlendi).")
+                st.info("Gösterilecek geçerli kayıt bulunamadı.")
         else:
             st.info("Henüz arşiv kaydı yok.")
 def show_enzim_dozajlama():
@@ -634,6 +639,7 @@ def show_fire_maliyet_hesaplama():
             <p style='color: #7f1d1d; margin:0;'>Bu fire olmasaydı (veya %0 olsaydı) cebinizde kalacak olan tutar.</p>
         </div>
         """, unsafe_allow_html=True)
+
 
 
 
