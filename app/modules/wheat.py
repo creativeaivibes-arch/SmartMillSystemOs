@@ -1637,6 +1637,184 @@ def show_wheat_yonetimi():
         with tab_db2:
             with st.container(border=True):
                 show_stok_hareketleri()
+def show_tavli_analiz_arsivi():
+    """
+    Tavlı Buğday Analiz Geçmişi ve Yönetimi
+    """
+    st.markdown("### 🧪 Tavlı Buğday Analiz Arşivi")
+    
+    # Veriyi Çek
+    df = get_tavli_analizler()
+    
+    if df.empty:
+        st.info("📭 Henüz tavlı analiz kaydı bulunmuyor.")
+        return
+
+    # --- FİLTRELEME ---
+    with st.expander("🔍 Filtreleme Seçenekleri", expanded=False):
+        c1, c2 = st.columns(2)
+        with c1:
+            silo_filter = st.selectbox("Silo Filtrele", ["Tümü"] + list(df['silo_isim'].unique()))
+        with c2:
+            # Tarih filtresi opsiyonel eklenebilir
+            pass
+
+    df_show = df.copy()
+    if silo_filter != "Tümü":
+        df_show = df_show[df_show['silo_isim'] == silo_filter]
+
+    # --- TABLO ---
+    st.dataframe(
+        df_show,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "tarih": st.column_config.DatetimeColumn("Tarih", format="DD.MM.YYYY HH:mm"),
+            "analiz_tonaj": st.column_config.NumberColumn("Tonaj", format="%.1f"),
+            "protein": st.column_config.NumberColumn("Protein", format="%.1f"),
+            "gluten": st.column_config.NumberColumn("Gluten", format="%.1f"),
+            "silo_isim": "Silo"
+        }
+    )
+    
+    # Excel
+    if st.button("📥 Excel İndir", key="tavli_excel"):
+        shared_download(df_show, "Tavli_Analiz_Gecmisi")
+
+    st.divider()
+
+    # ==========================================================================
+    # 🔒 YÖNETİCİ PANELİ (ADMIN ONLY)
+    # ==========================================================================
+    if st.session_state.get('user_role') != 'admin':
+        st.info("🔒 Kayıt düzenleme yetkisi sadece yöneticidedir.")
+        return
+
+    st.subheader("🛠️ Kayıt Düzenleme (Admin)")
+    
+    # Kayıt Seçimi (Selectbox ile)
+    # Benzersiz bir liste oluşturuyoruz
+    record_list = df_show.to_dict('records')
+    # Seçim kutusu için formatlayıcı
+    def format_func(row):
+        return f"{row['silo_isim']} - {pd.to_datetime(row['tarih']).strftime('%d.%m %H:%M')} ({row['analiz_tonaj']} Ton)"
+
+    selected_record = st.selectbox("Düzenlenecek Kaydı Seçin:", record_list, format_func=format_func)
+    
+    if selected_record:
+        # Silo Listesi (Değişiklik için lazım)
+        df_silo_data = get_silo_data()
+        silo_opts = df_silo_data['isim'].tolist() if not df_silo_data.empty else []
+        
+        with st.form(key="tavli_edit_form"):
+            st.markdown(f"**Düzenlenen Kayıt:** `{format_func(selected_record)}`")
+            
+            # --- BÖLÜM 1: TEMEL BİLGİLER (4 Sütun) ---
+            st.markdown("#### 1. Temel Bilgiler")
+            col_t1, col_t2, col_t3, col_t4 = st.columns(4)
+            
+            # Mevcut silo listede var mı kontrolü
+            curr_silo = selected_record.get('silo_isim')
+            s_idx = silo_opts.index(curr_silo) if curr_silo in silo_opts else 0
+            
+            new_silo = col_t1.selectbox("Silo (DİKKAT!)", options=silo_opts, index=s_idx, help="Değişirse stoklar güncellenir")
+            new_tonaj = col_t2.number_input("Tonaj (DİKKAT!)", value=float(selected_record.get('analiz_tonaj', 0)), step=0.1)
+            new_tarih = col_t3.text_input("Tarih (YYYY-AA-GG SS:DD:SN)", value=str(selected_record.get('tarih')))
+            new_not = col_t4.text_input("Notlar", value=str(selected_record.get('notlar', '')))
+
+            st.markdown("---")
+            
+            # --- BÖLÜM 2: DETAYLI ANALİZLER (SEKMELİ YAPI) ---
+            tab_kimya, tab_farino, tab_extenso = st.tabs(["🧪 Kimyasal", "📈 Farinograph", "📊 Extensograph"])
+            
+            # Helper for safe float conversion
+            def get_val(k, default=0.0):
+                return float(selected_record.get(k, default))
+
+            with tab_kimya:
+                k1, k2, k3, k4 = st.columns(4)
+                n_protein = k1.number_input("Protein", value=get_val('protein'), step=0.1)
+                n_gluten = k2.number_input("Gluten", value=get_val('gluten'), step=0.1)
+                n_rutubet = k3.number_input("Rutubet", value=get_val('rutubet'), step=0.1)
+                n_sedim = k4.number_input("Sedim", value=get_val('sedim'), step=1.0)
+                
+                k5, k6, k7, k8 = st.columns(4)
+                n_gsedim = k5.number_input("G. Sedim", value=get_val('g_sedim'), step=1.0)
+                n_gindex = k6.number_input("G. Index", value=get_val('gluten_index'), step=1.0)
+                n_fn = k7.number_input("FN", value=get_val('fn'), step=1.0)
+                n_ffn = k8.number_input("FFN", value=get_val('ffn'), step=1.0)
+
+            with tab_farino:
+                f1, f2, f3, f4 = st.columns(4)
+                n_su_kaldirma_f = f1.number_input("Su Kaldırma (F)", value=get_val('su_kaldirma_f'), step=0.1)
+                n_gelisme = f2.number_input("Gelişme", value=get_val('gelisme_suresi'), step=0.1)
+                n_stabilite = f3.number_input("Stabilite", value=get_val('stabilite'), step=0.1)
+                n_yumusama = f4.number_input("Yumuşama", value=get_val('yumusama'), step=1.0)
+
+            with tab_extenso:
+                st.write("**Extensograph Verileri**")
+                e1, e2 = st.columns(2)
+                n_su_kaldirma_e = e1.number_input("Su Kaldırma (E)", value=get_val('su_kaldirma_e'), step=0.1)
+                
+                with st.expander("45. Dakika", expanded=False):
+                    ex1, ex2, ex3 = st.columns(3)
+                    n_e45 = ex1.number_input("Enerji (45)", value=get_val('enerji45'), key="ne45")
+                    n_d45 = ex2.number_input("Direnç (45)", value=get_val('direnc45'), key="nd45")
+                    n_t45 = ex3.number_input("Taban (45)", value=get_val('taban45'), key="nt45")
+                
+                with st.expander("90. Dakika", expanded=False):
+                    ex4, ex5, ex6 = st.columns(3)
+                    n_e90 = ex4.number_input("Enerji (90)", value=get_val('enerji90'), key="ne90")
+                    n_d90 = ex5.number_input("Direnç (90)", value=get_val('direnc90'), key="nd90")
+                    n_t90 = ex6.number_input("Taban (90)", value=get_val('taban90'), key="nt90")
+                    
+                with st.expander("135. Dakika", expanded=False):
+                    ex7, ex8, ex9 = st.columns(3)
+                    n_e135 = ex7.number_input("Enerji (135)", value=get_val('enerji135'), key="ne135")
+                    n_d135 = ex8.number_input("Direnç (135)", value=get_val('direnc135'), key="nd135")
+                    n_t135 = ex9.number_input("Taban (135)", value=get_val('taban135'), key="nt135")
+
+            # Butonlar
+            c_btn1, c_btn2 = st.columns([1, 4])
+            with c_btn1:
+                submit_update = st.form_submit_button("✅ GÜNCELLE", type="primary")
+            
+            if submit_update:
+                # Yeni Veri Paketi
+                new_data = {
+                    'silo_isim': new_silo, 'analiz_tonaj': new_tonaj, 'tarih': new_tarih, 'notlar': new_not,
+                    'protein': n_protein, 'gluten': n_gluten, 'rutubet': n_rutubet, 'sedim': n_sedim,
+                    'g_sedim': n_gsedim, 'gluten_index': n_gindex, 'fn': n_fn, 'ffn': n_ffn,
+                    'su_kaldirma_f': n_su_kaldirma_f, 'gelisme_suresi': n_gelisme, 
+                    'stabilite': n_stabilite, 'yumusama': n_yumusama,
+                    'su_kaldirma_e': n_su_kaldirma_e,
+                    'enerji45': n_e45, 'direnc45': n_d45, 'taban45': n_t45,
+                    'enerji90': n_e90, 'direnc90': n_d90, 'taban90': n_t90,
+                    'enerji135': n_e135, 'direnc135': n_d135, 'taban135': n_t135
+                }
+                
+                success, msg = update_tavli_record_backend(selected_record, new_data)
+                if success:
+                    st.success(msg)
+                    time.sleep(1.5)
+                    st.rerun()
+                else:
+                    st.error(msg)
+        
+        # Silme Butonu (Form Dışında, Güvenlikli)
+        with st.expander("🗑️ Bu Kaydı Sil", expanded=False):
+            st.warning(f"Bu işlem **{selected_record['silo_isim']}** silosundan **{selected_record['analiz_tonaj']}** tonluk tavlı stok bilgisini düşecektir.")
+            if st.button("🔥 KALICI OLARAK SİL"):
+                success, msg = delete_tavli_record_backend(selected_record)
+                if success:
+                    st.success(msg)
+                    time.sleep(1.5)
+                    st.rerun()
+                else:
+                    st.error(msg)
+
+
+
 
 
 
