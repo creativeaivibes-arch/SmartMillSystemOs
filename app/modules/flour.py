@@ -624,11 +624,10 @@ def show_un_analiz_kayitlari():
         df['tarih'] = pd.to_datetime(df['tarih'], errors='coerce')
         df = df.sort_values('tarih', ascending=False)
     
-    # ID Ekle
     df.reset_index(drop=True, inplace=True)
     df.insert(0, 'ID NO', range(1, len(df) + 1))
 
-    # Sayısal yuvarlama (Ekran için)
+    # Sayısal yuvarlama (Hata önleyici)
     numeric_cols = [
         'protein', 'rutubet', 'gluten', 'gluten_index', 'sedim', 'gecikmeli_sedim',
         'fn', 'ffn', 'amilograph', 'kul', 'nisasta_zedelenmesi',
@@ -638,9 +637,9 @@ def show_un_analiz_kayitlari():
     ]
     for col in numeric_cols:
         if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors='coerce').round(2)
+            df[col] = pd.to_numeric(df[col], errors='coerce') # Yuvarlamayı column_config'e bırakıyoruz
 
-    # Başlıkları Eşle (Senin İstediğin Sıralama ve İsimler)
+    # Başlıkları Eşle (Senin İstediğin İsimler)
     col_map = {
         'tarih': 'TARİH', 'lot_no': 'LOT NO', 'islem_tipi': 'İŞLEM TİPİ',
         'uretim_silosu': 'UN SİLOSU', 'notlar': 'NOTLAR',
@@ -650,7 +649,7 @@ def show_un_analiz_kayitlari():
         'fn': 'F.N', 'ffn': 'F.F.N', 'amilograph': 'Amilograph', 'kul': 'Kül',
         'nisasta_zedelenmesi': 'Nişasta Zed.',
         # Farino
-        'su_kaldirma_f': 'Su Kaldırma', 'gelisme_suresi': 'Gelişme Süresi',
+        'su_kaldirma_f': 'Su Kaldırma (F)', 'gelisme_suresi': 'Gelişme Süresi',
         'stabilite': 'Stabilite', 'yumusama': 'Yumuşama Derecesi',
         # Extenso
         'su_kaldirma_e': 'Su Kaldırma (E)',
@@ -661,12 +660,12 @@ def show_un_analiz_kayitlari():
     
     df_display = df.rename(columns=col_map)
     
-    # İstenen Sütun Sıralaması (EKSİKSİZ LİSTE)
+    # İstenen Sütun Sıralaması (EKSİKSİZ)
     desired_cols = [
         'ID NO', 'TARİH', 'LOT NO', 'İŞLEM TİPİ', 'UN SİLOSU', 'NOTLAR',
         'Protein', 'Rutubet', 'Gluten', 'Gluten Index', 'Sedim', 'G.Sedim',
         'F.N', 'F.F.N', 'Amilograph', 'Kül', 'Nişasta Zed.',
-        'Su Kaldırma', 'Gelişme Süresi', 'Stabilite', 'Yumuşama Derecesi',
+        'Su Kaldırma (F)', 'Gelişme Süresi', 'Stabilite', 'Yumuşama Derecesi',
         'Su Kaldırma (E)',
         'Direnç (45)', 'Taban (45)', 'Enerji (45)',
         'Direnç (90)', 'Taban (90)', 'Enerji (90)',
@@ -679,7 +678,7 @@ def show_un_analiz_kayitlari():
 
     st.subheader(f"📊 Toplam Kayıt: {len(df)}")
     
-    # TABLO GÖSTERİMİ
+    # TABLO GÖSTERİMİ (FULL FORMAT)
     st.dataframe(
         df_display, 
         use_container_width=True, 
@@ -689,6 +688,16 @@ def show_un_analiz_kayitlari():
             "Protein": st.column_config.NumberColumn("Protein", format="%.2f"),
             "Kül": st.column_config.NumberColumn("Kül", format="%.3f"),
             "Gluten": st.column_config.NumberColumn("Gluten", format="%.1f"),
+            "Rutubet": st.column_config.NumberColumn("Rutubet", format="%.1f"),
+            "Gluten Index": st.column_config.NumberColumn("Gluten Index", format="%.0f"),
+            "Sedim": st.column_config.NumberColumn("Sedim", format="%.0f"),
+            "F.N": st.column_config.NumberColumn("F.N", format="%.0f"),
+            "Amilograph": st.column_config.NumberColumn("Amilograph", format="%.0f"),
+            "Su Kaldırma (F)": st.column_config.NumberColumn("Su Kaldırma (F)", format="%.1f"),
+            "Su Kaldırma (E)": st.column_config.NumberColumn("Su Kaldırma (E)", format="%.1f"),
+            "Enerji (45)": st.column_config.NumberColumn("Enerji (45)", format="%.0f"),
+            "Enerji (90)": st.column_config.NumberColumn("Enerji (90)", format="%.0f"),
+            "Enerji (135)": st.column_config.NumberColumn("Enerji (135)", format="%.0f"),
         }
     )
     
@@ -797,8 +806,7 @@ def show_un_analiz_kayitlari():
                     n_t135 = e8.number_input("Taban (135)", value=get_val('taban135'), key="et135")
                     n_e135 = e9.number_input("Enerji (135)", value=get_val('enerji135'), key="ee135")
 
-            # Butonlar
-            submit_update = st.form_submit_button("✅ GÜNCELLEMEYİ KAYDET", type="primary")
+            submit_update = st.form_submit_button("✅ GÜNCELLE", type="primary")
             
             if submit_update:
                 update_payload = {
@@ -833,7 +841,6 @@ def show_un_analiz_kayitlari():
                     st.rerun()
                 else:
                     st.error(msg)
-
 def save_un_maliyet(data):
     """Maliyet hesaplamasını kaydet"""
     try:
@@ -1137,6 +1144,7 @@ def show_flour_yonetimi():
                 st.error("⚠️ Enzim modülü (calculations.py) bulunamadı.")
             except Exception as e:
                 st.error(f"⚠️ Modül yüklenirken hata oluştu: {e}")
+
 
 
 
