@@ -346,6 +346,45 @@ def save_un_analiz(lot_no, islem_tipi, **analiz_degerleri):
         return False, "Kayıt Başarısız"
     except Exception as e:
         return False, f"Hata: {str(e)}"
+def update_un_analiz_record(old_lot_no, new_data):
+    """Un analiz kaydını günceller"""
+    try:
+        conn = get_conn()
+        df = fetch_data("un_analiz")
+        
+        # Lot numarasına göre satırı bul
+        if not df.empty and 'lot_no' in df.columns:
+            # Pandas indexini bul
+            idx_list = df.index[df['lot_no'].astype(str) == str(old_lot_no)].tolist()
+            
+            if idx_list:
+                idx = idx_list[0]
+                # Verileri güncelle
+                for key, val in new_data.items():
+                    df.at[idx, key] = val
+                
+                conn.update(worksheet="un_analiz", data=df)
+                return True, "✅ Kayıt başarıyla güncellendi."
+            else:
+                return False, "Kayıt bulunamadı."
+        return False, "Veritabanı boş."
+    except Exception as e:
+        return False, f"Güncelleme Hatası: {str(e)}"
+
+def delete_un_analiz_record(lot_no):
+    """Un analiz kaydını siler"""
+    try:
+        conn = get_conn()
+        df = fetch_data("un_analiz")
+        
+        if not df.empty and 'lot_no' in df.columns:
+            # O lot numarası dışındakileri al (Filtreleme ile silme)
+            df_new = df[df['lot_no'].astype(str) != str(lot_no)]
+            conn.update(worksheet="un_analiz", data=df_new)
+            return True, "🗑️ Kayıt silindi."
+        return False, "Veritabanı hatası."
+    except Exception as e:
+        return False, f"Silme Hatası: {str(e)}"
 
 def show_un_analiz_kaydi():
     if st.session_state.get('user_role') not in ["admin", "operations", "quality"]:
@@ -938,6 +977,7 @@ def show_flour_yonetimi():
                 st.error("⚠️ Enzim modülü (calculations.py) bulunamadı.")
             except Exception as e:
                 st.error(f"⚠️ Modül yüklenirken hata oluştu: {e}")
+
 
 
 
