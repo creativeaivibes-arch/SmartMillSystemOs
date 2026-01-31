@@ -70,6 +70,151 @@ def get_all_specs_dataframe():
 
 def show_spec_yonetimi():
     st.markdown("### 🎯 Un Kalite Spesifikasyonları (Spec)")
+
+def export_un_analiz_ozel_excel(df):
+    """
+    Un Analiz Arşivi için özel gruplandırılmış Excel üretir.
+    Yapı: [NUMUNE BİLGİLERİ] + [KİMYASAL] + [FARINO] + [EXTENSO]
+    """
+    try:
+        from io import BytesIO
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Un Analiz Raporu"
+
+        # --- TASARIM TANIMLARI ---
+        structure = [
+            {
+                "group": "NUMUNE BİLGİLERİ",
+                "color": "4472C4", # Mavi
+                "cols": [
+                    ("ID NO", "id_counter"),
+                    ("TARİH", "tarih"),
+                    ("LOT NO", "lot_no"),
+                    ("İŞLEM TİPİ", "islem_tipi"),
+                    ("UN SİLOSU", "uretim_silosu"),
+                    ("NOTLAR", "notlar")
+                ]
+            },
+            {
+                "group": "KİMYASAL ANALİZLER",
+                "color": "ED7D31", # Turuncu
+                "cols": [
+                    ("Protein", "protein"),
+                    ("Rutubet", "rutubet"),
+                    ("Gluten", "gluten"),
+                    ("Gluten Index", "gluten_index"),
+                    ("Sedim", "sedim"),
+                    ("G.Sedim", "gecikmeli_sedim"),
+                    ("F.N", "fn"),
+                    ("F.F.N", "ffn"),
+                    ("Amilograph", "amilograph"),
+                    ("Kül", "kul"),
+                    ("Nişasta Zed.", "nisasta_zedelenmesi")
+                ]
+            },
+            {
+                "group": "FARINOGRAPH ANALİZLERİ",
+                "color": "70AD47", # Yeşil
+                "cols": [
+                    ("Su Kaldırma", "su_kaldirma_f"),
+                    ("Gelişme Süresi", "gelisme_suresi"),
+                    ("Stabilite", "stabilite"),
+                    ("Yumuşama Derecesi", "yumusama")
+                ]
+            },
+            {
+                "group": "EXTENSOGRAPH ANALİZLERİ",
+                "color": "A5A5A5", # Gri
+                "cols": [
+                    ("Su Kaldırma", "su_kaldirma_e"),
+                    # 45
+                    ("Direnç (45)", "direnc45"), ("Taban (45)", "taban45"), ("Enerji (45)", "enerji45"),
+                    # 90
+                    ("Direnç (90)", "direnc90"), ("Taban (90)", "taban90"), ("Enerji (90)", "enerji90"),
+                    # 135
+                    ("Direnç (135)", "direnc135"), ("Taban (135)", "taban135"), ("Enerji (135)", "enerji135")
+                ]
+            }
+        ]
+
+        # --- STİLLER ---
+        thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+        header_font = Font(bold=True, color="FFFFFF", size=11)
+        sub_header_font = Font(bold=True, color="000000", size=10)
+        
+        # --- BAŞLIKLARI YAZMA ---
+        current_col = 1
+        for group in structure:
+            start_col = current_col
+            num_cols = len(group["cols"])
+            end_col = start_col + num_cols - 1
+            
+            ws.merge_cells(start_row=1, start_column=start_col, end_row=1, end_column=end_col)
+            cell = ws.cell(row=1, column=start_col, value=group["group"])
+            cell.fill = PatternFill("solid", fgColor=group["color"])
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+            cell.border = thin_border
+            
+            for c in range(start_col, end_col + 1):
+                ws.cell(row=1, column=c).border = thin_border
+
+            for i, (col_name, db_key) in enumerate(group["cols"]):
+                cell_sub = ws.cell(row=2, column=start_col + i, value=col_name)
+                cell_sub.font = sub_header_font
+                cell_sub.alignment = Alignment(horizontal="center", vertical="center")
+                cell_sub.border = thin_border
+                cell_sub.fill = PatternFill("solid", fgColor="E7E6E6")
+
+            current_col += num_cols
+
+        # --- VERİLERİ YAZMA ---
+        records = df.to_dict('records')
+        for r_idx, row_data in enumerate(records, start=3):
+            current_col = 1
+            for group in structure:
+                for col_name, db_key in group["cols"]:
+                    
+                    if db_key == "id_counter":
+                        val = r_idx - 2
+                    else:
+                        val = row_data.get(db_key, "")
+                    
+                    if db_key == "tarih" and val:
+                        try: val = pd.to_datetime(val).strftime('%d.%m.%Y %H:%M')
+                        except: pass
+                    
+                    # Sayısal yuvarlama
+                    try:
+                        if isinstance(val, (int, float)):
+                            val = round(float(val), 2)
+                        elif val and db_key not in ["tarih", "lot_no", "islem_tipi", "uretim_silosu", "notlar"]:
+                            val = round(float(val), 2)
+                    except: pass
+
+                    cell = ws.cell(row=r_idx, column=current_col, value=val)
+                    cell.border = thin_border
+                    cell.alignment = Alignment(horizontal="center")
+                    current_col += 1
+
+        # --- SÜTUN GENİŞLİKLERİ ---
+        for i, col in enumerate(ws.columns, 1):
+            column_letter = get_column_letter(i)
+            ws.column_dimensions[column_letter].width = 15
+
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+        return output.getvalue()
+
+    except Exception as e:
+        st.error(f"Excel oluşturma hatası: {e}")
+        return None
     
     # --- GÜVENLİ VERİ ÇEKME (AIRBAG) ---
     try:
@@ -395,35 +540,100 @@ def show_un_analiz_kaydi():
 
 def show_un_analiz_kayitlari():
     st.header("📚 Un Analiz Kayıtları")
+    
     df = fetch_data("un_analiz")
     if df.empty:
         st.info("📭 Henüz kayıtlı analiz bulunmamaktadır.")
         return
-    if st.session_state.get('user_role') in ["admin", "operations"]:
-        with st.expander("⚙️ Üretim Siloları Yönetimi", expanded=False):
-            df_silo = fetch_data("uretim_silolari")
-            if not df_silo.empty:
-                st.dataframe(df_silo[['silo_adi']], use_container_width=True, hide_index=True)
-            c1, c2 = st.columns([2, 1])
-            yeni_silo = c1.text_input("Yeni Silo Adı", key="new_silo_name")
-            if c2.button("➕ Ekle", key="add_silo_btn"):
-                if yeni_silo:
-                    add_data("uretim_silolari", {'silo_adi': yeni_silo, 'aktif': 1})
-                    st.success("Eklendi")
-                    time.sleep(0.5)
-                    st.rerun()
-    st.subheader(f"📊 Toplam Kayıt: {len(df)}")
+
+    # --- VERİ HAZIRLIĞI ---
     if 'tarih' in df.columns:
         df['tarih'] = pd.to_datetime(df['tarih'], errors='coerce')
         df = df.sort_values('tarih', ascending=False)
-        df['DisplayTarih'] = df['tarih'].dt.strftime('%d/%m/%Y')
-    cols = ['DisplayTarih', 'lot_no', 'islem_tipi', 'un_cinsi_marka', 'protein', 'gluten', 'sedim', 'kul']
-    cols = [c for c in cols if c in df.columns]
-    st.dataframe(df[cols], use_container_width=True, hide_index=True, height=400)
+    
+    # ID Ekle
+    df.reset_index(drop=True, inplace=True)
+    df.insert(0, 'ID NO', range(1, len(df) + 1))
+
+    # Sayısal yuvarlama (Ekran için)
+    numeric_cols = [
+        'protein', 'rutubet', 'gluten', 'gluten_index', 'sedim', 'gecikmeli_sedim',
+        'fn', 'ffn', 'amilograph', 'kul', 'nisasta_zedelenmesi',
+        'su_kaldirma_f', 'gelisme_suresi', 'stabilite', 'yumusama', 'su_kaldirma_e',
+        'direnc45', 'taban45', 'enerji45', 'direnc90', 'taban90', 'enerji90',
+        'direnc135', 'taban135', 'enerji135'
+    ]
+    for col in numeric_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce').round(2)
+
+    # Başlıkları Eşle
+    col_map = {
+        'tarih': 'TARİH',
+        'lot_no': 'LOT NO',
+        'islem_tipi': 'İŞLEM TİPİ',
+        'uretim_silosu': 'UN SİLOSU',
+        'notlar': 'NOTLAR',
+        # Kimyasal
+        'protein': 'Protein', 'rutubet': 'Rutubet', 'gluten': 'Gluten', 
+        'gluten_index': 'Gluten Index', 'sedim': 'Sedim', 'gecikmeli_sedim': 'G.Sedim',
+        'fn': 'F.N', 'ffn': 'F.F.N', 'amilograph': 'Amilograph', 'kul': 'Kül',
+        'nisasta_zedelenmesi': 'Nişasta Zed.',
+        # Farino
+        'su_kaldirma_f': 'Su Kaldırma (F)', 'gelisme_suresi': 'Gelişme Süresi',
+        'stabilite': 'Stabilite', 'yumusama': 'Yumuşama Derecesi',
+        # Extenso
+        'su_kaldirma_e': 'Su Kaldırma (E)',
+        'direnc45': 'Direnç (45)', 'taban45': 'Taban (45)', 'enerji45': 'Enerji (45)',
+        'direnc90': 'Direnç (90)', 'taban90': 'Taban (90)', 'enerji90': 'Enerji (90)',
+        'direnc135': 'Direnç (135)', 'taban135': 'Taban (135)', 'enerji135': 'Enerji (135)'
+    }
+    
+    df_display = df.rename(columns=col_map)
+    
+    # İstenen sütun sırasını belirle
+    desired_cols = [
+        'ID NO', 'TARİH', 'LOT NO', 'İŞLEM TİPİ', 'UN SİLOSU', 'NOTLAR',
+        'Protein', 'Rutubet', 'Gluten', 'Gluten Index', 'Sedim', 'G.Sedim',
+        'F.N', 'F.F.N', 'Amilograph', 'Kül', 'Nişasta Zed.',
+        'Su Kaldırma (F)', 'Gelişme Süresi', 'Stabilite', 'Yumuşama Derecesi',
+        'Su Kaldırma (E)',
+        'Direnç (45)', 'Taban (45)', 'Enerji (45)',
+        'Direnç (90)', 'Taban (90)', 'Enerji (90)',
+        'Direnç (135)', 'Taban (135)', 'Enerji (135)'
+    ]
+    
+    # Sadece mevcut olanları seç
+    final_cols = [c for c in desired_cols if c in df_display.columns]
+    df_display = df_display[final_cols]
+
+    st.subheader(f"📊 Toplam Kayıt: {len(df)}")
+    
+    # Tabloyu Göster
+    st.dataframe(
+        df_display, 
+        use_container_width=True, 
+        hide_index=True,
+        column_config={
+            "TARİH": st.column_config.DatetimeColumn("TARİH", format="DD.MM.YYYY HH:mm"),
+            "Protein": st.column_config.NumberColumn("Protein", format="%.2f"),
+            "Kül": st.column_config.NumberColumn("Kül", format="%.3f"),
+            "Gluten": st.column_config.NumberColumn("Gluten", format="%.1f"),
+        }
+    )
+    
     st.divider()
-    if st.button("📥 Excel Olarak İndir"):
-        filename = f"un_analiz_{datetime.now().strftime('%Y%m%d')}.xlsx"
-        download_styled_excel(df, filename, "Un Analizleri")
+    
+    # Excel Butonu
+    excel_data = export_un_analiz_ozel_excel(df) # Orijinal datayı gönderiyoruz (Mapping içerde yapılıyor)
+    if excel_data:
+        st.download_button(
+            label="📥 Profesyonel Excel Raporu İndir (Gruplandırılmış Başlıklar)",
+            data=excel_data,
+            file_name=f"Un_Analiz_Raporu_{datetime.now().strftime('%Y%m%d')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            type="primary"
+        )
 
 def save_un_maliyet(data):
     """Maliyet hesaplamasını kaydet"""
@@ -728,6 +938,7 @@ def show_flour_yonetimi():
                 st.error("⚠️ Enzim modülü (calculations.py) bulunamadı.")
             except Exception as e:
                 st.error(f"⚠️ Modül yüklenirken hata oluştu: {e}")
+
 
 
 
