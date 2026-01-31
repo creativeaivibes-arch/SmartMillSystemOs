@@ -253,12 +253,7 @@ elif selected_page == "KK_UN":
     with tab2: flour.show_un_analiz_kaydi()       # show_un_analiz_giris -> show_un_analiz_kaydi
     with tab3: flour.show_un_analiz_kayitlari()    # show_analiz_arsivi -> show_un_analiz_kayitlari
     with tab4: 
-        try:
-            import app.modules.calculations as calc_module
-            calc_module.show_enzim_dozajlama()    # flour.show_enzim_hesaplama yerine doğrudan calculations modülünden çağırdık
-        except:
-            st.error("Enzim modülü bulunamadı.")
-
+        calculations.show_enzim_dozajlama()
 # 🏭 DEĞİRMEN (PRODUCTION)
 elif selected_page == "PRODUCTION_MANAGER":
     # mill.py içindeki sekmeli ana fonksiyonu çağırıyoruz
@@ -312,6 +307,7 @@ elif selected_page == "ADMIN" or selected_page == "PROFILE":
 # 🚪 PROFİL SAYFASI
 elif selected_page == "PROFILE":
     show_profile_settings()
+
 
 
 
