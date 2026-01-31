@@ -1639,10 +1639,7 @@ def show_wheat_yonetimi():
                 show_stok_hareketleri()
 def export_tavli_ozel_excel(df):
     """
-    Tavlı analizler için özel gruplandırılmış başlıklı Excel üretir.
-    Yapı:
-    SATIR 1: [TEMEL] [KİMYASAL ANALİZLER......] [FARINOGRAPH....] [EXTENSOGRAPH....]
-    SATIR 2: Tarih, Silo... Protein, Gluten...  Gelişme, Stabilite... Enerji, Direnç...
+    Tavlı analizler için özel gruplandırılmış başlıklı Excel üretir. (DÜZELTİLMİŞ VERSİYON)
     """
     try:
         from io import BytesIO
@@ -1655,7 +1652,6 @@ def export_tavli_ozel_excel(df):
         ws.title = "Tavlı Analiz Raporu"
 
         # --- TASARIM TANIMLARI ---
-        # 1. Başlık Grupları ve Alt Sütunların Veritabanı Karşılıkları
         structure = [
             {
                 "group": "TEMEL BİLGİLER",
@@ -1712,9 +1708,8 @@ def export_tavli_ozel_excel(df):
         header_font = Font(bold=True, color="FFFFFF", size=11)
         sub_header_font = Font(bold=True, color="000000", size=10)
         
-        # --- BAŞLIKLARI YAZMA (SATIR 1 ve 2) ---
+        # --- BAŞLIKLARI YAZMA ---
         current_col = 1
-        
         for group in structure:
             start_col = current_col
             num_cols = len(group["cols"])
@@ -1728,7 +1723,6 @@ def export_tavli_ozel_excel(df):
             cell.alignment = Alignment(horizontal="center", vertical="center")
             cell.border = thin_border
             
-            # Merge edilen hücrelerin kenarlıkları için loop (Excel bug'ını önlemek için)
             for c in range(start_col, end_col + 1):
                 ws.cell(row=1, column=c).border = thin_border
 
@@ -1738,27 +1732,23 @@ def export_tavli_ozel_excel(df):
                 cell_sub.font = sub_header_font
                 cell_sub.alignment = Alignment(horizontal="center", vertical="center")
                 cell_sub.border = thin_border
-                # Hafif renk verelim alt başlıklara
                 cell_sub.fill = PatternFill("solid", fgColor="E7E6E6")
 
             current_col += num_cols
 
-        # --- VERİLERİ YAZMA (SATIR 3'ten itibaren) ---
+        # --- VERİLERİ YAZMA ---
         for r_idx, row_data in enumerate(df.to_dict('records'), start=3):
             current_col = 1
             for group in structure:
                 for col_name, db_key in group["cols"]:
                     val = row_data.get(db_key, "")
                     
-                    # Tarih formatı
                     if db_key == "tarih" and val:
-                        try:
-                            val = pd.to_datetime(val).strftime('%d.%m.%Y %H:%M')
+                        try: val = pd.to_datetime(val).strftime('%d.%m.%Y %H:%M')
                         except: pass
                     
-                    # Sayısal değerleri float yap (Excel sayı olarak görsün)
                     try:
-                        if db_key != "tarih" and db_key != "silo_isim" and db_key != "notlar" and val:
+                        if db_key not in ["tarih", "silo_isim", "notlar"] and val:
                             val = float(val)
                     except: pass
 
@@ -1767,19 +1757,21 @@ def export_tavli_ozel_excel(df):
                     cell.alignment = Alignment(horizontal="center")
                     current_col += 1
 
-        # --- SÜTUN GENİŞLİKLERİNİ AYARLA ---
-        for col in ws.columns:
+        # --- SÜTUN GENİŞLİKLERİNİ AYARLA (HATA VEREN KISIM DÜZELTİLDİ) ---
+        # enumerate kullanarak doğrudan index üzerinden harf üretiyoruz
+        for i, col in enumerate(ws.columns, 1):
             max_length = 0
-            column = col[0].column_letter # Get the column name
+            column_letter = get_column_letter(i) # MergedCell hatasını çözen satır
+            
             for cell in col:
                 try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(str(cell.value))
+                    if cell.value:
+                        max_length = max(max_length, len(str(cell.value)))
                 except: pass
-            adjusted_width = (max_length + 2)
-            ws.column_dimensions[column].width = adjusted_width
+            
+            adjusted_width = min(max_length + 3, 50)
+            ws.column_dimensions[column_letter].width = adjusted_width
 
-        # --- ÇIKTI ---
         output = BytesIO()
         wb.save(output)
         output.seek(0)
@@ -1788,7 +1780,6 @@ def export_tavli_ozel_excel(df):
     except Exception as e:
         st.error(f"Excel oluşturma hatası: {e}")
         return None
-
 # ==============================================================================
 # TAVLI ANALİZ ARŞİVİ (ARAYÜZ + YÖNETİM)
 # ==============================================================================
@@ -1981,6 +1972,7 @@ def show_tavli_analiz_arsivi():
                     st.rerun()
                 else:
                     st.error(msg)
+
 
 
 
