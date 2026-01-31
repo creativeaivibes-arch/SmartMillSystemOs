@@ -220,8 +220,12 @@ elif selected_page == "KK_BUGDAY":
     
     # 🔥🔥🔥 DEĞİŞEN KISIM BURASI (TAB 7) 🔥🔥🔥
     with tab7:
-        # İzlenebilirlik sekmesinin içine İKİ TANE ALT SEKME (Sub-Tab) açıyoruz
-        sub_tab1, sub_tab2 = st.tabs(["🗄️ Buğday Giriş Arşivi", "📉 Stok Hareketleri (Dijital Defter)"])
+        # İzlenebilirlik sekmesinin içine ÜÇ TANE ALT SEKME (Sub-Tab) açıyoruz
+        sub_tab1, sub_tab2, sub_tab3 = st.tabs([
+            "🗄️ Buğday Giriş Arşivi", 
+            "📉 Stok Hareketleri",
+            "🧪 Tavlı Analiz Arşivi"  # <--- YENİ EKLENEN
+        ])
         
         with sub_tab1:
             wheat.show_bugday_giris_arsivi()  # Eski detaylı arşiv
@@ -308,6 +312,7 @@ elif selected_page == "ADMIN" or selected_page == "PROFILE":
 # 🚪 PROFİL SAYFASI
 elif selected_page == "PROFILE":
     show_profile_settings()
+
 
 
 
