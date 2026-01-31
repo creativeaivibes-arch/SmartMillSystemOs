@@ -606,7 +606,7 @@ def show_un_analiz_kayitlari():
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce').round(2)
 
-    # Başlıkları Eşle
+    # Başlıkları Eşle (User Friendly)
     col_map = {
         'tarih': 'TARİH',
         'lot_no': 'LOT NO',
@@ -630,7 +630,7 @@ def show_un_analiz_kayitlari():
     
     df_display = df.rename(columns=col_map)
     
-    # İstenen sütun sırasını belirle
+    # İstenen Sütun Sıralaması (EKSİKSİZ LİSTE)
     desired_cols = [
         'ID NO', 'TARİH', 'LOT NO', 'İŞLEM TİPİ', 'UN SİLOSU', 'NOTLAR',
         'Protein', 'Rutubet', 'Gluten', 'Gluten Index', 'Sedim', 'G.Sedim',
@@ -642,13 +642,13 @@ def show_un_analiz_kayitlari():
         'Direnç (135)', 'Taban (135)', 'Enerji (135)'
     ]
     
-    # Sadece mevcut olanları seç
+    # Sadece mevcut olanları seç (Hata almamak için)
     final_cols = [c for c in desired_cols if c in df_display.columns]
     df_display = df_display[final_cols]
 
     st.subheader(f"📊 Toplam Kayıt: {len(df)}")
     
-    # Tabloyu Göster
+    # TABLO GÖSTERİMİ
     st.dataframe(
         df_display, 
         use_container_width=True, 
@@ -661,10 +661,8 @@ def show_un_analiz_kayitlari():
         }
     )
     
-    st.divider()
-    
     # Excel Butonu
-    excel_data = export_un_analiz_ozel_excel(df) # Orijinal datayı gönderiyoruz (Mapping içerde yapılıyor)
+    excel_data = export_un_analiz_ozel_excel(df) 
     if excel_data:
         st.download_button(
             label="📥 Profesyonel Excel Raporu İndir (Gruplandırılmış Başlıklar)",
@@ -673,6 +671,135 @@ def show_un_analiz_kayitlari():
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             type="primary"
         )
+    
+    st.divider()
+
+    # ==========================================================================
+    # 🔒 YÖNETİCİ PANELİ (SADECE ADMIN İÇİN)
+    # ==========================================================================
+    if st.session_state.get('user_role') != 'admin':
+        return
+
+    st.subheader("🛠️ Kayıt İşlemleri (Yönetici Paneli)")
+    
+    # 1. Kayıt Seçimi
+    lot_list = df['lot_no'].tolist() if 'lot_no' in df.columns else []
+    if not lot_list: return
+
+    # Seçim Kutusu (Formatlı)
+    def format_func(lot):
+        row = df[df['lot_no'] == lot].iloc[0]
+        t_str = pd.to_datetime(row['tarih']).strftime('%d.%m %H:%M') if pd.notnull(row['tarih']) else ""
+        return f"{lot} - {row.get('islem_tipi','?')} ({t_str})"
+
+    selected_lot = st.selectbox("Düzenlenecek Kaydı Seçin (Lot No):", lot_list, format_func=format_func)
+    
+    # Seçilen kaydın verilerini al
+    record = df[df['lot_no'] == selected_lot].iloc[0]
+    
+    # Helper: Güvenli float dönüşümü
+    def get_val(k, default=0.0): 
+        try: return float(record.get(k, default))
+        except: return default
+
+    # A) FULL GÜNCELLEME FORMU
+    with st.container(border=True):
+        st.markdown(f"**📝 Kayıt Düzenle:** `{selected_lot}` (Tüm Parametreler)")
+        
+        with st.form(key="un_admin_edit_form"):
+            
+            # --- NUMUNE BİLGİLERİ ---
+            st.markdown("#### 📋 Numune Bilgileri")
+            c1, c2, c3, c4 = st.columns(4)
+            new_islem = c1.selectbox("İşlem Tipi", ["ÜRETİM", "SEVKİYAT", "NUMUNE", "ŞİKAYET", "İADE"], index=["ÜRETİM", "SEVKİYAT", "NUMUNE", "ŞİKAYET", "İADE"].index(record.get('islem_tipi', 'ÜRETİM')))
+            new_silo = c2.text_input("Un Silosu", value=str(record.get('uretim_silosu', '')))
+            new_tarih = c3.text_input("Tarih (YYYY-AA-GG)", value=str(record.get('tarih', '')))
+            new_not = c4.text_input("Notlar", value=str(record.get('notlar', '')))
+
+            st.markdown("---")
+            
+            # --- SEKME YAPISI ---
+            tab_kimya, tab_farino, tab_extenso = st.tabs(["🧪 Kimyasal", "📈 Farinograph", "📊 Extensograph"])
+            
+            with tab_kimya:
+                k1, k2, k3, k4 = st.columns(4)
+                n_protein = k1.number_input("Protein", value=get_val('protein'), step=0.1)
+                n_rutubet = k2.number_input("Rutubet", value=get_val('rutubet'), step=0.1)
+                n_gluten = k3.number_input("Gluten", value=get_val('gluten'), step=0.1)
+                n_gindex = k4.number_input("Gluten Index", value=get_val('gluten_index'), step=1.0)
+                
+                k5, k6, k7, k8 = st.columns(4)
+                n_sedim = k5.number_input("Sedim", value=get_val('sedim'), step=1.0)
+                n_gsedim = k6.number_input("G. Sedim", value=get_val('gecikmeli_sedim'), step=1.0)
+                n_fn = k7.number_input("FN", value=get_val('fn'), step=1.0)
+                n_ffn = k8.number_input("FFN", value=get_val('ffn'), step=1.0)
+                
+                k9, k10 = st.columns(2)
+                n_amilo = k9.number_input("Amilograph", value=get_val('amilograph'), step=10.0)
+                n_kul = k10.number_input("Kül", value=get_val('kul'), step=0.001, format="%.3f")
+                n_nisasta = st.number_input("Nişasta Zed.", value=get_val('nisasta_zedelenmesi'), step=0.1)
+
+            with tab_farino:
+                f1, f2, f3, f4 = st.columns(4)
+                n_su_f = f1.number_input("Su Kal. (F)", value=get_val('su_kaldirma_f'), step=0.1)
+                n_gelisme = f2.number_input("Gelişme", value=get_val('gelisme_suresi'), step=0.1)
+                n_stabilite = f3.number_input("Stabilite", value=get_val('stabilite'), step=0.1)
+                n_yumusama = f4.number_input("Yumuşama", value=get_val('yumusama'), step=1.0)
+
+            with tab_extenso:
+                n_su_e = st.number_input("Su Kal. (E)", value=get_val('su_kaldirma_e'), step=0.1)
+                with st.expander("45. Dakika", expanded=True):
+                    e1, e2, e3 = st.columns(3)
+                    n_d45 = e1.number_input("Direnç (45)", value=get_val('direnc45'), key="ed45")
+                    n_t45 = e2.number_input("Taban (45)", value=get_val('taban45'), key="et45")
+                    n_e45 = e3.number_input("Enerji (45)", value=get_val('enerji45'), key="ee45")
+                with st.expander("90. Dakika"):
+                    e4, e5, e6 = st.columns(3)
+                    n_d90 = e4.number_input("Direnç (90)", value=get_val('direnc90'), key="ed90")
+                    n_t90 = e5.number_input("Taban (90)", value=get_val('taban90'), key="et90")
+                    n_e90 = e6.number_input("Enerji (90)", value=get_val('enerji90'), key="ee90")
+                with st.expander("135. Dakika"):
+                    e7, e8, e9 = st.columns(3)
+                    n_d135 = e7.number_input("Direnç (135)", value=get_val('direnc135'), key="ed135")
+                    n_t135 = e8.number_input("Taban (135)", value=get_val('taban135'), key="et135")
+                    n_e135 = e9.number_input("Enerji (135)", value=get_val('enerji135'), key="ee135")
+
+            # Butonlar
+            submit_update = st.form_submit_button("✅ GÜNCELLEMEYİ KAYDET", type="primary")
+            
+            if submit_update:
+                update_payload = {
+                    'islem_tipi': new_islem, 'uretim_silosu': new_silo, 'tarih': new_tarih, 'notlar': new_not,
+                    'protein': n_protein, 'rutubet': n_rutubet, 'gluten': n_gluten, 'gluten_index': n_gindex,
+                    'sedim': n_sedim, 'gecikmeli_sedim': n_gsedim, 'fn': n_fn, 'ffn': n_ffn,
+                    'amilograph': n_amilo, 'kul': n_kul, 'nisasta_zedelenmesi': n_nisasta,
+                    'su_kaldirma_f': n_su_f, 'gelisme_suresi': n_gelisme, 'stabilite': n_stabilite, 'yumusama': n_yumusama,
+                    'su_kaldirma_e': n_su_e,
+                    'direnc45': n_d45, 'taban45': n_t45, 'enerji45': n_e45,
+                    'direnc90': n_d90, 'taban90': n_t90, 'enerji90': n_e90,
+                    'direnc135': n_d135, 'taban135': n_t135, 'enerji135': n_e135
+                }
+                
+                success, msg = update_un_analiz_record(selected_lot, update_payload)
+                if success:
+                    st.success(msg)
+                    time.sleep(1.5)
+                    st.rerun()
+                else:
+                    st.error(msg)
+
+    # B) SİLME BUTONU
+    with st.expander("🗑️ Kaydı Sil", expanded=False):
+        st.warning(f"⚠️ DİKKAT: `{selected_lot}` numaralı kaydı silmek üzeresiniz!")
+        if st.checkbox("Riskleri anladım, silmek istiyorum.", key="un_del_confirm"):
+            if st.button("🔥 KAYDI KALICI OLARAK SİL", type="primary"):
+                success, msg = delete_un_analiz_record(selected_lot)
+                if success:
+                    st.success(msg)
+                    time.sleep(1.5)
+                    st.rerun()
+                else:
+                    st.error(msg)
 
 def save_un_maliyet(data):
     """Maliyet hesaplamasını kaydet"""
@@ -977,6 +1104,7 @@ def show_flour_yonetimi():
                 st.error("⚠️ Enzim modülü (calculations.py) bulunamadı.")
             except Exception as e:
                 st.error(f"⚠️ Modül yüklenirken hata oluştu: {e}")
+
 
 
 
