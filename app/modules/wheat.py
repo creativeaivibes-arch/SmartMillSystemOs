@@ -1888,7 +1888,7 @@ def show_tavli_analiz_arsivi():
     excel_data = export_tavli_ozel_excel(df_show)
     if excel_data:
         st.download_button(
-            label="📥 Profesyonel Excel Raporu İndir (Gruplandırılmış Başlıklar)",
+            label="📥Excel Raporu İndir",
             data=excel_data,
             file_name=f"Tavli_Analiz_Raporu_{datetime.now().strftime('%Y%m%d')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -2016,6 +2016,7 @@ def show_tavli_analiz_arsivi():
                     st.rerun()
                 else:
                     st.error(msg)
+
 
 
 
