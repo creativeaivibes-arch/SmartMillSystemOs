@@ -69,7 +69,109 @@ def get_all_specs_dataframe():
     })
 
 def show_spec_yonetimi():
+    """Un Kalite Spesifikasyonları (Spec) Ekranı - DÜZELTİLMİŞ"""
     st.markdown("### 🎯 Un Kalite Spesifikasyonları (Spec)")
+    
+    # Veri Çekme
+    try:
+        df_spek = fetch_data("un_spekleri")
+        if df_spek is None: df_spek = pd.DataFrame()
+    except:
+        df_spek = pd.DataFrame()
+
+    # Un cinslerini listele
+    un_listesi = set()
+    if not df_spek.empty and 'un_cinsi' in df_spek.columns:
+        un_listesi.update(df_spek['un_cinsi'].dropna().unique())
+    
+    all_types = sorted(list(un_listesi))
+
+    col_sel, col_add = st.columns([2, 1])
+    with col_sel:
+        secilen_urun = st.selectbox("Düzenlenecek Un Cinsini Seçiniz", ["(Seçiniz/Yeni Ekle)"] + all_types)
+    if secilen_urun == "(Seçiniz/Yeni Ekle)":
+        with col_add:
+            yeni_isim = st.text_input("➕ Yeni Un Tanımla", placeholder="Örn: Tam Buğday Unu").strip()
+            if yeni_isim: secilen_urun = yeni_isim
+            else: secilen_urun = None
+
+    if not secilen_urun:
+        st.info("👆 Lütfen düzenlemek veya oluşturmak için bir un cinsi seçin.")
+        st.divider()
+        st.caption("📋 Sistemde Kayıtlı Tüm Spekler")
+        df_all = get_all_specs_dataframe()
+        if not df_all.empty: st.dataframe(df_all, use_container_width=True, hide_index=True)
+        return
+
+    st.divider()
+    
+    current_specs = {}
+    if not df_spek.empty:
+        df_filtered = df_spek[df_spek['un_cinsi'] == secilen_urun]
+        for _, row in df_filtered.iterrows():
+            current_specs[row['parametre']] = row
+
+    param_groups = {
+        "Kimyasal Analizler": [
+            ("protein", "Protein (%)"), ("rutubet", "Rutubet (%)"), ("kul", "Kül (%)"),
+            ("gluten", "Gluten (%)"), ("gluten_index", "Gluten Index"), ("sedim", "Sedim (ml)"),
+            ("gecikmeli_sedim", "Gecikmeli Sedim (ml)"), ("fn", "Düşme Sayısı (FN)"),
+            ("ffn", "F.F.N"), ("nisasta_zedelenmesi", "Nişasta Zedelenmesi")
+        ],
+        "Farinograph & Amilograph": [
+            ("su_kaldirma_f", "Su Kaldırma (Farino) (%)"), ("gelisme_suresi", "Gelişme Süresi (dk)"),
+            ("stabilite", "Stabilite (dk)"), ("yumusama", "Yumuşama Derecesi (FU)"),
+            ("amilograph", "Amilograph (AU)")
+        ],
+        "Extensograph": [
+            ("enerji45", "Enerji (45 dk)"), ("direnc45", "Direnç (45 dk)"), ("taban45", "Uzama/Taban (45 dk)"),
+            ("enerji90", "Enerji (90 dk)"), ("direnc90", "Direnç (90 dk)"), ("taban90", "Uzama/Taban (90 dk)"),
+            ("enerji135", "Enerji (135 dk)"), ("direnc135", "Direnç (135 dk)"), ("taban135", "Uzama/Taban (135 dk)"),
+            ("su_kaldirma_e", "Su Kaldırma (Extenso) (%)")
+        ]
+    }
+
+    st.markdown(f"### 🛠️ Düzenleme: {secilen_urun}")
+    with st.form("spec_editor_comprehensive"):
+        tabs = st.tabs(list(param_groups.keys()))
+        input_keys = []
+        for idx, (group_name, params) in enumerate(param_groups.items()):
+            with tabs[idx]:
+                for p_key, p_label in params:
+                    cur = current_specs.get(p_key, {})
+                    val_min = float(cur.get('min_deger', 0.0))
+                    val_tgt = float(cur.get('hedef_deger', 0.0))
+                    val_max = float(cur.get('max_deger', 0.0))
+                    c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
+                    with c1: st.markdown(f"**{p_label}**")
+                    with c2: st.number_input("Min", value=val_min, key=f"min_{p_key}", step=0.1, format="%.2f", label_visibility="collapsed")
+                    with c3: st.number_input("Hedef", value=val_tgt, key=f"tgt_{p_key}", step=0.1, format="%.2f", label_visibility="collapsed")
+                    with c4: st.number_input("Max", value=val_max, key=f"max_{p_key}", step=0.1, format="%.2f", label_visibility="collapsed")
+                    input_keys.append(p_key)
+        st.divider()
+        if st.form_submit_button("💾 Kaydet / Güncelle", type="primary", use_container_width=True):
+            saved_count = 0
+            for p_key in input_keys:
+                s_min = st.session_state.get(f"min_{p_key}", 0.0)
+                s_tgt = st.session_state.get(f"tgt_{p_key}", 0.0)
+                s_max = st.session_state.get(f"max_{p_key}", 0.0)
+                if s_min > 0 or s_tgt > 0 or s_max > 0:
+                    if save_spec(secilen_urun, p_key, s_min, s_max, s_tgt, 0):
+                        saved_count += 1
+            if saved_count > 0:
+                st.success(f"✅ {saved_count} parametre güncellendi.")
+                time.sleep(1)
+                st.rerun()
+            else:
+                st.warning("⚠️ Değer girilmedi.")
+
+    if st.session_state.get("user_role") == "admin":
+        st.divider()
+        if st.button("🗑️ Bu Tanımı Sil", key="del_spec_main", type="secondary"):
+            if delete_spec_group(secilen_urun):
+                st.success("Silindi!")
+                time.sleep(1)
+                st.rerun()
 
 def export_un_analiz_ozel_excel(df):
     """
@@ -216,118 +318,7 @@ def export_un_analiz_ozel_excel(df):
         st.error(f"Excel oluşturma hatası: {e}")
         return None
     
-    # --- GÜVENLİ VERİ ÇEKME (AIRBAG) ---
-    try:
-        df_analiz = fetch_data("un_analiz")
-        if df_analiz is None: df_analiz = pd.DataFrame()
-    except:
-        df_analiz = pd.DataFrame() # Hata olursa boş tablo ver, program çökmesin
-
-    try:
-        df_spek = fetch_data("un_spekleri")
-        if df_spek is None: df_spek = pd.DataFrame()
-    except:
-        df_spek = pd.DataFrame()
-    un_listesi = set()
-    if not df_analiz.empty and 'un_cinsi_marka' in df_analiz.columns:
-        un_listesi.update(df_analiz['un_cinsi_marka'].dropna().unique())
-    if not df_spek.empty and 'un_cinsi' in df_spek.columns:
-        un_listesi.update(df_spek['un_cinsi'].dropna().unique())
-    all_types = sorted(list(un_listesi))
-
-    col_sel, col_add = st.columns([2, 1])
-    with col_sel:
-        secilen_urun = st.selectbox("Düzenlenecek Un Cinsini Seçiniz", ["(Seçiniz/Yeni Ekle)"] + all_types)
-    if secilen_urun == "(Seçiniz/Yeni Ekle)":
-        with col_add:
-            yeni_isim = st.text_input("➕ Yeni Un Tanımla", placeholder="Örn: Tam Buğday Unu").strip()
-            if yeni_isim: secilen_urun = yeni_isim
-            else: secilen_urun = None
-
-    if not secilen_urun:
-        st.info("👆 Lütfen düzenlemek veya oluşturmak için bir un cinsi seçin.")
-        st.divider()
-        st.caption("📋 Sistemde Kayıtlı Tüm Spekler")
-        df_all = get_all_specs_dataframe()
-        if not df_all.empty: st.dataframe(df_all, use_container_width=True, hide_index=True)
-        return
-
-    st.divider()
-    current_specs = {}
-    if not df_spek.empty:
-        df_filtered = df_spek[df_spek['un_cinsi'] == secilen_urun]
-        for _, row in df_filtered.iterrows():
-            current_specs[row['parametre']] = row
-
-    param_groups = {
-        "Kimyasal Analizler": [
-            ("protein", "Protein (%)"), ("rutubet", "Rutubet (%)"), ("kul", "Kül (%)"),
-            ("gluten", "Gluten (%)"), ("gluten_index", "Gluten Index"), ("sedim", "Sedim (ml)"),
-            ("gecikmeli_sedim", "Gecikmeli Sedim (ml)"), ("fn", "Düşme Sayısı (FN)"),
-            ("ffn", "F.F.N"), ("nisasta_zedelenmesi", "Nişasta Zedelenmesi")
-        ],
-        "Farinograph & Amilograph": [
-            ("su_kaldirma_f", "Su Kaldırma (Farino) (%)"), ("gelisme_suresi", "Gelişme Süresi (dk)"),
-            ("stabilite", "Stabilite (dk)"), ("yumusama", "Yumuşama Derecesi (FU)"),
-            ("amilograph", "Amilograph (AU)")
-        ],
-        "Extensograph": [
-            ("enerji45", "Enerji (45 dk)"), ("direnc45", "Direnç (45 dk)"), ("taban45", "Uzama/Taban (45 dk)"),
-            ("enerji90", "Enerji (90 dk)"), ("direnc90", "Direnç (90 dk)"), ("taban90", "Uzama/Taban (90 dk)"),
-            ("enerji135", "Enerji (135 dk)"), ("direnc135", "Direnç (135 dk)"), ("taban135", "Uzama/Taban (135 dk)"),
-            ("su_kaldirma_e", "Su Kaldırma (Extenso) (%)")
-        ]
-    }
-
-    st.markdown(f"### 🛠️ Düzenleme: {secilen_urun}")
-    with st.form("spec_editor_comprehensive"):
-        tabs = st.tabs(list(param_groups.keys()))
-        input_keys = []
-        for idx, (group_name, params) in enumerate(param_groups.items()):
-            with tabs[idx]:
-                for p_key, p_label in params:
-                    cur = current_specs.get(p_key, {})
-                    val_min = float(cur.get('min_deger', 0.0))
-                    val_tgt = float(cur.get('hedef_deger', 0.0))
-                    val_max = float(cur.get('max_deger', 0.0))
-                    c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
-                    with c1: st.markdown(f"**{p_label}**")
-                    with c2: st.number_input("Min", value=val_min, key=f"min_{p_key}", step=0.1, format="%.2f", label_visibility="collapsed")
-                    with c3: st.number_input("Hedef", value=val_tgt, key=f"tgt_{p_key}", step=0.1, format="%.2f", label_visibility="collapsed")
-                    with c4: st.number_input("Max", value=val_max, key=f"max_{p_key}", step=0.1, format="%.2f", label_visibility="collapsed")
-                    input_keys.append(p_key)
-        st.divider()
-        if st.form_submit_button("💾 Kaydet / Güncelle", type="primary", use_container_width=True):
-            saved_count = 0
-            for p_key in input_keys:
-                s_min = st.session_state.get(f"min_{p_key}", 0.0)
-                s_tgt = st.session_state.get(f"tgt_{p_key}", 0.0)
-                s_max = st.session_state.get(f"max_{p_key}", 0.0)
-                if s_min > 0 or s_tgt > 0 or s_max > 0:
-                    if save_spec(secilen_urun, p_key, s_min, s_max, s_tgt, 0):
-                        saved_count += 1
-            if saved_count > 0:
-                st.success(f"✅ {saved_count} parametre güncellendi.")
-                time.sleep(1)
-                st.rerun()
-            else:
-                st.warning("⚠️ Değer girilmedi.")
-
-    st.divider()
-    col_h, col_d = st.columns([3, 1])
-    col_h.subheader(f"📋 '{secilen_urun}' Tanımlı Spekleri")
-    if st.session_state.get("user_role") == "admin":
-        if col_d.button("🗑️ Bu Tanımı Sil", key="del_spec_main", type="secondary"):
-            if delete_spec_group(secilen_urun):
-                st.success("Silindi!")
-                time.sleep(1)
-                st.rerun()
-    if not df_spek.empty:
-        df_view = df_spek[df_spek['un_cinsi'] == secilen_urun][['parametre', 'min_deger', 'hedef_deger', 'max_deger']]
-        if not df_view.empty:
-            st.dataframe(df_view, use_container_width=True, hide_index=True)
-        else:
-            st.info("Kayıtlı değer yok.")
+    
 
 def save_un_analiz(lot_no, islem_tipi, **analiz_degerleri):
     try:
@@ -578,6 +569,7 @@ def show_un_analiz_kaydi():
             st.error(f"❌ {msg}")
 
 def show_un_analiz_kayitlari():
+    """Un Analiz Arşivi - Full Parametreler ve Admin Düzenleme"""
     st.header("📚 Un Analiz Kayıtları")
     
     df = fetch_data("un_analiz")
@@ -606,20 +598,17 @@ def show_un_analiz_kayitlari():
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce').round(2)
 
-    # Başlıkları Eşle (User Friendly)
+    # Başlıkları Eşle (Senin İstediğin Sıralama ve İsimler)
     col_map = {
-        'tarih': 'TARİH',
-        'lot_no': 'LOT NO',
-        'islem_tipi': 'İŞLEM TİPİ',
-        'uretim_silosu': 'UN SİLOSU',
-        'notlar': 'NOTLAR',
+        'tarih': 'TARİH', 'lot_no': 'LOT NO', 'islem_tipi': 'İŞLEM TİPİ',
+        'uretim_silosu': 'UN SİLOSU', 'notlar': 'NOTLAR',
         # Kimyasal
         'protein': 'Protein', 'rutubet': 'Rutubet', 'gluten': 'Gluten', 
         'gluten_index': 'Gluten Index', 'sedim': 'Sedim', 'gecikmeli_sedim': 'G.Sedim',
         'fn': 'F.N', 'ffn': 'F.F.N', 'amilograph': 'Amilograph', 'kul': 'Kül',
         'nisasta_zedelenmesi': 'Nişasta Zed.',
         # Farino
-        'su_kaldirma_f': 'Su Kaldırma (F)', 'gelisme_suresi': 'Gelişme Süresi',
+        'su_kaldirma_f': 'Su Kaldırma', 'gelisme_suresi': 'Gelişme Süresi',
         'stabilite': 'Stabilite', 'yumusama': 'Yumuşama Derecesi',
         # Extenso
         'su_kaldirma_e': 'Su Kaldırma (E)',
@@ -635,7 +624,7 @@ def show_un_analiz_kayitlari():
         'ID NO', 'TARİH', 'LOT NO', 'İŞLEM TİPİ', 'UN SİLOSU', 'NOTLAR',
         'Protein', 'Rutubet', 'Gluten', 'Gluten Index', 'Sedim', 'G.Sedim',
         'F.N', 'F.F.N', 'Amilograph', 'Kül', 'Nişasta Zed.',
-        'Su Kaldırma (F)', 'Gelişme Süresi', 'Stabilite', 'Yumuşama Derecesi',
+        'Su Kaldırma', 'Gelişme Süresi', 'Stabilite', 'Yumuşama Derecesi',
         'Su Kaldırma (E)',
         'Direnç (45)', 'Taban (45)', 'Enerji (45)',
         'Direnç (90)', 'Taban (90)', 'Enerji (90)',
@@ -684,7 +673,9 @@ def show_un_analiz_kayitlari():
     
     # 1. Kayıt Seçimi
     lot_list = df['lot_no'].tolist() if 'lot_no' in df.columns else []
-    if not lot_list: return
+    if not lot_list: 
+        st.warning("Düzenlenecek kayıt bulunamadı.")
+        return
 
     # Seçim Kutusu (Formatlı)
     def format_func(lot):
@@ -1104,6 +1095,7 @@ def show_flour_yonetimi():
                 st.error("⚠️ Enzim modülü (calculations.py) bulunamadı.")
             except Exception as e:
                 st.error(f"⚠️ Modül yüklenirken hata oluştu: {e}")
+
 
 
 
