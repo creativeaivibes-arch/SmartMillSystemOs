@@ -1109,11 +1109,7 @@ def show_stok_hareketleri():
 
 def show_bugday_giris_arsivi():
     """
-    Buğday Giriş Arşivi - PROFESYONEL YÖNETİM VERSİYONU
-    - Arama, Filtreleme
-    - Kayıt Düzenleme (Update)
-    - Kayıt Silme (Delete)
-    - Stok Senkronizasyonu
+    Buğday Giriş Arşivi - PROFESYONEL YÖNETİM & FULL EDIT
     """
     st.header("🗄️ Buğday Giriş Arşivi & Yönetimi")
     
@@ -1150,17 +1146,17 @@ def show_bugday_giris_arsivi():
             "tonaj": st.column_config.NumberColumn("Tonaj", format="%.1f Ton"),
             "fiyat": st.column_config.NumberColumn("Fiyat", format="%.2f ₺"),
             "protein": st.column_config.NumberColumn("Protein", format="%.1f"),
-            "gluten": st.column_config.NumberColumn("Gluten", format="%.1f"),
+            "sune": st.column_config.NumberColumn("Süne", format="%.1f"),
         }
     )
     
-    # Excel Export Butonu (Mevcut fonksiyonu çağırır)
+    # Excel Export
     if st.button("📥 Excel İndir (Tüm Filtreli Veriler)", type="primary", use_container_width=True):
         export_profesyonel_excel(df_filtered, "Bugday_Giris_Arsivi")
     
     st.divider()
 
-    # --- DÜZENLEME VE SİLME PANELİ ---
+    # --- DÜZENLEME VE SİLME PANELİ (GELİŞMİŞ) ---
     st.subheader("🛠️ Kayıt İşlemleri")
     
     # 1. Kayıt Seçimi
@@ -1175,34 +1171,83 @@ def show_bugday_giris_arsivi():
     # Seçilen kaydın verilerini al
     record = df[df['lot_no'] == selected_lot].iloc[0]
     
-    # İşlem Butonları
-    # A) GÜNCELLEME MODU
+    # Silo Listesini Al (Değişiklik için lazım)
+    df_silo_data = get_silo_data()
+    silo_listesi = df_silo_data['isim'].tolist() if not df_silo_data.empty else []
+    
+    # A) FULL GÜNCELLEME MODU
     with st.container(border=True):
-        st.markdown(f"**📝 Kayıt Düzenle:** `{selected_lot}`")
+        st.markdown(f"**📝 Kayıt Düzenle:** `{selected_lot}` (Tüm Parametreler)")
         
-        with st.form(key="update_form"):
-            c1, c2, c3 = st.columns(3)
-            # Mevcut değerleri varsayılan olarak getir
-            new_tedarikci = c1.text_input("Tedarikçi", value=str(record.get('tedarikci', '')))
-            new_plaka = c2.text_input("Plaka", value=str(record.get('plaka', '')))
-            new_tonaj = c3.number_input("Tonaj (DİKKAT!)", value=float(record.get('tonaj', 0)), step=0.1, help="Tonaj değişirse stoklar yeniden hesaplanır.")
+        with st.form(key="full_update_form"):
             
-            c4, c5, c6 = st.columns(3)
-            new_protein = c4.number_input("Protein", value=float(record.get('protein', 0)), step=0.1)
-            new_gluten = c5.number_input("Gluten", value=float(record.get('gluten', 0)), step=0.1)
-            new_fiyat = c6.number_input("Fiyat", value=float(record.get('fiyat', 0)), step=0.1)
+            # --- SATIR 1: Kritik Lojistik Bilgiler ---
+            c1, c2, c3, c4 = st.columns(4)
+            # Silo seçimi (Mevcut silo listede yoksa eklemesini sağla)
+            curr_silo = str(record.get('silo_isim', ''))
+            silo_index = silo_listesi.index(curr_silo) if curr_silo in silo_listesi else 0
             
-            new_notlar = st.text_area("Notlar", value=str(record.get('notlar', '')))
+            new_silo = c1.selectbox("Depo/Silo (DİKKAT!)", options=silo_listesi, index=silo_index, help="Silo değişirse stok otomatik transfer edilir.")
+            new_cins = c2.text_input("Buğday Cinsi", value=str(record.get('bugday_cinsi', '')))
+            new_tonaj = c3.number_input("Tonaj (DİKKAT!)", value=float(record.get('tonaj', 0)), step=0.1, help="Tonaj değişirse stok güncellenir.")
+            new_fiyat = c4.number_input("Fiyat (TL)", value=float(record.get('fiyat', 0)), step=0.1)
+
+            # --- SATIR 2: Tedarikçi ve Bölge ---
+            c5, c6, c7, c8 = st.columns(4)
+            new_tedarikci = c5.text_input("Tedarikçi", value=str(record.get('tedarikci', '')))
+            new_plaka = c6.text_input("Plaka", value=str(record.get('plaka', '')))
+            new_yore = c7.text_input("Yöre", value=str(record.get('yore', '')))
+            new_tarih = c8.text_input("Tarih (YYYY-AA-GG)", value=str(record.get('tarih', '')).split(' ')[0])
+
+            st.markdown("---")
+            st.markdown("**🧪 Laboratuvar Değerleri**")
+
+            # --- SATIR 3: Temel Analizler ---
+            l1, l2, l3, l4 = st.columns(4)
+            new_protein = l1.number_input("Protein", value=float(record.get('protein', 0)), step=0.1)
+            new_gluten = l2.number_input("Gluten", value=float(record.get('gluten', 0)), step=0.1)
+            new_rutubet = l3.number_input("Rutubet", value=float(record.get('rutubet', 0)), step=0.1)
+            new_hl = l4.number_input("Hektolitre", value=float(record.get('hektolitre', 0)), step=0.1)
+
+            # --- SATIR 4: Detay Analizler ---
+            l5, l6, l7, l8 = st.columns(4)
+            new_sedim = l5.number_input("Sedim", value=float(record.get('sedim', 0)), step=1.0)
+            new_gsedim = l6.number_input("G. Sedim", value=float(record.get('gecikmeli_sedim', 0)), step=1.0)
+            new_gindex = l7.number_input("Gluten Index", value=float(record.get('gluten_index', 0)), step=1.0)
+            new_sune = l8.number_input("Süne", value=float(record.get('sune', 0)), step=0.1)
+
+            # --- SATIR 5: Fiziksel ---
+            l9, l10, l11, l12 = st.columns(4)
+            new_kirik = l9.number_input("Kırık/Cılız", value=float(record.get('kirik_ciliz', 0)), step=0.1)
+            new_yabanci = l10.number_input("Yabancı Tane", value=float(record.get('yabanci_tane', 0)), step=0.1)
+            # Boşluklar
+            l11.empty()
+            l12.empty()
+
+            # --- SATIR 6: Notlar ---
+            new_notlar = st.text_area("Notlar / Açıklama", value=str(record.get('notlar', '')))
             
-            if st.form_submit_button("✅ Güncellemeyi Kaydet"):
+            if st.form_submit_button("✅ TÜM GÜNCELLEMELERİ KAYDET", type="primary"):
                 # Yeni veri paketi
                 update_payload = {
+                    'silo_isim': new_silo,
+                    'bugday_cinsi': new_cins,
+                    'tonaj': new_tonaj,
+                    'fiyat': new_fiyat,
                     'tedarikci': new_tedarikci,
                     'plaka': new_plaka,
-                    'tonaj': new_tonaj,
+                    'yore': new_yore,
+                    'tarih': new_tarih, # Tarih güncellemesi riskli olabilir ama ekledik
                     'protein': new_protein,
                     'gluten': new_gluten,
-                    'fiyat': new_fiyat,
+                    'rutubet': new_rutubet,
+                    'hektolitre': new_hl,
+                    'sedim': new_sedim,
+                    'gecikmeli_sedim': new_gsedim,
+                    'gluten_index': new_gindex,
+                    'sune': new_sune,
+                    'kirik_ciliz': new_kirik,
+                    'yabanci_tane': new_yabanci,
                     'notlar': new_notlar
                 }
                 
@@ -1214,20 +1259,12 @@ def show_bugday_giris_arsivi():
                 else:
                     st.error(msg)
 
-    # B) SİLME MODU
+    # B) SİLME MODU (Aynı kaldı, sadece yeri değişti)
     with st.expander("🗑️ Kaydı Sil (Tehlikeli Bölge)", expanded=False):
         st.warning(f"⚠️ DİKKAT: `{selected_lot}` numaralı kaydı silmek üzeresiniz!")
-        st.markdown("""
-        Bu işlem şunları yapacaktır:
-        1. Arşivden kaydı siler.
-        2. **Silo stoğundan bu malı düşer.**
-        3. Paçal hesaplarını etkiler.
-        """)
+        st.markdown("Bu işlem silodaki stoğu düşürür ve ortalamaları yeniden hesaplar.")
         
-        # Güvenlik Kilidi
-        risk_onayi = st.checkbox("Riskleri anladım, silmek istiyorum.", key="risk_onayi_box")
-        
-        if risk_onayi:
+        if st.checkbox("Riskleri anladım, silmek istiyorum.", key="risk_onayi_box"):
             if st.button("🔥 KAYDI KALICI OLARAK SİL", type="primary"):
                 success, msg = delete_intake_record(selected_lot)
                 if success:
@@ -1529,6 +1566,7 @@ def show_wheat_yonetimi():
         with tab_db2:
             with st.container(border=True):
                 show_stok_hareketleri()
+
 
 
 
