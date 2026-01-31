@@ -28,10 +28,9 @@ except ImportError:
 # ==============================================================================
 
 def show_katki_maliyeti_modulu():
-    """Katkı ve Enzim Maliyeti Modülü - Full Versiyon"""
+    """Katkı ve Enzim Maliyeti Modülü - Full Versiyon (KeyError Düzeltilmiş)"""
     
     # --- 1. VERİTABANI BAŞLATMA VE KONTROL ---
-    # Tabloları çekiyoruz
     df_kurlar = fetch_data("katki_kurlar")
     df_enzimler = fetch_data("katki_enzimler")
     df_urunler = fetch_data("katki_urunler")
@@ -42,20 +41,21 @@ def show_katki_maliyeti_modulu():
     if df_recete.empty or 'urun_id' not in df_recete.columns:
         df_recete = pd.DataFrame(columns=['urun_id', 'enzim_id', 'gramaj'])
 
-    # B) Arşiv Tablosu Başlatma (Excel Format Sorunu Çözümü)
-    # Eğer arşiv boşsa, sütun başlıklarını zorla oluşturup kaydediyoruz.
-    # Böylece ilk kayıt geldiğinde string olarak değil, sütunlara ayrılarak düşer.
-    if df_arsiv.empty or 'maliyet_tl' not in df_arsiv.columns:
-        df_arsiv = pd.DataFrame(columns=[
-            'id', 'tarih', 'urun_adi', 'maliyet_tl', 'maliyet_usd', 
-            'maliyet_eur', 'usd_kuru', 'eur_kuru', 'detay_json'
-        ])
-        # Veritabanına başlıkları işle (Sadece boşsa)
-        if df_arsiv.empty:
-            try:
-                conn = get_conn()
-                conn.update(worksheet="katki_maliyet_arsivi", data=df_arsiv)
-            except: pass
+    # B) Arşiv Tablosu Emniyet Kilidi (KeyError Çözümü BURASI)
+    # Beklenen sütun listesi
+    required_cols = [
+        'id', 'tarih', 'urun_adi', 'maliyet_tl', 'maliyet_usd', 
+        'maliyet_eur', 'usd_kuru', 'eur_kuru', 'detay_json'
+    ]
+    
+    # Eğer tablo boşsa direkt sütunlarla oluştur
+    if df_arsiv.empty:
+        df_arsiv = pd.DataFrame(columns=required_cols)
+    else:
+        # Tablo dolu ama sütun eksikse (örn: sonradan eklenen sütunlar)
+        for col in required_cols:
+            if col not in df_arsiv.columns:
+                df_arsiv[col] = None
 
     # C) Varsayılan Kurlar
     usd_val = 43.28
@@ -353,8 +353,8 @@ def show_katki_maliyeti_modulu():
     with tab_arsiv:
         st.markdown("### 📜 Geçmiş Maliyet Kayıtları")
         
-        # Yeniden çek (Güncel hali)
-        df_arsiv_guncel = fetch_data("katki_maliyet_arsivi")
+        # Yeniden çek (Güncel hali ve emniyet kilidi uygulanmış)
+        df_arsiv_guncel = df_arsiv.copy() # İlk başta çektiğimizi kullanıyoruz
         
         if not df_arsiv_guncel.empty:
             # ID ve Tarih düzeltmeleri
@@ -382,7 +382,7 @@ def show_katki_maliyeti_modulu():
             
             st.markdown(f"**Toplam Kayıt:** {len(df_show)}")
             
-            # Ana Tabloyu Göster
+            # Ana Tabloyu Göster (Hata veren yer burasıydı, artık 'df_arsiv' yukarıda düzeltildiği için hata vermez)
             st.dataframe(
                 df_show[['tarih', 'urun_adi', 'maliyet_tl', 'maliyet_usd', 'maliyet_eur']],
                 use_container_width=True,
@@ -447,7 +447,6 @@ def show_katki_maliyeti_modulu():
                         try:
                             conn = get_conn()
                             # ID'ye göre filtrele ve sil
-                            # Not: Excel'den gelen ID bazen int bazen str olabilir, güvenli silme yapalım
                             hedef_id = secilen_kayit['id']
                             df_yeni_arsiv = df_arsiv_guncel[df_arsiv_guncel['id'] != hedef_id]
                             
@@ -460,7 +459,6 @@ def show_katki_maliyeti_modulu():
 
         else:
             st.info("Henüz arşivlenmiş bir maliyet kaydı bulunmuyor.")
-
 def show_enzim_dozajlama():
     """Un Geliştirici Enzim Dozajlama Hesaplama Modülü"""
     
@@ -699,6 +697,7 @@ def show_fire_maliyet_hesaplama():
             <p style='color: #7f1d1d; margin:0;'>Bu fire olmasaydı (veya %0 olsaydı) cebinizde kalacak olan tutar.</p>
         </div>
         """, unsafe_allow_html=True)
+
 
 
 
