@@ -1639,7 +1639,8 @@ def show_wheat_yonetimi():
                 show_stok_hareketleri()
 def export_tavli_ozel_excel(df):
     """
-    Tavlı analizler için özel gruplandırılmış başlıklı Excel üretir. (DÜZELTİLMİŞ VERSİYON)
+    Tavlı analizler için özel gruplandırılmış başlıklı Excel üretir.
+    DÜZELTME: Sayısal değerler tek ondalık haneye (0.0) yuvarlanır.
     """
     try:
         from io import BytesIO
@@ -1670,7 +1671,7 @@ def export_tavli_ozel_excel(df):
                     ("Protein", "protein"),
                     ("Gluten", "gluten"),
                     ("Rutubet", "rutubet"),
-                    ("G. Index", "gluten_index"),
+                    ("G. İndeks", "gluten_index"), # Başlık Türkçe yapıldı
                     ("Sedim", "sedim"),
                     ("G. Sedim", "g_sedim"),
                     ("FN", "fn"),
@@ -1736,20 +1737,23 @@ def export_tavli_ozel_excel(df):
 
             current_col += num_cols
 
-        # --- VERİLERİ YAZMA ---
+        # --- VERİLERİ YAZMA (YUVARLAMA İŞLEMİ BURADA) ---
         for r_idx, row_data in enumerate(df.to_dict('records'), start=3):
             current_col = 1
             for group in structure:
                 for col_name, db_key in group["cols"]:
                     val = row_data.get(db_key, "")
                     
+                    # Tarih formatı
                     if db_key == "tarih" and val:
                         try: val = pd.to_datetime(val).strftime('%d.%m.%Y %H:%M')
                         except: pass
                     
+                    # Sayısal yuvarlama (12.168 -> 12.2)
                     try:
-                        if db_key not in ["tarih", "silo_isim", "notlar"] and val:
+                        if db_key not in ["tarih", "silo_isim", "notlar"] and val is not None and val != "":
                             val = float(val)
+                            val = round(val, 1) # Excel'e temiz gitmesi için yuvarla
                     except: pass
 
                     cell = ws.cell(row=r_idx, column=current_col, value=val)
@@ -1757,11 +1761,10 @@ def export_tavli_ozel_excel(df):
                     cell.alignment = Alignment(horizontal="center")
                     current_col += 1
 
-        # --- SÜTUN GENİŞLİKLERİNİ AYARLA (HATA VEREN KISIM DÜZELTİLDİ) ---
-        # enumerate kullanarak doğrudan index üzerinden harf üretiyoruz
+        # --- SÜTUN GENİŞLİKLERİ ---
         for i, col in enumerate(ws.columns, 1):
             max_length = 0
-            column_letter = get_column_letter(i) # MergedCell hatasını çözen satır
+            column_letter = get_column_letter(i)
             
             for cell in col:
                 try:
@@ -1780,14 +1783,15 @@ def export_tavli_ozel_excel(df):
     except Exception as e:
         st.error(f"Excel oluşturma hatası: {e}")
         return None
+
 # ==============================================================================
-# TAVLI ANALİZ ARŞİVİ (ARAYÜZ + YÖNETİM)
+# TAVLI ANALİZ ARŞİVİ (TÜRKÇE BAŞLIKLAR + YUVARLAMA)
 # ==============================================================================
 def show_tavli_analiz_arsivi():
     """
     Tavlı Buğday Analiz Geçmişi
-    - Türkçe Başlıklar
-    - Gruplandırılmış Özel Excel Raporu
+    - Türkçe Başlıklar (g_sedim -> G. Sedim)
+    - Sayısal Yuvarlama (12.2)
     - Admin Yetkili Düzenleme
     """
     st.markdown("### 🧪 Tavlı Buğday Analiz Geçmişi")
@@ -1805,40 +1809,77 @@ def show_tavli_analiz_arsivi():
         with c1:
             silo_filter = st.selectbox("Silo Filtrele", ["Tümü"] + list(df['silo_isim'].unique()))
         with c2:
-            # Opsiyonel: Tarih filtresi
             pass
 
     df_show = df.copy()
     if silo_filter != "Tümü":
         df_show = df_show[df_show['silo_isim'] == silo_filter]
 
-    # --- TABLO GÖRÜNÜMÜ (TÜRKÇE BAŞLIKLAR) ---
+    # --- VERİ HAZIRLIĞI (YUVARLAMA VE BAŞLIKLAR) ---
+    # 1. Tüm sayısal kolonları 1 ondalığa yuvarla
+    numeric_cols = [
+        'protein', 'gluten', 'rutubet', 'gluten_index', 'sedim', 'g_sedim', 'fn', 'ffn', 'amilograph',
+        'su_kaldirma_f', 'gelisme_suresi', 'stabilite', 'yumusama', 'su_kaldirma_e',
+        'enerji45', 'direnc45', 'taban45', 'enerji90', 'direnc90', 'taban90', 'enerji135', 'direnc135', 'taban135',
+        'analiz_tonaj'
+    ]
+    
+    for col in numeric_cols:
+        if col in df_show.columns:
+            # Önce sayıya çevir (hata varsa NaN yap), sonra yuvarla
+            df_show[col] = pd.to_numeric(df_show[col], errors='coerce').round(1)
+
+    # 2. Tablo Gösterimi İçin Kopya Al ve Başlıkları Türkçeleştir
+    df_display = df_show.copy()
+    
+    col_map = {
+        'silo_isim': 'Silo',
+        'analiz_tonaj': 'Tonaj',
+        'tarih': 'Tarih',
+        'notlar': 'Notlar',
+        # Kimyasal
+        'gluten_index': 'G. İndeks',
+        'g_sedim': 'G. Sedim',
+        'amilograph': 'Amilograf',
+        'fn': 'FN',
+        'ffn': 'FFN',
+        # Farino
+        'su_kaldirma_f': 'Su Kal. (F)',
+        'gelisme_suresi': 'Gelişme',
+        'stabilite': 'Stabilite',
+        'yumusama': 'Yumuşama',
+        # Extenso
+        'su_kaldirma_e': 'Su Kal. (E)',
+        'enerji45': 'Enerji (45)', 'direnc45': 'Direnç (45)', 'taban45': 'Taban (45)',
+        'enerji90': 'Enerji (90)', 'direnc90': 'Direnç (90)', 'taban90': 'Taban (90)',
+        'enerji135': 'Enerji (135)', 'direnc135': 'Direnç (135)', 'taban135': 'Taban (135)'
+    }
+    
+    # Sadece var olan sütunları yeniden adlandır
+    df_display = df_display.rename(columns=col_map)
+
+    # --- EKRAN TABLOSU ---
+    # Not: column_config kullanarak formatı zorluyoruz (%.1f)
     st.dataframe(
-        df_show,
+        df_display,
         use_container_width=True,
         hide_index=True,
         column_config={
-            "tarih": st.column_config.DatetimeColumn("Tarih", format="DD.MM.YYYY HH:mm"),
-            "silo_isim": st.column_config.TextColumn("Silo"),
-            "analiz_tonaj": st.column_config.NumberColumn("Tonaj", format="%.1f"),
-            "notlar": st.column_config.TextColumn("Notlar"),
-            
-            # Kimyasal
-            "protein": st.column_config.NumberColumn("Protein", format="%.1f"),
-            "gluten": st.column_config.NumberColumn("Gluten", format="%.1f"),
-            "rutubet": st.column_config.NumberColumn("Rutubet", format="%.1f"),
-            "sedim": st.column_config.NumberColumn("Sedim", format="%.0f"),
-            
-            # Farino
-            "su_kaldirma_f": st.column_config.NumberColumn("Su Kal. (F)", format="%.1f"),
-            "stabilite": st.column_config.NumberColumn("Stabilite", format="%.1f"),
-            
-            # Extenso (Enerji Örneği)
-            "enerji135": st.column_config.NumberColumn("Enerji (135)", format="%.0f"),
+            "Tarih": st.column_config.DatetimeColumn("Tarih", format="DD.MM.YYYY HH:mm"),
+            "Tonaj": st.column_config.NumberColumn("Tonaj", format="%.1f"),
+            "Protein": st.column_config.NumberColumn("Protein", format="%.1f"),
+            "Gluten": st.column_config.NumberColumn("Gluten", format="%.1f"),
+            "Rutubet": st.column_config.NumberColumn("Rutubet", format="%.1f"),
+            "Sedim": st.column_config.NumberColumn("Sedim", format="%.1f"),
+            "G. İndeks": st.column_config.NumberColumn("G. İndeks", format="%.1f"),
+            "Su Kal. (F)": st.column_config.NumberColumn("Su Kal. (F)", format="%.1f"),
+            # Diğerleri otomatik formatlanır veya yukarıdaki round(1) ile gelir
         }
     )
     
     # --- ÖZEL EXCEL BUTONU ---
+    # Excel'e orijinal (rename edilmemiş) ama yuvarlanmış veriyi gönderiyoruz
+    # Çünkü excel fonksiyonu veritabanı isimlerini ('su_kaldirma_f' gibi) arıyor.
     excel_data = export_tavli_ozel_excel(df_show)
     if excel_data:
         st.download_button(
@@ -1855,7 +1896,6 @@ def show_tavli_analiz_arsivi():
     # 🔒 YÖNETİCİ PANELİ (ADMIN ONLY)
     # ==========================================================================
     if st.session_state.get('user_role') != 'admin':
-        # Admin değilse burayı gösterme
         return
 
     st.subheader("🛠️ Kayıt Düzenleme (Admin Paneli)")
@@ -1863,12 +1903,12 @@ def show_tavli_analiz_arsivi():
     # Kayıt Seçimi
     record_list = df_show.to_dict('records')
     def format_func(row):
-        return f"{row['silo_isim']} - {pd.to_datetime(row['tarih']).strftime('%d.%m %H:%M')} ({row['analiz_tonaj']} Ton)"
+        t_str = pd.to_datetime(row['tarih']).strftime('%d.%m %H:%M') if pd.notnull(row['tarih']) else "Tarih Yok"
+        return f"{row.get('silo_isim','?')} - {t_str} ({row.get('analiz_tonaj',0)} Ton)"
 
     selected_record = st.selectbox("Düzenlenecek Kaydı Seçin:", record_list, format_func=format_func)
     
     if selected_record:
-        # Silo Listesini al
         df_silo_data = get_silo_data()
         silo_opts = df_silo_data['isim'].tolist() if not df_silo_data.empty else []
         
@@ -1889,7 +1929,7 @@ def show_tavli_analiz_arsivi():
 
             st.markdown("---")
             
-            # --- BÖLÜM 2: DETAYLI ANALİZLER (SEKMELİ) ---
+            # --- BÖLÜM 2: DETAYLI ANALİZLER ---
             tab_kimya, tab_farino, tab_extenso = st.tabs(["🧪 Kimyasal", "📈 Farinograph", "📊 Extensograph"])
             
             def get_val(k, default=0.0): return float(selected_record.get(k, default))
@@ -1937,7 +1977,6 @@ def show_tavli_analiz_arsivi():
                     n_d135 = ex8.number_input("Direnç (135)", value=get_val('direnc135'), key="nd135")
                     n_t135 = ex9.number_input("Taban (135)", value=get_val('taban135'), key="nt135")
 
-            # Butonlar
             c_btn1, c_btn2 = st.columns([1, 4])
             with c_btn1:
                 submit_update = st.form_submit_button("✅ GÜNCELLE", type="primary")
