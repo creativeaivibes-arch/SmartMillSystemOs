@@ -1178,11 +1178,163 @@ def show_stok_hareketleri():
     else:
         st.info("Kriterlere uygun kayıt bulunamadı.")
 
+# ==============================================================================
+# ÖZEL EXCEL RAPOR MOTORU (BUĞDAY GİRİŞ - GRUPLANDIRILMIŞ BAŞLIKLAR)
+# ==============================================================================
+def export_bugday_giris_ozel_excel(df):
+    """
+    Buğday Giriş Arşivi için özel gruplandırılmış Excel üretir.
+    Yapı: [TEMEL BİLGİLER] + [FİZİKSEL VE KİMYASAL ANALİZLER]
+    """
+    try:
+        from io import BytesIO
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Bugday Giris Raporu"
+
+        # Haşere Durumu Hesapla (Excel için)
+        df['Hasere_Durum'] = df['notlar'].apply(
+            lambda x: "VAR" if isinstance(x, str) and any(k in x.upper() for k in ["HAŞ", "BÖC", "BIT", "CANLI"]) else "TEMİZ"
+        )
+
+        # --- TASARIM TANIMLARI ---
+        structure = [
+            {
+                "group": "TEMEL BİLGİLER",
+                "color": "4472C4", # Mavi
+                "cols": [
+                    ("Sıra No", "id_counter"), # Özel oluşturulacak
+                    ("Tarih", "tarih"),
+                    ("Lot No", "lot_no"),
+                    ("Plaka", "plaka"),
+                    ("Buğday Cinsi", "bugday_cinsi"),
+                    ("Tedarikçi Adı", "tedarikci"),
+                    ("Yöre/Bölge", "yore"),
+                    ("Döküldüğü Silo", "silo_isim"),
+                    ("Tonaj", "tonaj"),
+                    ("Fiyat", "fiyat")
+                ]
+            },
+            {
+                "group": "FİZİKSEL VE KİMYASAL ANALİZLER",
+                "color": "ED7D31", # Turuncu
+                "cols": [
+                    ("Hektolitre", "hektolitre"),
+                    ("Protein", "protein"),
+                    ("Rutubet", "rutubet"),
+                    ("Gluten", "gluten"),
+                    ("Gluten İndeks", "gluten_index"),
+                    ("Sedim", "sedim"),
+                    ("G. Sedim", "gecikmeli_sedim"),
+                    ("Süne", "sune"),
+                    ("Kırık & Cılız", "kirik_ciliz"),
+                    ("Yabancı Tane", "yabanci_tane"),
+                    ("Haşere", "Hasere_Durum"), # Hesaplanan sütun
+                    ("Not", "notlar")
+                ]
+            }
+        ]
+
+        # --- STİLLER ---
+        thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+        header_font = Font(bold=True, color="FFFFFF", size=11)
+        sub_header_font = Font(bold=True, color="000000", size=10)
+        
+        # --- BAŞLIKLARI YAZMA ---
+        current_col = 1
+        for group in structure:
+            start_col = current_col
+            num_cols = len(group["cols"])
+            end_col = start_col + num_cols - 1
+            
+            # 1. Üst Başlık (Merge)
+            ws.merge_cells(start_row=1, start_column=start_col, end_row=1, end_column=end_col)
+            cell = ws.cell(row=1, column=start_col, value=group["group"])
+            cell.fill = PatternFill("solid", fgColor=group["color"])
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+            cell.border = thin_border
+            
+            for c in range(start_col, end_col + 1):
+                ws.cell(row=1, column=c).border = thin_border
+
+            # 2. Alt Başlıklar
+            for i, (col_name, db_key) in enumerate(group["cols"]):
+                cell_sub = ws.cell(row=2, column=start_col + i, value=col_name)
+                cell_sub.font = sub_header_font
+                cell_sub.alignment = Alignment(horizontal="center", vertical="center")
+                cell_sub.border = thin_border
+                cell_sub.fill = PatternFill("solid", fgColor="E7E6E6")
+
+            current_col += num_cols
+
+        # --- VERİLERİ YAZMA ---
+        records = df.to_dict('records')
+        for r_idx, row_data in enumerate(records, start=3):
+            current_col = 1
+            for group in structure:
+                for col_name, db_key in group["cols"]:
+                    
+                    # Özel Durumlar
+                    if db_key == "id_counter":
+                        val = r_idx - 2 # 1'den başlat
+                    else:
+                        val = row_data.get(db_key, "")
+                    
+                    # Tarih Formatı
+                    if db_key == "tarih" and val:
+                        try: val = pd.to_datetime(val).strftime('%d.%m.%Y')
+                        except: pass
+                    
+                    # Sayısal Yuvarlama
+                    try:
+                        if isinstance(val, (int, float)):
+                            val = round(float(val), 1)
+                        elif val and db_key not in ["tarih", "silo_isim", "notlar", "plaka", "Hasere_Durum", "tedarikci", "yore", "bugday_cinsi", "lot_no"]:
+                            val = round(float(val), 1)
+                    except: pass
+
+                    cell = ws.cell(row=r_idx, column=current_col, value=val)
+                    cell.border = thin_border
+                    cell.alignment = Alignment(horizontal="center")
+                    current_col += 1
+
+        # --- SÜTUN GENİŞLİKLERİ ---
+        for i, col in enumerate(ws.columns, 1):
+            max_length = 0
+            column_letter = get_column_letter(i)
+            for cell in col:
+                try:
+                    if cell.value:
+                        max_length = max(max_length, len(str(cell.value)))
+                except: pass
+            adjusted_width = min(max_length + 3, 50)
+            ws.column_dimensions[column_letter].width = adjusted_width
+
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+        return output.getvalue()
+
+    except Exception as e:
+        st.error(f"Excel oluşturma hatası: {e}")
+        return None
+
+# ==============================================================================
+# BUĞDAY GİRİŞ ARŞİVİ (YENİ DÜZEN)
+# ==============================================================================
 def show_bugday_giris_arsivi():
     """
-    Buğday Giriş Arşivi - GÜVENLİ VERSİYON
-    - Tablo ve Filtreleme: Herkese Açık
-    - Düzenleme ve Silme: Sadece 'admin' Yetkisi
+    Buğday Giriş Arşivi
+    - İstenen Başlık Sıralaması
+    - ID Numaralandırma
+    - Haşere Durumu (Notlardan)
+    - Gruplandırılmış Excel
+    - Admin Korumalı Düzenleme
     """
     st.header("🗄️ Buğday Giriş Arşivi & Yönetimi")
     
@@ -1192,7 +1344,7 @@ def show_bugday_giris_arsivi():
         st.info("📭 Henüz arşiv kaydı bulunmuyor.")
         return
     
-    # --- FİLTRELEME ALANI (HERKES GÖREBİLİR) ---
+    # --- FİLTRELEME ---
     with st.expander("🔍 Kayıt Arama ve Filtreleme", expanded=False):
         col_f1, col_f2 = st.columns(2)
         with col_f1:
@@ -1209,40 +1361,95 @@ def show_bugday_giris_arsivi():
     if silo_filter != "Tümü":
         df_filtered = df_filtered[df_filtered['silo_isim'] == silo_filter]
 
-    # --- TABLO GÖSTERİMİ (HERKES GÖREBİLİR) ---
+    # --- VERİ HAZIRLIĞI (EKRAN İÇİN) ---
+    # 1. ID Sıralaması Ekle (1, 2, 3...)
+    df_filtered.reset_index(drop=True, inplace=True)
+    df_filtered.insert(0, 'ID No', range(1, len(df_filtered) + 1))
+    
+    # 2. Haşere Durumu (Notların içinde 'haşere', 'böcek' varsa VAR de)
+    if 'notlar' in df_filtered.columns:
+        df_filtered['Haşere'] = df_filtered['notlar'].apply(
+            lambda x: "VAR" if isinstance(x, str) and any(k in x.upper() for k in ["HAŞ", "BÖC", "BIT", "CANLI"]) else "TEMİZ"
+        )
+    else:
+        df_filtered['Haşere'] = "-"
+
+    # 3. Sayısal Yuvarlama
+    numeric_cols = ['hektolitre', 'protein', 'rutubet', 'gluten', 'gluten_index', 'sedim', 'gecikmeli_sedim', 'sune', 'kirik_ciliz', 'yabanci_tane', 'tonaj', 'fiyat']
+    for col in numeric_cols:
+        if col in df_filtered.columns:
+            df_filtered[col] = pd.to_numeric(df_filtered[col], errors='coerce').round(1)
+
+    # 4. Sütun Adlandırma (Mapping) - Senin istediğin başlıklar
+    col_map = {
+        'tarih': 'Tarih',
+        'lot_no': 'Lot No',
+        'plaka': 'Plaka',
+        'bugday_cinsi': 'Buğday Cinsi',
+        'tedarikci': 'Tedarikçi Adı',
+        'yore': 'Yöre/Bölge',
+        'silo_isim': 'Döküldüğü Silo',
+        'tonaj': 'Tonaj',
+        'fiyat': 'Fiyat',
+        'hektolitre': 'Hektolitre',
+        'protein': 'Protein',
+        'rutubet': 'Rutubet',
+        'gluten': 'Gluten',
+        'gluten_index': 'Gluten İndeks',
+        'sedim': 'Sedim',
+        'gecikmeli_sedim': 'G. Sedim',
+        'sune': 'Süne',
+        'kirik_ciliz': 'Kırık & Cılız',
+        'yabanci_tane': 'Yabancı Tane',
+        'notlar': 'Not'
+    }
+    
+    df_display = df_filtered.rename(columns=col_map)
+    
+    # İstenen sütun sırasını oluştur
+    desired_order = [
+        'ID No', 'Tarih', 'Lot No', 'Plaka', 'Buğday Cinsi', 'Tedarikçi Adı', 
+        'Yöre/Bölge', 'Döküldüğü Silo', 'Tonaj', 'Fiyat',
+        'Hektolitre', 'Protein', 'Rutubet', 'Gluten', 'Gluten İndeks',
+        'Sedim', 'G. Sedim', 'Süne', 'Kırık & Cılız', 'Yabancı Tane', 'Haşere', 'Not'
+    ]
+    
+    # Sadece mevcut olanları seç (Hata vermemesi için)
+    final_cols = [c for c in desired_order if c in df_display.columns]
+    df_display = df_display[final_cols]
+
+    # --- TABLO GÖSTERİMİ ---
     st.dataframe(
-        df_filtered,
+        df_display,
         use_container_width=True,
         hide_index=True,
         column_config={
-            "tarih": st.column_config.DateColumn("Tarih", format="DD.MM.YYYY"),
-            "tonaj": st.column_config.NumberColumn("Tonaj", format="%.1f Ton"),
-            "fiyat": st.column_config.NumberColumn("Fiyat", format="%.2f ₺"),
-            "protein": st.column_config.NumberColumn("Protein", format="%.1f"),
-            "sune": st.column_config.NumberColumn("Süne", format="%.1f"),
+            "Tarih": st.column_config.DateColumn("Tarih", format="DD.MM.YYYY"),
+            "Tonaj": st.column_config.NumberColumn("Tonaj", format="%.1f"),
+            "Fiyat": st.column_config.NumberColumn("Fiyat", format="%.2f ₺"),
+            "ID No": st.column_config.NumberColumn("ID", width="small"),
         }
     )
     
-    # Excel Export
-    if st.button("📥 Excel İndir (Tüm Filtreli Veriler)", type="primary", use_container_width=True):
-        export_profesyonel_excel(df_filtered, "Bugday_Giris_Arsivi")
+    # --- YENİ EXCEL BUTONU ---
+    excel_data = export_bugday_giris_ozel_excel(df_filtered) # Orijinal filtrelenmiş veriyi gönderiyoruz
+    if excel_data:
+        st.download_button(
+            label="📥 Profesyonel Excel Raporu İndir (Gruplandırılmış Başlıklar)",
+            data=excel_data,
+            file_name=f"Bugday_Giris_Raporu_{datetime.now().strftime('%Y%m%d')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            type="primary"
+        )
     
     st.divider()
 
     # ==============================================================================
-    # 🔒 GÜVENLİK KİLİDİ: BURADAN AŞAĞISI SADECE ADMIN İÇİNDİR
+    # 🔒 YÖNETİCİ PANELİ (ADMIN KİLİDİ)
     # ==============================================================================
-    
-    user_role = st.session_state.get('user_role', 'viewer')
-    
-    if user_role != 'admin':
-        # Admin değilse uyarı ver ve fonksiyondan çık (Paneli çizme)
-        st.warning(f"🔒 Kayıt Düzenleme ve Silme işlemleri sadece **Yönetici (Admin)** yetkisine sahiptir. (Sizin Yetkiniz: {user_role})")
+    if st.session_state.get('user_role') != 'admin':
         return 
-    
-    # ==============================================================================
-    # 🛠️ YÖNETİCİ PANELİ (Sadece Admin Görür)
-    # ==============================================================================
+
     st.subheader("🛠️ Kayıt İşlemleri (Yönetici Paneli)")
     
     # 1. Kayıt Seçimi
@@ -1253,65 +1460,57 @@ def show_bugday_giris_arsivi():
         return
 
     selected_lot = st.selectbox("İşlem Yapmak İstediğiniz Kaydı Seçiniz (Lot No):", lot_list, key="selected_lot_manage")
-    
-    # Seçilen kaydın verilerini al
     record = df[df['lot_no'] == selected_lot].iloc[0]
     
-    # Silo Listesini Al
     df_silo_data = get_silo_data()
     silo_listesi = df_silo_data['isim'].tolist() if not df_silo_data.empty else []
     
     # A) FULL GÜNCELLEME MODU
     with st.container(border=True):
-        st.markdown(f"**📝 Kayıt Düzenle:** `{selected_lot}` (Tüm Parametreler)")
+        st.markdown(f"**📝 Kayıt Düzenle:** `{selected_lot}`")
         
         with st.form(key="full_update_form"):
-            
-            # --- SATIR 1: Kritik Lojistik Bilgiler ---
+            # SATIR 1
             c1, c2, c3, c4 = st.columns(4)
             curr_silo = str(record.get('silo_isim', ''))
-            silo_index = silo_listesi.index(curr_silo) if curr_silo in silo_listesi else 0
+            s_idx = silo_listesi.index(curr_silo) if curr_silo in silo_listesi else 0
             
-            new_silo = c1.selectbox("Depo/Silo (DİKKAT!)", options=silo_listesi, index=silo_index, help="Silo değişirse stok otomatik transfer edilir.")
+            new_silo = c1.selectbox("Döküldüğü Silo", options=silo_listesi, index=s_idx)
             new_cins = c2.text_input("Buğday Cinsi", value=str(record.get('bugday_cinsi', '')))
-            new_tonaj = c3.number_input("Tonaj (DİKKAT!)", value=float(record.get('tonaj', 0)), step=0.1, help="Tonaj değişirse stok güncellenir.")
+            new_tonaj = c3.number_input("Tonaj", value=float(record.get('tonaj', 0)), step=0.1)
             new_fiyat = c4.number_input("Fiyat (TL)", value=float(record.get('fiyat', 0)), step=0.1)
 
-            # --- SATIR 2: Tedarikçi ve Bölge ---
+            # SATIR 2
             c5, c6, c7, c8 = st.columns(4)
-            new_tedarikci = c5.text_input("Tedarikçi", value=str(record.get('tedarikci', '')))
+            new_tedarikci = c5.text_input("Tedarikçi Adı", value=str(record.get('tedarikci', '')))
             new_plaka = c6.text_input("Plaka", value=str(record.get('plaka', '')))
-            new_yore = c7.text_input("Yöre", value=str(record.get('yore', '')))
+            new_yore = c7.text_input("Yöre/Bölge", value=str(record.get('yore', '')))
             new_tarih = c8.text_input("Tarih (YYYY-AA-GG)", value=str(record.get('tarih', '')).split(' ')[0])
 
             st.markdown("---")
-            st.markdown("**🧪 Laboratuvar Değerleri**")
+            st.markdown("**🧪 Fiziksel ve Kimyasal Analizler**")
 
-            # --- SATIR 3: Temel Analizler ---
+            # SATIR 3
             l1, l2, l3, l4 = st.columns(4)
-            new_protein = l1.number_input("Protein", value=float(record.get('protein', 0)), step=0.1)
-            new_gluten = l2.number_input("Gluten", value=float(record.get('gluten', 0)), step=0.1)
+            new_hl = l1.number_input("Hektolitre", value=float(record.get('hektolitre', 0)), step=0.1)
+            new_protein = l2.number_input("Protein", value=float(record.get('protein', 0)), step=0.1)
             new_rutubet = l3.number_input("Rutubet", value=float(record.get('rutubet', 0)), step=0.1)
-            new_hl = l4.number_input("Hektolitre", value=float(record.get('hektolitre', 0)), step=0.1)
+            new_gluten = l4.number_input("Gluten", value=float(record.get('gluten', 0)), step=0.1)
 
-            # --- SATIR 4: Detay Analizler ---
+            # SATIR 4
             l5, l6, l7, l8 = st.columns(4)
-            new_sedim = l5.number_input("Sedim", value=float(record.get('sedim', 0)), step=1.0)
-            new_gsedim = l6.number_input("G. Sedim", value=float(record.get('gecikmeli_sedim', 0)), step=1.0)
-            new_gindex = l7.number_input("Gluten Index", value=float(record.get('gluten_index', 0)), step=1.0)
+            new_gindex = l5.number_input("Gluten Index", value=float(record.get('gluten_index', 0)), step=1.0)
+            new_sedim = l6.number_input("Sedim", value=float(record.get('sedim', 0)), step=1.0)
+            new_gsedim = l7.number_input("G. Sedim", value=float(record.get('gecikmeli_sedim', 0)), step=1.0)
             new_sune = l8.number_input("Süne", value=float(record.get('sune', 0)), step=0.1)
 
-            # --- SATIR 5: Fiziksel ---
-            l9, l10, l11, l12 = st.columns(4)
-            new_kirik = l9.number_input("Kırık/Cılız", value=float(record.get('kirik_ciliz', 0)), step=0.1)
+            # SATIR 5
+            l9, l10, l11 = st.columns(3)
+            new_kirik = l9.number_input("Kırık & Cılız", value=float(record.get('kirik_ciliz', 0)), step=0.1)
             new_yabanci = l10.number_input("Yabancı Tane", value=float(record.get('yabanci_tane', 0)), step=0.1)
-            l11.empty()
-            l12.empty()
-
-            # --- SATIR 6: Notlar ---
-            new_notlar = st.text_area("Notlar / Açıklama", value=str(record.get('notlar', '')))
+            new_notlar = l11.text_input("Not", value=str(record.get('notlar', '')))
             
-            if st.form_submit_button("✅ TÜM GÜNCELLEMELERİ KAYDET (YÖNETİCİ)", type="primary"):
+            if st.form_submit_button("✅ GÜNCELLE", type="primary"):
                 update_payload = {
                     'silo_isim': new_silo, 'bugday_cinsi': new_cins, 'tonaj': new_tonaj,
                     'fiyat': new_fiyat, 'tedarikci': new_tedarikci, 'plaka': new_plaka,
@@ -1330,11 +1529,9 @@ def show_bugday_giris_arsivi():
                 else:
                     st.error(msg)
 
-    # B) SİLME MODU (Sadece Admin)
-    with st.expander("🗑️ Kaydı Sil (Tehlikeli Bölge)", expanded=False):
+    # B) SİLME MODU
+    with st.expander("🗑️ Kaydı Sil", expanded=False):
         st.warning(f"⚠️ DİKKAT: `{selected_lot}` numaralı kaydı silmek üzeresiniz!")
-        st.markdown("Bu işlem silodaki stoğu düşürür ve ortalamaları yeniden hesaplar.")
-        
         if st.checkbox("Riskleri anladım, silmek istiyorum.", key="risk_onayi_box"):
             if st.button("🔥 KAYDI KALICI OLARAK SİL", type="primary"):
                 success, msg = delete_intake_record(selected_lot)
@@ -1344,82 +1541,6 @@ def show_bugday_giris_arsivi():
                     st.rerun()
                 else:
                     st.error(msg)
-
-def export_profesyonel_excel(df, dosya_adi="Arsiv"):
-    """
-    Profesyonel Excel Export (SADECE XLSX)
-    - Renkli başlıklar
-    - Hücre kenarlıkları
-    - Otomatik sütun genişliği
-    """
-    try:
-        from io import BytesIO
-        from openpyxl import Workbook
-        from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
-        from openpyxl.utils.dataframe import dataframe_to_rows
-        
-        # Yeni workbook oluştur
-        wb = Workbook()
-        ws = wb.active
-        ws.title = "Arşiv"
-        
-        # DataFrame'i satır satır ekle
-        for r_idx, row in enumerate(dataframe_to_rows(df, index=False, header=True), 1):
-            for c_idx, value in enumerate(row, 1):
-                cell = ws.cell(row=r_idx, column=c_idx, value=value)
-                
-                # Kenarlık tanımla
-                border = Border(
-                    left=Side(style='thin', color='000000'),
-                    right=Side(style='thin', color='000000'),
-                    top=Side(style='thin', color='000000'),
-                    bottom=Side(style='thin', color='000000')
-                )
-                cell.border = border
-                
-                # Başlık satırı ise (1. satır)
-                if r_idx == 1:
-                    cell.fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
-                    cell.font = Font(bold=True, color="FFFFFF", size=11)
-                    cell.alignment = Alignment(horizontal='center', vertical='center')
-                else:
-                    # Veri hücreleri
-                    cell.alignment = Alignment(vertical='center')
-        
-        # Sütun genişliklerini ayarla
-        for column in ws.columns:
-            max_length = 0
-            column_letter = column[0].column_letter
-            for cell in column:
-                try:
-                    if cell.value:
-                        max_length = max(max_length, len(str(cell.value)))
-                except:
-                    pass
-            adjusted_width = min(max_length + 3, 50)
-            ws.column_dimensions[column_letter].width = adjusted_width
-        
-        # BytesIO buffer'a kaydet
-        output = BytesIO()
-        wb.save(output)
-        output.seek(0)
-        
-        # Download butonu
-        st.download_button(
-            label="📄 Excel Dosyasını İndir (.xlsx)",
-            data=output.getvalue(),
-            file_name=f"{dosya_adi}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            type="secondary",
-            use_container_width=True
-        )
-        
-        st.success("✅ Excel dosyası hazır!")
-        
-    except ImportError:
-        st.error("❌ openpyxl kütüphanesi eksik! requirements.txt'e ekleyin.")
-    except Exception as e:
-        st.error(f"❌ Excel oluşturma hatası: {e}")
 
 def show_bugday_spec_yonetimi():
     """Buğday Spesifikasyon Yönetimi - GELİŞTİRİLMİŞ TASARIM"""
@@ -2016,6 +2137,7 @@ def show_tavli_analiz_arsivi():
                     st.rerun()
                 else:
                     st.error(msg)
+
 
 
 
