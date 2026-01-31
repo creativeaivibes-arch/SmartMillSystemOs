@@ -49,16 +49,15 @@ def delete_intake_record(lot_no):
 
 def update_intake_record(old_lot_no, new_data):
     """
-    Bir mal kabul kaydını GÜNCELLER.
-    Eğer tonaj veya analiz değişirse, stok hareketlerini de günceller.
+    Bir mal kabul kaydını GÜNCELLER (Full Yetkili).
+    Silo ismi, tonaj veya analiz değişirse stok hareketlerini ve ortalamaları da düzeltir.
     """
     try:
         conn = get_conn()
         
-        # 1. Arşivi Güncelle
+        # 1. Arşivi Güncelle (Tüm Detaylar Buraya Yazılır)
         df_arsiv = fetch_data("bugday_giris_arsivi")
         if not df_arsiv.empty and 'lot_no' in df_arsiv.columns:
-            # İlgili satırın indeksini bul
             idx_list = df_arsiv.index[df_arsiv['lot_no'] == old_lot_no].tolist()
             if idx_list:
                 idx = idx_list[0]
@@ -69,23 +68,25 @@ def update_intake_record(old_lot_no, new_data):
                 update_data("bugday_giris_arsivi", df_arsiv)
         
         # 2. Hareket Tablosunu Güncelle (Senkronizasyon)
-        # Sadece kritik veriler (Tonaj, Fiyat, Analizler) harekete yansır
+        # Burası Stok Hesabı ve Paçal Kalitesi İçin Kritiktir
         df_hareket = fetch_data("hareketler")
         if not df_hareket.empty and 'lot_no' in df_hareket.columns:
             idx_list_h = df_hareket.index[df_hareket['lot_no'] == old_lot_no].tolist()
             if idx_list_h:
                 idx_h = idx_list_h[0]
                 
-                # Kritik alanları güncelle
+                # Hareket tablosundaki karşılıkları eşle
                 mapping = {
-                    'tonaj': 'miktar',
-                    'fiyat': 'maliyet',
+                    'tonaj': 'miktar',          # Arşivdeki 'tonaj' -> Hareketteki 'miktar'
+                    'fiyat': 'maliyet',         # Arşivdeki 'fiyat' -> Hareketteki 'maliyet'
+                    'silo_isim': 'silo_isim',   # KRİTİK: Silo değişirse burası güncellenir
                     'protein': 'protein',
                     'gluten': 'gluten',
                     'rutubet': 'rutubet',
                     'hektolitre': 'hektolitre',
                     'sedim': 'sedim',
-                    'tedarikci': 'tedarikci'
+                    'tedarikci': 'tedarikci',
+                    'notlar': 'notlar'
                 }
                 
                 for key_arsiv, key_hareket in mapping.items():
@@ -95,9 +96,10 @@ def update_intake_record(old_lot_no, new_data):
                 update_data("hareketler", df_hareket)
 
         # 3. Siloları Yeniden Hesapla
+        # Silo ismi veya tonaj değiştiği için tüm deponun yeniden matematiksel olarak kurgulanması gerekir.
         recalculate_silos_from_logs()
         
-        return True, "Kayıt başarıyla güncellendi ve stoklar eşitlendi."
+        return True, "✅ Kayıt başarıyla güncellendi, stoklar ve ortalamalar eşitlendi."
     except Exception as e:
         return False, f"Güncelleme hatası: {str(e)}"
 
@@ -1527,6 +1529,7 @@ def show_wheat_yonetimi():
         with tab_db2:
             with st.container(border=True):
                 show_stok_hareketleri()
+
 
 
 
