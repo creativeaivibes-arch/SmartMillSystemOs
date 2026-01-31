@@ -1197,9 +1197,12 @@ def export_bugday_giris_ozel_excel(df):
         ws.title = "Bugday Giris Raporu"
 
         # Haşere Durumu Hesapla (Excel için)
-        df['Hasere_Durum'] = df['notlar'].apply(
-            lambda x: "VAR" if isinstance(x, str) and any(k in x.upper() for k in ["HAŞ", "BÖC", "BIT", "CANLI"]) else "TEMİZ"
-        )
+        if 'notlar' in df.columns:
+            df['Hasere_Durum'] = df['notlar'].apply(
+                lambda x: "VAR" if isinstance(x, str) and any(k in x.upper() for k in ["HAŞ", "BÖC", "BIT", "CANLI"]) else "TEMİZ"
+            )
+        else:
+            df['Hasere_Durum'] = "TEMİZ"
 
         # --- TASARIM TANIMLARI ---
         structure = [
@@ -1207,7 +1210,7 @@ def export_bugday_giris_ozel_excel(df):
                 "group": "TEMEL BİLGİLER",
                 "color": "4472C4", # Mavi
                 "cols": [
-                    ("Sıra No", "id_counter"), # Özel oluşturulacak
+                    ("ID No", "id_counter"), # Özel oluşturulacak
                     ("Tarih", "tarih"),
                     ("Lot No", "lot_no"),
                     ("Plaka", "plaka"),
@@ -1541,7 +1544,6 @@ def show_bugday_giris_arsivi():
                     st.rerun()
                 else:
                     st.error(msg)
-
 def show_bugday_spec_yonetimi():
     """Buğday Spesifikasyon Yönetimi - GELİŞTİRİLMİŞ TASARIM"""
     st.header("📏 Buğday Kalite Standartları")
@@ -2137,6 +2139,7 @@ def show_tavli_analiz_arsivi():
                     st.rerun()
                 else:
                     st.error(msg)
+
 
 
 
