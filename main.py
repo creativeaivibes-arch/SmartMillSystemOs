@@ -227,7 +227,10 @@ elif selected_page == "KK_BUGDAY":
             wheat.show_bugday_giris_arsivi()  # Eski detaylı arşiv
             
         with sub_tab2:
-            wheat.show_stok_hareketleri()     # Yeni renkli giriş/çıkış listesi      
+            wheat.show_stok_hareketleri()     # Yeni renkli giriş/çıkış listesi
+            
+        with sub_tab3:
+            wheat.show_tavli_analiz_arsivi()
 
 # --- B) KALİTE KONTROL: UN YÖNETİMİ ---
 elif selected_page == "KK_UN":
@@ -305,6 +308,7 @@ elif selected_page == "ADMIN" or selected_page == "PROFILE":
 # 🚪 PROFİL SAYFASI
 elif selected_page == "PROFILE":
     show_profile_settings()
+
 
 
 
