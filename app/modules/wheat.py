@@ -15,11 +15,82 @@ try:
     from app.modules.reports import download_styled_excel as shared_download
 except ImportError:
     def shared_download(*args): pass
+        
 
 # --------------------------------------------------------------------------
 # YARDIMCI FONKSİYONLAR (Dashboard Bağımlılığını Kaldırmak İçin Buraya Eklendi)
 # --------------------------------------------------------------------------
+def update_tavli_record_backend(original_record, new_data):
+    """
+    Tavlı analiz kaydını günceller ve silolar tablosundaki stokları senkronize eder.
+    """
+    try:
+        conn = get_conn()
+        df_tavli = fetch_data("tavli_analiz")
+        
+        # Kaydı bul (Tarih ve Silo ismine göre eşleştirme - ID olmadığı için)
+        # Not: Gerçek sistemde ID olması daha iyidir ama mevcut yapıda timestamp kullanıyoruz.
+        match_idx = df_tavli[
+            (df_tavli['tarih'].astype(str) == str(original_record['tarih'])) & 
+            (df_tavli['silo_isim'] == original_record['silo_isim'])
+        ].index
+        
+        if len(match_idx) == 0:
+            return False, "Kayıt veritabanında bulunamadı."
+            
+        idx = match_idx[0]
+        
+        # --- STOK DÜZELTME MANTIĞI ---
+        # Eğer Silo veya Tonaj değiştiyse, eski stoğu geri al, yenisini işle.
+        old_silo = original_record['silo_isim']
+        new_silo = new_data['silo_isim']
+        old_tonaj = float(original_record['analiz_tonaj'])
+        new_tonaj = float(new_data['analiz_tonaj'])
+        
+        if old_silo != new_silo or old_tonaj != new_tonaj:
+            # 1. Eski silodan düş (Reverse operation)
+            # update_tavli_bugday_stok fonksiyonunu 'cikar' modunda eski veriyle çalıştır
+            update_tavli_bugday_stok(old_silo, old_tonaj, "cikar")
+            
+            # 2. Yeni siloya ekle
+            update_tavli_bugday_stok(new_silo, new_tonaj, "ekle")
+            
+        # --- VERİ GÜNCELLEME ---
+        for key, val in new_data.items():
+            df_tavli.at[idx, key] = val
+            
+        conn.update(worksheet="tavli_analiz", data=df_tavli)
+        return True, "✅ Tavlı analiz ve stok kartları başarıyla güncellendi."
+        
+    except Exception as e:
+        return False, f"Güncelleme Hatası: {str(e)}"
 
+def delete_tavli_record_backend(record):
+    """
+    Tavlı analiz kaydını siler ve stoğu düşer.
+    """
+    try:
+        conn = get_conn()
+        df_tavli = fetch_data("tavli_analiz")
+        
+        # Kaydı bul
+        mask = (df_tavli['tarih'].astype(str) == str(record['tarih'])) & \
+               (df_tavli['silo_isim'] == record['silo_isim'])
+               
+        if not mask.any():
+            return False, "Silinecek kayıt bulunamadı."
+            
+        # 1. Stoktan Düş (Bu analiz silindiği için, o tavlı miktar da yok sayılmalı veya serbest bırakılmalı)
+        # Not: Tavlı stoktan düşüyoruz çünkü bu analiz o stoğu "tavlı" olarak işaretlemişti.
+        update_tavli_bugday_stok(record['silo_isim'], record['analiz_tonaj'], "cikar")
+        
+        # 2. Kaydı Sil
+        df_new = df_tavli[~mask]
+        conn.update(worksheet="tavli_analiz", data=df_new)
+        
+        return True, "🗑️ Kayıt silindi ve stok güncellendi."
+    except Exception as e:
+        return False, f"Silme Hatası: {str(e)}"
 def delete_intake_record(lot_no):
     """
     Bir mal kabul kaydını SİLER.
@@ -1566,6 +1637,7 @@ def show_wheat_yonetimi():
         with tab_db2:
             with st.container(border=True):
                 show_stok_hareketleri()
+
 
 
 
