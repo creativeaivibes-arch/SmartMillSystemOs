@@ -242,10 +242,10 @@ elif selected_page == "KK_UN":
     
     # Senin belirlediğin 4 Kritik Sekme
     tab1, tab2, tab3, tab4 = st.tabs([
-        "🎯 Un Spekleri", 
-        "📝 Un Analiz Gir", 
+        "🎯 Un Spektleri", 
+        "📝 Un Analiz Kaydı", 
         "📚 Analiz Arşivi", 
-        "🧬 Enzim Dozaj"
+        "🧬 Enzim Dozaj Hesaplama"
     ])
     
     # flour.py içindeki GERÇEK fonksiyon isimleri ile eşleştirme:
@@ -312,6 +312,7 @@ elif selected_page == "ADMIN" or selected_page == "PROFILE":
 # 🚪 PROFİL SAYFASI
 elif selected_page == "PROFILE":
     show_profile_settings()
+
 
 
 
