@@ -1109,8 +1109,9 @@ def show_stok_hareketleri():
 
 def show_bugday_giris_arsivi():
     """
-    Buğday Giriş Arşivi - PROFESYONEL YÖNETİM & FULL EDIT
-    (Sadece Admin Düzenleyebilir)
+    Buğday Giriş Arşivi - GÜVENLİ VERSİYON
+    - Tablo ve Filtreleme: Herkese Açık
+    - Düzenleme ve Silme: Sadece 'admin' Yetkisi
     """
     st.header("🗄️ Buğday Giriş Arşivi & Yönetimi")
     
@@ -1120,7 +1121,7 @@ def show_bugday_giris_arsivi():
         st.info("📭 Henüz arşiv kaydı bulunmuyor.")
         return
     
-    # --- FİLTRELEME ALANI (Herkes Görebilir) ---
+    # --- FİLTRELEME ALANI (HERKES GÖREBİLİR) ---
     with st.expander("🔍 Kayıt Arama ve Filtreleme", expanded=False):
         col_f1, col_f2 = st.columns(2)
         with col_f1:
@@ -1137,7 +1138,7 @@ def show_bugday_giris_arsivi():
     if silo_filter != "Tümü":
         df_filtered = df_filtered[df_filtered['silo_isim'] == silo_filter]
 
-    # --- TABLO GÖSTERİMİ (Herkes Görebilir) ---
+    # --- TABLO GÖSTERİMİ (HERKES GÖREBİLİR) ---
     st.dataframe(
         df_filtered,
         use_container_width=True,
@@ -1157,15 +1158,20 @@ def show_bugday_giris_arsivi():
     
     st.divider()
 
-    # ======================================================================
-    # 🔒 YETKİ KONTROLÜ: SADECE ADMIN GÖREBİLİR
-    # ======================================================================
-    if st.session_state.get('user_role') != 'admin':
-        st.info("🔒 Kayıtlar üzerinde **Düzenleme** veya **Silme** işlemi sadece **Yönetici (Admin)** yetkisine sahiptir.")
-        return  # Fonksiyondan çık, aşağıyı gösterme
-    # ======================================================================
-
-    # --- DÜZENLEME VE SİLME PANELİ (Sadece Admin) ---
+    # ==============================================================================
+    # 🔒 GÜVENLİK KİLİDİ: BURADAN AŞAĞISI SADECE ADMIN İÇİNDİR
+    # ==============================================================================
+    
+    user_role = st.session_state.get('user_role', 'viewer')
+    
+    if user_role != 'admin':
+        # Admin değilse uyarı ver ve fonksiyondan çık (Paneli çizme)
+        st.warning(f"🔒 Kayıt Düzenleme ve Silme işlemleri sadece **Yönetici (Admin)** yetkisine sahiptir. (Sizin Yetkiniz: {user_role})")
+        return 
+    
+    # ==============================================================================
+    # 🛠️ YÖNETİCİ PANELİ (Sadece Admin Görür)
+    # ==============================================================================
     st.subheader("🛠️ Kayıt İşlemleri (Yönetici Paneli)")
     
     # 1. Kayıt Seçimi
@@ -1180,7 +1186,7 @@ def show_bugday_giris_arsivi():
     # Seçilen kaydın verilerini al
     record = df[df['lot_no'] == selected_lot].iloc[0]
     
-    # Silo Listesini Al (Değişiklik için lazım)
+    # Silo Listesini Al
     df_silo_data = get_silo_data()
     silo_listesi = df_silo_data['isim'].tolist() if not df_silo_data.empty else []
     
@@ -1192,7 +1198,6 @@ def show_bugday_giris_arsivi():
             
             # --- SATIR 1: Kritik Lojistik Bilgiler ---
             c1, c2, c3, c4 = st.columns(4)
-            # Silo seçimi (Mevcut silo listede yoksa eklemesini sağla)
             curr_silo = str(record.get('silo_isim', ''))
             silo_index = silo_listesi.index(curr_silo) if curr_silo in silo_listesi else 0
             
@@ -1229,7 +1234,6 @@ def show_bugday_giris_arsivi():
             l9, l10, l11, l12 = st.columns(4)
             new_kirik = l9.number_input("Kırık/Cılız", value=float(record.get('kirik_ciliz', 0)), step=0.1)
             new_yabanci = l10.number_input("Yabancı Tane", value=float(record.get('yabanci_tane', 0)), step=0.1)
-            # Boşluklar
             l11.empty()
             l12.empty()
 
@@ -1237,26 +1241,13 @@ def show_bugday_giris_arsivi():
             new_notlar = st.text_area("Notlar / Açıklama", value=str(record.get('notlar', '')))
             
             if st.form_submit_button("✅ TÜM GÜNCELLEMELERİ KAYDET (YÖNETİCİ)", type="primary"):
-                # Yeni veri paketi
                 update_payload = {
-                    'silo_isim': new_silo,
-                    'bugday_cinsi': new_cins,
-                    'tonaj': new_tonaj,
-                    'fiyat': new_fiyat,
-                    'tedarikci': new_tedarikci,
-                    'plaka': new_plaka,
-                    'yore': new_yore,
-                    'tarih': new_tarih,
-                    'protein': new_protein,
-                    'gluten': new_gluten,
-                    'rutubet': new_rutubet,
-                    'hektolitre': new_hl,
-                    'sedim': new_sedim,
-                    'gecikmeli_sedim': new_gsedim,
-                    'gluten_index': new_gindex,
-                    'sune': new_sune,
-                    'kirik_ciliz': new_kirik,
-                    'yabanci_tane': new_yabanci,
+                    'silo_isim': new_silo, 'bugday_cinsi': new_cins, 'tonaj': new_tonaj,
+                    'fiyat': new_fiyat, 'tedarikci': new_tedarikci, 'plaka': new_plaka,
+                    'yore': new_yore, 'tarih': new_tarih, 'protein': new_protein,
+                    'gluten': new_gluten, 'rutubet': new_rutubet, 'hektolitre': new_hl,
+                    'sedim': new_sedim, 'gecikmeli_sedim': new_gsedim, 'gluten_index': new_gindex,
+                    'sune': new_sune, 'kirik_ciliz': new_kirik, 'yabanci_tane': new_yabanci,
                     'notlar': new_notlar
                 }
                 
@@ -1268,7 +1259,7 @@ def show_bugday_giris_arsivi():
                 else:
                     st.error(msg)
 
-    # B) SİLME MODU
+    # B) SİLME MODU (Sadece Admin)
     with st.expander("🗑️ Kaydı Sil (Tehlikeli Bölge)", expanded=False):
         st.warning(f"⚠️ DİKKAT: `{selected_lot}` numaralı kaydı silmek üzeresiniz!")
         st.markdown("Bu işlem silodaki stoğu düşürür ve ortalamaları yeniden hesaplar.")
@@ -1575,6 +1566,7 @@ def show_wheat_yonetimi():
         with tab_db2:
             with st.container(border=True):
                 show_stok_hareketleri()
+
 
 
 
