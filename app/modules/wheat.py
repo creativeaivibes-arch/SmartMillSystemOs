@@ -1637,10 +1637,13 @@ def show_wheat_yonetimi():
         with tab_db2:
             with st.container(border=True):
                 show_stok_hareketleri()
+# ==============================================================================
+# ÖZEL EXCEL RAPOR MOTORU (TAVLI BUĞDAY - ONDALIK DÜZELTİLMİŞ & BAŞLIKLAR DÜZELTİLDİ)
+# ==============================================================================
 def export_tavli_ozel_excel(df):
     """
     Tavlı analizler için özel gruplandırılmış başlıklı Excel üretir.
-    DÜZELTME: Sayısal değerler tek ondalık haneye (0.0) yuvarlanır.
+    DÜZELTME: Baş harfler büyütüldü (Protein, Gluten, Rutubet, Sedim)
     """
     try:
         from io import BytesIO
@@ -1668,15 +1671,15 @@ def export_tavli_ozel_excel(df):
                 "group": "KİMYASAL ANALİZLER",
                 "color": "ED7D31", # Turuncu
                 "cols": [
-                    ("Protein", "protein"),
-                    ("Gluten", "gluten"),
-                    ("Rutubet", "rutubet"),
-                    ("G. İndeks", "gluten_index"), # Başlık Türkçe yapıldı
-                    ("Sedim", "sedim"),
+                    ("Protein", "protein"),      # DÜZELTİLDİ
+                    ("Gluten", "gluten"),        # DÜZELTİLDİ
+                    ("Rutubet", "rutubet"),      # DÜZELTİLDİ
+                    ("G. İndeks", "gluten_index"), 
+                    ("Sedim", "sedim"),          # DÜZELTİLDİ
                     ("G. Sedim", "g_sedim"),
                     ("FN", "fn"),
                     ("FFN", "ffn"),
-                    ("Amilograph", "amilograph")
+                    ("Amilograf", "amilograph")
                 ]
             },
             {
@@ -1737,7 +1740,7 @@ def export_tavli_ozel_excel(df):
 
             current_col += num_cols
 
-        # --- VERİLERİ YAZMA (YUVARLAMA İŞLEMİ BURADA) ---
+        # --- VERİLERİ YAZMA ---
         for r_idx, row_data in enumerate(df.to_dict('records'), start=3):
             current_col = 1
             for group in structure:
@@ -1785,12 +1788,12 @@ def export_tavli_ozel_excel(df):
         return None
 
 # ==============================================================================
-# TAVLI ANALİZ ARŞİVİ (TÜRKÇE BAŞLIKLAR + YUVARLAMA)
+# TAVLI ANALİZ ARŞİVİ (BAŞLIKLAR DÜZELTİLDİ: Protein, Gluten, Rutubet...)
 # ==============================================================================
 def show_tavli_analiz_arsivi():
     """
     Tavlı Buğday Analiz Geçmişi
-    - Türkçe Başlıklar (g_sedim -> G. Sedim)
+    - Türkçe ve Büyük Baş Harfli Başlıklar (Protein, Gluten...)
     - Sayısal Yuvarlama (12.2)
     - Admin Yetkili Düzenleme
     """
@@ -1829,15 +1832,20 @@ def show_tavli_analiz_arsivi():
             # Önce sayıya çevir (hata varsa NaN yap), sonra yuvarla
             df_show[col] = pd.to_numeric(df_show[col], errors='coerce').round(1)
 
-    # 2. Tablo Gösterimi İçin Kopya Al ve Başlıkları Türkçeleştir
+    # 2. Tablo Gösterimi İçin Kopya Al ve Başlıkları Türkçeleştir/Düzelt
     df_display = df_show.copy()
     
+    # İŞTE BURASI: Ekrandaki Tablo Başlıklarını Düzeltiyoruz
     col_map = {
         'silo_isim': 'Silo',
         'analiz_tonaj': 'Tonaj',
         'tarih': 'Tarih',
         'notlar': 'Notlar',
-        # Kimyasal
+        # Kimyasal (İstediğin Büyük Baş Harfler)
+        'protein': 'Protein',   # DÜZELTİLDİ
+        'gluten': 'Gluten',     # DÜZELTİLDİ
+        'rutubet': 'Rutubet',   # DÜZELTİLDİ
+        'sedim': 'Sedim',       # DÜZELTİLDİ
         'gluten_index': 'G. İndeks',
         'g_sedim': 'G. Sedim',
         'amilograph': 'Amilograf',
@@ -1867,23 +1875,20 @@ def show_tavli_analiz_arsivi():
         column_config={
             "Tarih": st.column_config.DatetimeColumn("Tarih", format="DD.MM.YYYY HH:mm"),
             "Tonaj": st.column_config.NumberColumn("Tonaj", format="%.1f"),
-            "Protein": st.column_config.NumberColumn("Protein", format="%.1f"),
-            "Gluten": st.column_config.NumberColumn("Gluten", format="%.1f"),
-            "Rutubet": st.column_config.NumberColumn("Rutubet", format="%.1f"),
-            "Sedim": st.column_config.NumberColumn("Sedim", format="%.1f"),
+            "Protein": st.column_config.NumberColumn("Protein", format="%.1f"),  # DÜZELTİLDİ
+            "Gluten": st.column_config.NumberColumn("Gluten", format="%.1f"),    # DÜZELTİLDİ
+            "Rutubet": st.column_config.NumberColumn("Rutubet", format="%.1f"),  # DÜZELTİLDİ
+            "Sedim": st.column_config.NumberColumn("Sedim", format="%.1f"),      # DÜZELTİLDİ
             "G. İndeks": st.column_config.NumberColumn("G. İndeks", format="%.1f"),
             "Su Kal. (F)": st.column_config.NumberColumn("Su Kal. (F)", format="%.1f"),
-            # Diğerleri otomatik formatlanır veya yukarıdaki round(1) ile gelir
         }
     )
     
     # --- ÖZEL EXCEL BUTONU ---
-    # Excel'e orijinal (rename edilmemiş) ama yuvarlanmış veriyi gönderiyoruz
-    # Çünkü excel fonksiyonu veritabanı isimlerini ('su_kaldirma_f' gibi) arıyor.
     excel_data = export_tavli_ozel_excel(df_show)
     if excel_data:
         st.download_button(
-            label="📥  Excel Raporu İndir",
+            label="📥 Profesyonel Excel Raporu İndir (Gruplandırılmış Başlıklar)",
             data=excel_data,
             file_name=f"Tavli_Analiz_Raporu_{datetime.now().strftime('%Y%m%d')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -2011,6 +2016,7 @@ def show_tavli_analiz_arsivi():
                     st.rerun()
                 else:
                     st.error(msg)
+
 
 
 
