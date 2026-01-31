@@ -1110,6 +1110,7 @@ def show_stok_hareketleri():
 def show_bugday_giris_arsivi():
     """
     Buğday Giriş Arşivi - PROFESYONEL YÖNETİM & FULL EDIT
+    (Sadece Admin Düzenleyebilir)
     """
     st.header("🗄️ Buğday Giriş Arşivi & Yönetimi")
     
@@ -1119,7 +1120,7 @@ def show_bugday_giris_arsivi():
         st.info("📭 Henüz arşiv kaydı bulunmuyor.")
         return
     
-    # --- FİLTRELEME ALANI ---
+    # --- FİLTRELEME ALANI (Herkes Görebilir) ---
     with st.expander("🔍 Kayıt Arama ve Filtreleme", expanded=False):
         col_f1, col_f2 = st.columns(2)
         with col_f1:
@@ -1136,7 +1137,7 @@ def show_bugday_giris_arsivi():
     if silo_filter != "Tümü":
         df_filtered = df_filtered[df_filtered['silo_isim'] == silo_filter]
 
-    # --- TABLO GÖSTERİMİ ---
+    # --- TABLO GÖSTERİMİ (Herkes Görebilir) ---
     st.dataframe(
         df_filtered,
         use_container_width=True,
@@ -1156,8 +1157,16 @@ def show_bugday_giris_arsivi():
     
     st.divider()
 
-    # --- DÜZENLEME VE SİLME PANELİ (GELİŞMİŞ) ---
-    st.subheader("🛠️ Kayıt İşlemleri")
+    # ======================================================================
+    # 🔒 YETKİ KONTROLÜ: SADECE ADMIN GÖREBİLİR
+    # ======================================================================
+    if st.session_state.get('user_role') != 'admin':
+        st.info("🔒 Kayıtlar üzerinde **Düzenleme** veya **Silme** işlemi sadece **Yönetici (Admin)** yetkisine sahiptir.")
+        return  # Fonksiyondan çık, aşağıyı gösterme
+    # ======================================================================
+
+    # --- DÜZENLEME VE SİLME PANELİ (Sadece Admin) ---
+    st.subheader("🛠️ Kayıt İşlemleri (Yönetici Paneli)")
     
     # 1. Kayıt Seçimi
     lot_list = df_filtered['lot_no'].tolist() if 'lot_no' in df_filtered.columns else []
@@ -1227,7 +1236,7 @@ def show_bugday_giris_arsivi():
             # --- SATIR 6: Notlar ---
             new_notlar = st.text_area("Notlar / Açıklama", value=str(record.get('notlar', '')))
             
-            if st.form_submit_button("✅ TÜM GÜNCELLEMELERİ KAYDET", type="primary"):
+            if st.form_submit_button("✅ TÜM GÜNCELLEMELERİ KAYDET (YÖNETİCİ)", type="primary"):
                 # Yeni veri paketi
                 update_payload = {
                     'silo_isim': new_silo,
@@ -1237,7 +1246,7 @@ def show_bugday_giris_arsivi():
                     'tedarikci': new_tedarikci,
                     'plaka': new_plaka,
                     'yore': new_yore,
-                    'tarih': new_tarih, # Tarih güncellemesi riskli olabilir ama ekledik
+                    'tarih': new_tarih,
                     'protein': new_protein,
                     'gluten': new_gluten,
                     'rutubet': new_rutubet,
@@ -1259,7 +1268,7 @@ def show_bugday_giris_arsivi():
                 else:
                     st.error(msg)
 
-    # B) SİLME MODU (Aynı kaldı, sadece yeri değişti)
+    # B) SİLME MODU
     with st.expander("🗑️ Kaydı Sil (Tehlikeli Bölge)", expanded=False):
         st.warning(f"⚠️ DİKKAT: `{selected_lot}` numaralı kaydı silmek üzeresiniz!")
         st.markdown("Bu işlem silodaki stoğu düşürür ve ortalamaları yeniden hesaplar.")
@@ -1566,6 +1575,7 @@ def show_wheat_yonetimi():
         with tab_db2:
             with st.container(border=True):
                 show_stok_hareketleri()
+
 
 
 
