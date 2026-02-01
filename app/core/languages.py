@@ -11,6 +11,44 @@ LANGUAGES = {
 
 # 2. SÖZLÜK (Tüm çeviriler burada duracak)
 DICTIONARY = {
+    # --- GİRİŞ EKRANI (LOGIN SCREEN) ---
+    "login_header": {
+        "TR": "Giriş Yap",
+        "EN": "Login",
+        "FR": "Connexion",
+        "RU": "Вход"
+    },
+    "username": {
+        "TR": "Kullanıcı Adı",
+        "EN": "Username",
+        "FR": "Nom d'utilisateur",
+        "RU": "Имя пользователя"
+    },
+    "password": {
+        "TR": "Şifre",
+        "EN": "Password",
+        "FR": "Mot de passe",
+        "RU": "Пароль"
+    },
+    "login_button": {
+        "TR": "Sisteme Giriş",
+        "EN": "Sign In",
+        "FR": "Se connecter",
+        "RU": "Войти"
+    },
+    "login_error": {
+        "TR": "❌ Hatalı kullanıcı adı veya şifre!",
+        "EN": "❌ Invalid username or password!",
+        "FR": "❌ Nom d'utilisateur ou mot de passe incorrect !",
+        "RU": "❌ Неверное имя пользователя или пароль!"
+    },
+    "login_welcome": {
+        "TR": "Hoşgeldiniz",
+        "EN": "Welcome",
+        "FR": "Bienvenue",
+        "RU": "Добро пожаловать"
+    },
+
     # --- GENEL / GENERAL ---
     "welcome": {
         "TR": "Hoşgeldiniz",
