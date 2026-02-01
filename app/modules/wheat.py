@@ -9,6 +9,7 @@ from app.core.database import fetch_data, add_data, get_conn, update_data
 from app.core.config import INPUT_LIMITS, TERMS, get_limit
 from app.core.error_handling import error_handler, log_info, log_warning, ERROR_HANDLING_AVAILABLE
 from app.core.components import render_help_button
+from app.core.languages import t
 
 # Rapor modülü (Hata önleyici)
 try:
@@ -2139,6 +2140,7 @@ def show_tavli_analiz_arsivi():
                     st.rerun()
                 else:
                     st.error(msg)
+
 
 
 
