@@ -199,13 +199,12 @@ if selected_page == "Dashboard":
 elif selected_page == "KK_BUGDAY":
     st.markdown("## 🌾 Giriş & Buğday Kalite Yönetimi")
     
-    # 7 Sekmeli Yapı (Sekme isimleri aynı kalıyor)
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+    # ARTIK 6 SEKME VAR (Reçete Geçmişi buradan kalktı)
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "📏 Kalite Standartları",
         "🚛 Hammadde Giriş",
         "🧪 Tavlı Analiz",
         "🧮 Akıllı Paçal",
-        "📜 Reçete Geçmişi",
         "📉 Stok Çıkışı",
         "📂 İzlenebilirlik"
     ])
@@ -215,26 +214,30 @@ elif selected_page == "KK_BUGDAY":
     with tab2: wheat.show_mal_kabul()
     with tab3: wheat.show_tavli_analiz()
     with tab4: mixing.show_pacal_hesaplayici()
-    with tab5: mixing.show_pacal_gecmisi()
-    with tab6: wheat.show_stok_cikis()
+    # Not: show_pacal_gecmisi buradan kaldırıldı
+    with tab5: wheat.show_stok_cikis()
     
-    # 🔥🔥🔥 DEĞİŞEN KISIM BURASI (TAB 7) 🔥🔥🔥
-    with tab7:
-        # İzlenebilirlik sekmesinin içine ÜÇ TANE ALT SEKME (Sub-Tab) açıyoruz
-        sub_tab1, sub_tab2, sub_tab3 = st.tabs([
+    # 🔥🔥🔥 İZLENEBİLİRLİK İÇİNE TAŞINDI 🔥🔥🔥
+    with tab6:
+        
+        sub_tab1, sub_tab2, sub_tab3, sub_tab4 = st.tabs([
             "🗄️ Buğday Giriş Arşivi", 
             "📉 Stok Hareketleri",
-            "🧪 Tavlı Analiz Arşivi"  # <--- YENİ EKLENEN
+            "🧪 Tavlı Analiz Arşivi",
+            "📜 Paçal Geçmişi"  
         ])
         
         with sub_tab1:
-            wheat.show_bugday_giris_arsivi()  # Eski detaylı arşiv
+            wheat.show_bugday_giris_arsivi()
             
         with sub_tab2:
-            wheat.show_stok_hareketleri()     # Yeni renkli giriş/çıkış listesi
+            wheat.show_stok_hareketleri()
             
         with sub_tab3:
             wheat.show_tavli_analiz_arsivi()
+            
+        with sub_tab4:
+            mixing.show_pacal_gecmisi()  
 
 # --- B) KALİTE KONTROL: UN YÖNETİMİ ---
 elif selected_page == "KK_UN":
@@ -307,6 +310,7 @@ elif selected_page == "ADMIN" or selected_page == "PROFILE":
 # 🚪 PROFİL SAYFASI
 elif selected_page == "PROFILE":
     show_profile_settings()
+
 
 
 
