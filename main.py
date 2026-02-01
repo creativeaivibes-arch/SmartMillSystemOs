@@ -57,12 +57,40 @@ if not st.session_state.logged_in:
     [data-testid="stAppViewContainer"] { background-color: #ffffff; }
     [data-testid="stHeader"] { background-color: #ffffff; }
     .block-container { padding-top: 2rem !important; padding-bottom: 1rem !important; }
+    /* Bayrak butonlarını güzelleştirme */
+    div.stButton > button {
+        background-color: transparent;
+        border: 1px solid #eee;
+        font-size: 20px;
+        padding: 5px 10px;
+    }
+    div.stButton > button:hover {
+        border-color: #4CAF50;
+        background-color: #f1f8e9;
+    }
     </style>
     """, unsafe_allow_html=True)
 
     empty1, login_col, empty2 = st.columns([1, 0.8, 1]) 
     
     with login_col:
+        # --- DİL SEÇİMİ (BAYRAKLAR) ---
+        # Ortalanmış bir container içinde bayraklar
+        c_flag1, c_flag2, c_flag3, c_flag4 = st.columns(4)
+        
+        # Dil değiştirme fonksiyonu
+        def set_lang(code):
+            st.session_state.language_code = code
+            st.rerun()
+
+        if c_flag1.button("🇹🇷", use_container_width=True): set_lang("TR")
+        if c_flag2.button("🇬🇧", use_container_width=True): set_lang("EN")
+        if c_flag3.button("🇫🇷", use_container_width=True): set_lang("FR")
+        if c_flag4.button("🇷🇺", use_container_width=True): set_lang("RU")
+        
+        st.write("") # Boşluk
+        
+        # --- LOGO VE BAŞLIK ---
         col_logo, col_text = st.columns([1, 2.5])
         with col_logo:
             try: 
@@ -79,26 +107,37 @@ if not st.session_state.logged_in:
         
         st.write("") 
         
+        # --- GİRİŞ FORMU ---
         with st.container(border=True):
-            st.markdown("<h4 style='text-align: center; color: #444;'>Giriş Yap</h4>", unsafe_allow_html=True)
+            # Başlık Çevirisi
+            header_txt = t("login_header")
+            st.markdown(f"<h4 style='text-align: center; color: #444;'>{header_txt}</h4>", unsafe_allow_html=True)
             
             with st.form("login_form"):
-                username = st.text_input("Kullanıcı Adı")
-                password = st.text_input("Şifre", type="password")
+                # Input Etiketleri Çevirisi
+                username = st.text_input(t("username"))
+                password = st.text_input(t("password"), type="password")
+                
                 st.markdown("<br>", unsafe_allow_html=True)
-                submit = st.form_submit_button("Sisteme Giriş", type="primary", use_container_width=True)
+                
+                # Buton Çevirisi
+                btn_txt = t("login_button")
+                submit = st.form_submit_button(btn_txt, type="primary", use_container_width=True)
                 
                 if submit:
                     from app.core.auth import login_user
                     if login_user(username, password):
                         st.session_state.last_activity = time.time()
-                        st.success(f"Hoşgeldiniz, {st.session_state.user_fullname}")
+                        # Hoşgeldiniz Mesajı Çevirisi
+                        welcome_txt = t("login_welcome")
+                        st.success(f"{welcome_txt}, {st.session_state.user_fullname}")
                         time.sleep(0.5)
                         st.rerun()
                     else:
-                        st.error("❌ Hatalı kullanıcı adı veya şifre!")
+                        # Hata Mesajı Çevirisi
+                        err_txt = t("login_error")
+                        st.error(err_txt)
     st.stop()
-
 # --- ANA UYGULAMA ---
 
 with st.sidebar:
@@ -310,6 +349,7 @@ elif selected_page == "ADMIN" or selected_page == "PROFILE":
 # 🚪 PROFİL SAYFASI
 elif selected_page == "PROFILE":
     show_profile_settings()
+
 
 
 
