@@ -630,44 +630,51 @@ def delete_bugday_spec_group(cins):
 # --------------------------------------------------------------------------
 
 def show_mal_kabul():
-    """Mal Kabul Ekranı - Tüm Analiz Parametreleri Dahil"""
+    """Mal Kabul Ekranı - Çok Dilli (Multi-Language)"""
     if st.session_state.get('user_role') not in ["admin", "operations", "quality"]:
-        st.warning("Bu modüle erişim yetkiniz bulunmamaktadır.")
+        st.warning(t("error_auth") if "error_auth" in DICTIONARY else "Yetkisiz Erişim")
         return
 
-    st.header("🚜 Mal Kabul ve Stok Girişi")
+    # Başlık Çevirisi
+    st.header(f"🚜 {t('header_goods_receipt')}")
+    
     lot_no = f"BUGDAY-{datetime.now().strftime('%y%m%d%H%M%S')}"
     
     col1, col2 = st.columns([1, 1.5], gap="large")
     
     with col1:
-        st.subheader("📋 Temel Bilgiler")
-        st.info(f"**Otomatik Lot No:** `{lot_no}`")
+        # Alt Başlık: Temel Bilgiler
+        st.subheader(f"📋 {t('subheader_basic_info')}")
+        st.info(f"**Lot No:** `{lot_no}`")
         
         df_silo = get_silo_data()
         if df_silo.empty: 
             st.warning("Silo tanımlayınız.")
             return
             
-        secilen_silo = st.selectbox("Depolanacak Silo *", df_silo['isim'].tolist())
+        # Silo Seçimi
+        secilen_silo = st.selectbox(f"{t('label_silo_select')} *", df_silo['isim'].tolist())
         
         # Kapasite Kontrolü
         silo_row = df_silo[df_silo['isim'] == secilen_silo].iloc[0]
         mevcut = float(silo_row.get('mevcut_miktar', 0))
         kapasite = float(silo_row.get('kapasite', 0))
         kalan = kapasite - mevcut
-        st.info(f"Kalan Kapasite: {kalan:.1f} Ton")
+        st.info(f"Kalan: {kalan:.1f} Ton")
         
-        tarih = st.date_input("Kabul Tarihi *", datetime.now())
+        # Tarih
+        tarih = st.date_input(f"{t('label_date')} *", datetime.now())
         
-        # Spec Listesi (Opsiyonel Validation İçin)
+        # Spec Listesi
         specs_list = []
         df_specs = fetch_data("bugday_spekleri")
         if not df_specs.empty:
             specs_list = df_specs['bugday_cinsi'].unique().tolist()
             
-        secilen_standart = st.selectbox("Standart Seçiniz", ["(Standart Yok)"] + specs_list)
-        bugday_cinsi = st.text_input("Buğday Cinsi *", placeholder="Örn: Esperia")
+        secilen_standart = st.selectbox(t("select"), ["(Standart Yok)"] + specs_list)
+        
+        # Buğday Cinsi, Tedarikçi vb.
+        bugday_cinsi = st.text_input(f"{t('label_wheat_type')} *", placeholder="Örn: Esperia")
         
         current_specs = {}
         if secilen_standart != "(Standart Yok)":
@@ -675,17 +682,20 @@ def show_mal_kabul():
             for _, row in df_s.iterrows():
                 current_specs[row['parametre']] = row
 
-        tedarikci = st.text_input("Tedarikçi/Firma *")
-        yore = st.text_input("Yöre/Bölge *")
-        plaka = st.text_input("Plaka *")
-        notlar = st.text_area("Notlar", key="mal_kabul_notlar")
+        tedarikci = st.text_input(f"{t('label_supplier')} *")
+        yore = st.text_input(f"{t('label_region')} *")
+        plaka = st.text_input(f"{t('label_plate')} *")
         
-        # Manuel Kantar
-        miktar = st.number_input("Gelen Miktar (Ton) *", min_value=27.0, format="%.1f")
-        fiyat = st.number_input("Alış Fiyatı (TL) *", min_value=15.0, format="%.2f")
+        # Notlar (Çeviriye gerek yok veya "Notes" diyebilirsin)
+        notlar = st.text_area("Notlar / Notes", key="mal_kabul_notlar")
+        
+        # Miktar ve Fiyat
+        miktar = st.number_input(f"{t('label_quantity')} *", min_value=0.0, format="%.1f")
+        fiyat = st.number_input(f"{t('label_price')} *", min_value=0.0, format="%.2f")
 
     with col2:
-        st.subheader("🧪 Laboratuvar Analiz Değerleri")
+        # Alt Başlık: Analiz Değerleri
+        st.subheader(f"🧪 {t('subheader_lab_analysis')}")
         
         # Validasyon Helper
         def validate_val(key, val, label):
@@ -693,27 +703,30 @@ def show_mal_kabul():
                 spec = current_specs[key]
                 s_min, s_max = float(spec.get('min_deger', 0)), float(spec.get('max_deger', 999))
                 if val < s_min or (s_max > 0 and val > s_max):
-                    st.error(f"❌ {label} Sınır Dışı! (Max: {s_max:.1f})")
+                    st.error(f"❌ {label} Limit Dışı! (Max: {s_max:.1f})")
                 elif key == "sune" and val > s_max and s_max > 0:
                      st.error(f"⚠️ Yüksek Süne! Max: {s_max:.1f}")
 
-        # 3 Kolonlu Detaylı Giriş (Orijinal Yapı)
+        # 3 Kolonlu Analiz Girişi
         c1, c2, c3 = st.columns(3)
         
         with c1:
             g_hl = st.number_input("Hektolitre", 0.0, 100.0, 78.0)
             validate_val("hektolitre", g_hl, "Hektolitre")
             
-            g_rut = st.number_input("Rutubet (%)", 0.0, 20.0, 13.5)
+            # Rutubet, Protein, Gluten (Çevrildi)
+            g_rut = st.number_input(t("ana_moisture"), 0.0, 20.0, 13.5)
             validate_val("rutubet", g_rut, "Rutubet")
             
-            g_prot = st.number_input("Protein (%)", 0.0, 20.0, 12.0)
+            g_prot = st.number_input(t("ana_protein"), 0.0, 20.0, 12.0)
             validate_val("protein", g_prot, "Protein")
             
-            g_glut = st.number_input("Gluten (%)", 0.0, 50.0, 28.0)
+            g_glut = st.number_input(t("ana_gluten"), 0.0, 50.0, 28.0)
             validate_val("gluten", g_glut, "Gluten")
 
         with c2:
+            # Diğer analizler için sözlüğe ekleme yapmadıysak Türkçe kalabilir, 
+            # veya t("ana_gluten_index") gibi ekleyebilirsin.
             g_index = st.number_input("Gluten Index", 0.0, 100.0, 90.0)
             validate_val("gluten_index", g_index, "G.Index")
             
@@ -736,7 +749,9 @@ def show_mal_kabul():
             hasere = st.selectbox("Haşere", ["Yok", "Var"])
 
     st.divider()
-    if st.button("💾 Kaydı Tamamla", type="primary", use_container_width=True):
+    
+    # Kaydet Butonu (Çevrildi)
+    if st.button(f"💾 {t('btn_save_record')}", type="primary", use_container_width=True):
         # ===== KAPSAMLI VALİDASYON SİSTEMİ =====
         from app.core.config import validate_numeric_input, validate_capacity
         
@@ -744,13 +759,11 @@ def show_mal_kabul():
         
         # 1. Miktar kontrolü
         valid, msg, _ = validate_numeric_input(miktar, 'tonaj', allow_zero=False, allow_negative=False)
-        if not valid:
-            validasyon_hatalari.append(f"Miktar: {msg}")
+        if not valid: validasyon_hatalari.append(f"Miktar: {msg}")
         
         # 2. Fiyat kontrolü
         valid, msg, _ = validate_numeric_input(fiyat, 'fiyat', allow_zero=False, allow_negative=False)
-        if not valid:
-            validasyon_hatalari.append(f"Fiyat: {msg}")
+        if not valid: validasyon_hatalari.append(f"Fiyat: {msg}")
         
         # 3. Analiz değerleri kontrolü
         analiz_checks = [
@@ -764,33 +777,30 @@ def show_mal_kabul():
         ]
         
         for deger, key, label in analiz_checks:
-            if deger > 0:  # Sadece girilmişse kontrol et
+            if deger > 0:
                 valid, msg, _ = validate_numeric_input(deger, key, allow_zero=True, allow_negative=False)
-                if not valid:
-                    validasyon_hatalari.append(f"{label}: {msg}")
+                if not valid: validasyon_hatalari.append(f"{label}: {msg}")
         
-        # 4. Kapasite kontrolü (YENİ YÖNTEM)
+        # 4. Kapasite kontrolü
         valid, msg, kalan_yeni = validate_capacity(mevcut, kapasite, miktar)
-        if not valid:
-            validasyon_hatalari.append(msg)
+        if not valid: validasyon_hatalari.append(msg)
         
         # 5. Zorunlu alanlar
         if not (bugday_cinsi and tedarikci and plaka):
             validasyon_hatalari.append("❌ Buğday cinsi, tedarikçi ve plaka zorunludur!")
         
-        # ===== HATA VARSA GÖSTER VE DUR =====
+        # Hata Gösterimi
         if validasyon_hatalari:
             st.error("🚫 Lütfen aşağıdaki hataları düzeltin:")
-            for hata in validasyon_hatalari:
-                st.write(f"- {hata}")
+            for hata in validasyon_hatalari: st.write(f"- {hata}")
             return
         
-        # ===== VALİDASYON BAŞARILI - KAYIT İŞLEMİ =====
+        # ===== KAYIT İŞLEMİ (ORİJİNAL MANTIK) =====
         note_final = notlar if notlar else ""
         if hasere == "Var": 
             note_final = f"{note_final} | HAŞERE RİSKİ" if note_final else "HAŞERE RİSKİ"
         
-        # Kayıt (Stok Hareketi + Arşiv)
+        # Stok Hareketi
         ok_log = log_stok_hareketi(
             secilen_silo, "Giriş", miktar,
             protein=g_prot, gluten=g_glut, rutubet=g_rut, hektolitre=g_hl,
@@ -799,7 +809,7 @@ def show_mal_kabul():
         )
         
         if ok_log:
-            # Arşive tüm detayları ekle
+            # Arşiv Kaydı
             ok_arc = add_to_bugday_giris_arsivi(
                 lot_no, tarih=str(tarih), bugday_cinsi=bugday_cinsi,
                 tedarikci=tedarikci, yore=yore, plaka=plaka,
@@ -812,10 +822,7 @@ def show_mal_kabul():
             
             if ok_arc:
                 st.success("✅ Kayıt Başarılı!")
-                
-                # Silo stoklarını yeniden hesapla
                 recalculate_silos_from_logs()
-                
                 time.sleep(1)
                 st.rerun()
             else:
@@ -2140,6 +2147,7 @@ def show_tavli_analiz_arsivi():
                     st.rerun()
                 else:
                     st.error(msg)
+
 
 
 
