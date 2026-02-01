@@ -123,17 +123,16 @@ with st.sidebar:
         with col_prof2:
             st.markdown(f"**{st.session_state.username}**")
             
-        role_map = {
-            "admin": "Yönetici", 
-            "operations": "Operasyon", 
-            "quality": "Kalite Kontrol",
-            "management": "Üst Yönetim"  # 'viewer' yerine 'management' ekledik
-        }
-        user_role_tr = role_map.get(st.session_state.user_role, "Kullanıcı")
+        # Rolü veritabanından alıp çeviriyoruz
+        raw_role = st.session_state.user_role
+        # languages.py içinde "role_admin", "role_quality" gibi tanımlamıştık
+        role_key = f"role_{raw_role}" 
+        user_role_tr = t(role_key) 
         
-        st.caption(f"{user_role_tr} | 🟢 Çevrimiçi")
+        st.caption(f"{user_role_tr} | 🟢 Online")
         
-        if st.button("Çıkış Yap", key="sidebar_logout", icon="🚪", use_container_width=True):
+        # Çıkış butonu artık dilli: t("logout")
+        if st.button(t("logout"), key="sidebar_logout", icon="🚪", use_container_width=True):
             do_logout()
     
     st.divider()
@@ -311,6 +310,7 @@ elif selected_page == "ADMIN" or selected_page == "PROFILE":
 # 🚪 PROFİL SAYFASI
 elif selected_page == "PROFILE":
     show_profile_settings()
+
 
 
 
