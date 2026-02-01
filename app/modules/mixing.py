@@ -347,130 +347,256 @@ def show_pacal_hesaplayici():
         st.error(f"Hata: {e}")
 
 def show_pacal_gecmisi():
-    """Paçal Geçmişi Modülü"""
-    st.header("📜 Paçal Arşivi")
+    """Paçal Geçmişi - ERP Tarzı Profesyonel Görünüm"""
+    
+    # --- CSS: Butonları Karta Dönüştürme ---
+    st.markdown("""
+    <style>
+    div.stButton > button:first-child {
+        text-align: left;
+        border-radius: 10px;
+        padding: 10px 15px;
+        border: 1px solid #e0e0e0;
+        background-color: #ffffff;
+        color: #333;
+        transition: all 0.2s;
+    }
+    div.stButton > button:first-child:hover {
+        border-color: #2E7D32;
+        background-color: #F1F8E9;
+        color: #1B5E20;
+    }
+    div.stButton > button:active {
+        background-color: #C8E6C9;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.header("📜 Paçal & Üretim Arşivi")
+    
+    # Veriyi Çek (Cache'li)
     df_pacal = get_pacal_history()
     
     if df_pacal.empty:
-        st.info("Kayıt yok")
+        st.info("📭 Henüz kayıtlı paçal bulunmamaktadır.")
         return
     
     # Tarih formatlama
     if 'tarih' in df_pacal.columns:
-        df_pacal['Tarih'] = pd.to_datetime(df_pacal['tarih']).dt.strftime('%Y-%m-%d')
+        df_pacal['Tarih_Str'] = df_pacal['tarih'].dt.strftime('%d.%m.%Y')
+        df_pacal['Saat_Str'] = df_pacal['tarih'].dt.strftime('%H:%M')
     else:
-        df_pacal['Tarih'] = "-"
-        
-    df_pacal = df_pacal.sort_values('Tarih', ascending=False)
-    
-    st.dataframe(df_pacal[['Tarih', 'urun_adi', 'id']], use_container_width=True)
-    
-    # Seçili kaydı detaylı göster ve PDF oluştur
-    # ID'ler int olmalı
-    df_pacal['id'] = pd.to_numeric(df_pacal['id'], errors='coerce')
-    
-    selected_id = st.selectbox("Detaylarını Görüntülemek İstediğiniz Kaydı Seçin", 
-                               df_pacal['id'].dropna().tolist(),
-                               format_func=lambda x: f"{df_pacal[df_pacal['id']==x]['urun_adi'].values[0]} ({df_pacal[df_pacal['id']==x]['Tarih'].values[0]})")
-    
-    if selected_id:
-        kayit = df_pacal[df_pacal['id'] == selected_id].iloc[0]
-        
-        st.divider()
-        st.subheader(f"📄 Rapor: {kayit['urun_adi']}")
-        
-        try:
-            oranlar = json.loads(kayit['silo_oranlari_json'])
-            analizler = json.loads(kayit['sonuc_analizleri_json'])
-            
-            # JSON'ları göster (FORMATLI)
-            c1, c2 = st.columns(2)
-            with c1:
-                st.markdown("### 🧩 Silo Oranları")
-                # Oranları güzel bir tablo yapalım
-                oran_data = [{"Silo": k, "Oran (%)": v} for k, v in oranlar.items() if v > 0]
-                st.dataframe(pd.DataFrame(oran_data), hide_index=True, use_container_width=True)
-                
-            with c2:
-                st.markdown("### 🧪 Analiz Değerleri")
-                # Helper function for safe float conversion
-                def safe_float(val):
-                    try: return float(val)
-                    except: return 0.0
+        df_pacal['Tarih_Str'] = "-"
 
-                # Tablı Görünüm
-                tab1, tab2, tab3 = st.tabs(["🧪 Kimyasal", "📈 Farinograph", "📊 Extensograph"])
+    # --- ÜST BAR: ARAMA VE FİLTRE ---
+    with st.container(border=True):
+        col_search, col_filter, col_sort = st.columns([3, 2, 1])
+        
+        with col_search:
+            arama = st.text_input("🔍 Ürün Ara", placeholder="Ürün adı, kod veya ID...", label_visibility="collapsed")
+        
+        with col_filter:
+            filtre_zaman = st.selectbox("📅 Zaman", ["Tümü", "Son 7 Gün", "Son 30 Gün", "Bu Ay"], label_visibility="collapsed")
+            
+        with col_sort:
+            sirali = st.selectbox("Sırala", ["En Yeni", "En Eski"], label_visibility="collapsed")
+
+    # --- FİLTRELEME MANTIĞI ---
+    df_filtered = df_pacal.copy()
+    
+    # 1. Metin Arama
+    if arama:
+        arama = arama.lower()
+        df_filtered = df_filtered[
+            df_filtered['urun_adi'].astype(str).str.lower().str.contains(arama) | 
+            df_filtered['id'].astype(str).str.contains(arama)
+        ]
+    
+    # 2. Tarih Filtresi
+    if filtre_zaman != "Tümü":
+        now = datetime.now()
+        if filtre_zaman == "Son 7 Gün":
+            start_date = now - pd.Timedelta(days=7)
+        elif filtre_zaman == "Son 30 Gün":
+            start_date = now - pd.Timedelta(days=30)
+        elif filtre_zaman == "Bu Ay":
+            start_date = now.replace(day=1, hour=0, minute=0, second=0)
+        
+        df_filtered = df_filtered[df_filtered['tarih'] >= start_date]
+
+    # 3. Sıralama
+    if sirali == "En Eski":
+        df_filtered = df_filtered.sort_values('tarih', ascending=True)
+    else:
+        df_filtered = df_filtered.sort_values('tarih', ascending=False)
+
+    # --- İKİ SÜTUNLU YAPI (SOL: LİSTE, SAĞ: DETAY) ---
+    col_list, col_detail = st.columns([1.2, 2.8], gap="medium")
+    
+    # === SOL SÜTUN: KAYIT LİSTESİ ===
+    with col_list:
+        st.caption(f"Toplam {len(df_filtered)} kayıt bulundu")
+        
+        # Sayfalama (Performans İçin)
+        items_per_page = 10
+        if 'pacal_page' not in st.session_state: st.session_state.pacal_page = 0
+        
+        total_pages = max(1, (len(df_filtered) - 1) // items_per_page + 1)
+        
+        # Liste Oluşturma
+        start_idx = st.session_state.pacal_page * items_per_page
+        end_idx = start_idx + items_per_page
+        current_items = df_filtered.iloc[start_idx:end_idx]
+        
+        # Kayıt Kartları (Butonlar)
+        for idx, row in current_items.iterrows():
+            # Maliyet verisini güvenli çek
+            try:
+                analiz_json = json.loads(row['sonuc_analizleri_json'])
+                maliyet_txt = f"{float(analiz_json.get('maliyet', 0)):.2f} TL"
+            except:
+                maliyet_txt = "? TL"
+            
+            # Kart Görünümlü Buton
+            btn_label = f"🍞 {row['urun_adi']}\n📅 {row['Tarih_Str']} ⏰ {row.get('Saat_Str','')}\n💰 {maliyet_txt}"
+            
+            if st.button(btn_label, key=f"btn_pacal_{row['id']}", use_container_width=True):
+                st.session_state.selected_pacal_id = row['id']
+        
+        # Sayfalama Butonları
+        c_prev, c_page, c_next = st.columns([1, 2, 1])
+        with c_prev:
+            if st.button("◀", disabled=(st.session_state.pacal_page == 0)):
+                st.session_state.pacal_page -= 1
+                st.rerun()
+        with c_page:
+            st.markdown(f"<div style='text-align:center; padding-top:5px;'>Sayfa {st.session_state.pacal_page + 1}/{total_pages}</div>", unsafe_allow_html=True)
+        with c_next:
+            if st.button("▶", disabled=(st.session_state.pacal_page >= total_pages - 1)):
+                st.session_state.pacal_page += 1
+                st.rerun()
+
+    # === SAĞ SÜTUN: DETAY EKRANI ===
+    with col_detail:
+        if 'selected_pacal_id' in st.session_state:
+            # Seçili kaydı bul
+            selected_row = df_pacal[df_pacal['id'] == st.session_state.selected_pacal_id]
+            
+            if not selected_row.empty:
+                kayit = selected_row.iloc[0]
                 
-                with tab1:
-                    c1, c2, c3 = st.columns(3)
-                    c1.metric("Protein", f"{safe_float(analizler.get('protein', 0)):.1f}%")
-                    c1.metric("Rutubet", f"{safe_float(analizler.get('rutubet', 0)):.1f}%")
-                    c1.metric("Gluten", f"{safe_float(analizler.get('gluten', 0)):.1f}%")
+                try:
+                    oranlar = json.loads(kayit['silo_oranlari_json'])
+                    analizler = json.loads(kayit['sonuc_analizleri_json'])
                     
-                    c2.metric("Gluten Index", f"{safe_float(analizler.get('gluten_index', 0)):.0f}")
-                    c2.metric("Sedim", f"{safe_float(analizler.get('sedim', 0)):.1f} ml")
-                    c2.metric("G. Sedim", f"{safe_float(analizler.get('g_sedim', 0)):.1f} ml")
+                    # 1. Başlık Kartı
+                    st.markdown(f"""
+                    <div style='background-color:#F5F5F5; padding:20px; border-radius:10px; border-left:5px solid #2E7D32;'>
+                        <h2 style='margin:0; color:#1B5E20;'>{kayit['urun_adi']}</h2>
+                        <p style='margin:0; color:#555;'>📅 Üretim Tarihi: {kayit['Tarih_Str']} | 🆔 Kayıt ID: {kayit['id']}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    st.write("")
+
+                    # 2. Üst KPI'lar
+                    kpi1, kpi2, kpi3, kpi4 = st.columns(4)
                     
-                    c3.metric("F.N", f"{safe_float(analizler.get('fn', 0)):.0f}")
-                    c3.metric("F.F.N", f"{safe_float(analizler.get('ffn', 0)):.0f}")
-                    c3.metric("Kül", f"{safe_float(analizler.get('kul', 0)):.2f}%")
-                    
-                with tab2:
-                    c1, c2 = st.columns(2)
-                    c1.metric("Su Kaldırma", f"%{safe_float(analizler.get('su_kaldirma_f', 0)):.1f}")
-                    c1.metric("Gelişme Süresi", f"{safe_float(analizler.get('gelisme_suresi', 0)):.1f} dk")
-                    c2.metric("Stabilite", f"{safe_float(analizler.get('stabilite', 0)):.1f} dk")
-                    c2.metric("Yumuşama", f"{safe_float(analizler.get('yumusama', 0)):.0f} B.U")
-                    
-                with tab3:
-                    st.caption("Extensograph (45 - 90 - 135 dk)")
-                    t1, t2, t3 = st.columns(3)
-                    with t1:
-                        st.markdown("**45 Dakika**")
-                        st.write(f"Enerji: {safe_float(analizler.get('enerji45', 0)):.0f}")
-                        st.write(f"Direnç: {safe_float(analizler.get('direnc45', 0)):.0f}")
-                        st.write(f"Uzama: {safe_float(analizler.get('taban45', 0)):.0f}")
-                    with t2:
-                        st.markdown("**90 Dakika**")
-                        st.write(f"Enerji: {safe_float(analizler.get('enerji90', 0)):.0f}")
-                        st.write(f"Direnç: {safe_float(analizler.get('direnc90', 0)):.0f}")
-                        st.write(f"Uzama: {safe_float(analizler.get('taban90', 0)):.0f}")
-                    with t3:
-                        st.markdown("**135 Dakika**")
-                        st.write(f"Enerji: {safe_float(analizler.get('enerji135', 0)):.0f}")
-                        st.write(f"Direnç: {safe_float(analizler.get('direnc135', 0)):.0f}")
-                        st.write(f"Uzama: {safe_float(analizler.get('taban135', 0)):.0f}")
-                    
-            st.divider()
-            
-            if st.button("📥 PDF Rapor İndir", key=f"pdf_pacal_{selected_id}", type="primary"):
-                with st.spinner("Rapor oluşturuluyor..."):
-                    pdf_bytes = create_pacal_pdf_report(
-                        tarih=kayit['Tarih'],
-                        urun_adi=kayit['urun_adi'],
-                        oranlar=oranlar,
-                        analizler=analizler
-                    )
-                    
-                    if pdf_bytes:
-                        st.session_state[f'pacal_pdf_{selected_id}'] = pdf_bytes
-                        st.session_state[f'pacal_pdf_name_{selected_id}'] = f"PACAL_{turkce_karakter_duzelt_pdf(kayit['urun_adi'])}_{datetime.now().strftime('%Y%m%d')}.pdf"
-                        st.rerun()
-                    else:
-                        st.error("Rapor oluşturulamadı.")
-            
-            # İndirme Butonu
-            if f'pacal_pdf_{selected_id}' in st.session_state:
-                st.download_button(
-                    label="💾 İndirmek İçin Tıklayın",
-                    data=st.session_state[f'pacal_pdf_{selected_id}'],
-                    file_name=st.session_state[f'pacal_pdf_name_{selected_id}'],
-                    mime="application/pdf",
-                    key=f"download_pacal_{selected_id}",
-                    use_container_width=True
-                )
+                    def safe_float(val):
+                        try: return float(val)
+                        except: return 0.0
                         
-        except Exception as e:
-            st.error(f"Veri hatası: {e}")
+                    maliyet = safe_float(analizler.get('maliyet', 0))
+                    protein = safe_float(analizler.get('protein', 0))
+                    gluten = safe_float(analizler.get('gluten', 0))
+                    kul = safe_float(analizler.get('kul', 0))
+
+                    kpi1.metric("💰 Maliyet", f"{maliyet:.2f} TL")
+                    kpi2.metric("🧬 Protein", f"{protein:.1f}", delta="Hedef %12" if protein > 12 else "-")
+                    kpi3.metric("🌾 Gluten", f"{gluten:.1f}")
+                    kpi4.metric("🔥 Kül", f"{kul:.3f}")
+                    
+                    st.divider()
+
+                    # 3. İçerik (Silo ve Detaylar)
+                    tab_silo, tab_kimya, tab_farino, tab_extenso = st.tabs(["🏗️ Silo Reçetesi", "🧪 Kimyasal", "📈 Farinograph", "📊 Extensograph"])
+                    
+                    with tab_silo:
+                        # Reçete Tablosu
+                        oran_data = [{"Depo/Silo Adı": k, "Kullanım Oranı (%)": f"%{v}"} for k, v in oranlar.items() if v > 0]
+                        st.table(pd.DataFrame(oran_data))
+                        
+                        # Görsel Pasta Grafik (Opsiyonel - Eğer plotly varsa)
+                        try:
+                            import plotly.express as px
+                            pie_data = pd.DataFrame(list(oranlar.items()), columns=['Silo', 'Oran'])
+                            pie_data = pie_data[pie_data['Oran'] > 0]
+                            fig = px.pie(pie_data, values='Oran', names='Silo', title='Karışım Dağılımı', hole=0.4)
+                            fig.update_layout(height=300, margin=dict(t=30, b=0, l=0, r=0))
+                            st.plotly_chart(fig, use_container_width=True)
+                        except:
+                            pass
+
+                    with tab_kimya:
+                        c1, c2, c3 = st.columns(3)
+                        c1.info(f"**Rutubet:** {safe_float(analizler.get('rutubet', 0)):.1f}")
+                        c1.info(f"**Sedim:** {safe_float(analizler.get('sedim', 0)):.0f}")
+                        c2.info(f"**G. İndeks:** {safe_float(analizler.get('gluten_index', 0)):.0f}")
+                        c2.info(f"**G. Sedim:** {safe_float(analizler.get('g_sedim', 0)):.0f}")
+                        c3.info(f"**FN:** {safe_float(analizler.get('fn', 0)):.0f}")
+                        c3.info(f"**FFN:** {safe_float(analizler.get('ffn', 0)):.0f}")
+
+                    with tab_farino:
+                        c1, c2 = st.columns(2)
+                        c1.success(f"**Su Kaldırma:** %{safe_float(analizler.get('su_kaldirma_f', 0)):.1f}")
+                        c1.success(f"**Gelişme Süresi:** {safe_float(analizler.get('gelisme_suresi', 0)):.1f} dk")
+                        c2.success(f"**Stabilite:** {safe_float(analizler.get('stabilite', 0)):.1f} dk")
+                        c2.success(f"**Yumuşama:** {safe_float(analizler.get('yumusama', 0)):.0f} B.U")
+
+                    with tab_extenso:
+                        cols = st.columns(3)
+                        cols[0].warning(f"**Enerji (135):** {safe_float(analizler.get('enerji135', 0)):.0f}")
+                        cols[1].warning(f"**Direnç (135):** {safe_float(analizler.get('direnc135', 0)):.0f}")
+                        cols[2].warning(f"**Uzama (135):** {safe_float(analizler.get('taban135', 0)):.0f}")
+
+                    st.divider()
+                    
+                    # 4. Aksiyon Butonları
+                    col_b1, col_b2 = st.columns(2)
+                    with col_b1:
+                        if st.button("📥 Resmi PDF Raporu Oluştur", key=f"pdf_btn_{kayit['id']}", type="primary", use_container_width=True):
+                            with st.spinner("PDF hazırlanıyor..."):
+                                pdf_bytes = create_pacal_pdf_report(
+                                    tarih=kayit['Tarih_Str'],
+                                    urun_adi=kayit['urun_adi'],
+                                    oranlar=oranlar,
+                                    analizler=analizler
+                                )
+                                if pdf_bytes:
+                                    st.download_button(
+                                        label="💾 PDF İNDİR",
+                                        data=pdf_bytes,
+                                        file_name=f"PACAL_{turkce_karakter_duzelt_pdf(kayit['urun_adi'])}_{datetime.now().strftime('%Y%m%d')}.pdf",
+                                        mime="application/pdf",
+                                        use_container_width=True
+                                    )
+                                else:
+                                    st.error("PDF oluşturulamadı.")
+                    
+                    with col_b2:
+                        # Bu reçeteyi tekrar yükle butonu (İleride yapılabilir)
+                        st.button("🔄 Bu Reçeteyi Düzenle (Yakında)", disabled=True, use_container_width=True)
+
+                except Exception as e:
+                    st.error(f"Kayıt detayları bozuk: {e}")
+            else:
+                st.warning("Seçilen kayıt veritabanında bulunamadı.")
+        else:
+            # Sağ taraf boşken gösterilecek mesaj
+            st.markdown("""
+            <div style='text-align: center; color: #888; padding-top: 50px;'>
+                <h1>👈</h1>
+                <h3>Lütfen detaylarını görmek için<br>soldaki listeden bir paçal seçiniz.</h3>
+            </div>
+            """, unsafe_allow_html=True)
 
 
