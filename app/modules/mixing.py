@@ -348,7 +348,7 @@ def show_pacal_hesaplayici():
         st.error(f"Hata: {e}")
 
 def show_pacal_gecmisi():
-    """Paçal Geçmişi - ERP Tarzı Profesyonel Görünüm"""
+    """Paçal Geçmişi - ERP Tarzı Profesyonel Görünüm (V3 - Final Optimize)"""
     
     # --- CSS: Butonları Karta Dönüştürme ---
     st.markdown("""
@@ -384,8 +384,7 @@ def show_pacal_gecmisi():
     
     # Tarih formatlama
     if 'tarih' in df_pacal.columns:
-        # errors='coerce' ekleyerek bozuk tarihlerin hata vermesini engelliyoruz
-        df_pacal['tarih'] = pd.to_datetime(df_pacal['tarih'], errors='coerce') 
+        df_pacal['tarih'] = pd.to_datetime(df_pacal['tarih'], errors='coerce')
         df_pacal['Tarih_Str'] = df_pacal['tarih'].dt.strftime('%d.%m.%Y')
         df_pacal['Saat_Str'] = df_pacal['tarih'].dt.strftime('%H:%M')
     else:
@@ -397,7 +396,7 @@ def show_pacal_gecmisi():
         col_search, col_filter, col_sort = st.columns([3, 2, 1])
         
         with col_search:
-            arama = st.text_input("🔍 Ürün Ara", placeholder="Ürün adı, kod veya ID...", label_visibility="collapsed")
+            arama = st.text_input("🔍 Ürün Ara", placeholder="Ürün adı veya ID...", label_visibility="collapsed")
         
         with col_filter:
             filtre_zaman = st.selectbox("📅 Zaman", ["Tümü", "Son 7 Gün", "Son 30 Gün", "Bu Ay"], label_visibility="collapsed")
@@ -405,15 +404,30 @@ def show_pacal_gecmisi():
         with col_sort:
             sirali = st.selectbox("Sırala", ["En Yeni", "En Eski"], label_visibility="collapsed")
 
+    # --- [YENİ] FİLTRE DEĞİŞİMİ KONTROLÜ VE SAYFA SIFIRLAMA ---
+    if 'last_search' not in st.session_state: st.session_state.last_search = ""
+    if 'last_filter' not in st.session_state: st.session_state.last_filter = "Tümü"
+    if 'last_sort' not in st.session_state: st.session_state.last_sort = "En Yeni"
+    
+    # Eğer filtrelerden biri değiştiyse sayfayı başa al
+    if (arama != st.session_state.last_search or 
+        filtre_zaman != st.session_state.last_filter or 
+        sirali != st.session_state.last_sort):
+        
+        st.session_state.pacal_page = 0
+        st.session_state.last_search = arama
+        st.session_state.last_filter = filtre_zaman
+        st.session_state.last_sort = sirali
+
     # --- FİLTRELEME MANTIĞI ---
     df_filtered = df_pacal.copy()
     
-    # 1. Metin Arama
+    # 1. Metin Arama ([YENİ] na=False eklendi ve ID araması güçlendirildi)
     if arama:
-        arama = arama.lower()
+        arama_kucuk = arama.lower()
         df_filtered = df_filtered[
-            df_filtered['urun_adi'].astype(str).str.lower().str.contains(arama) | 
-            df_filtered['id'].astype(str).str.contains(arama)
+            df_filtered['urun_adi'].astype(str).str.lower().str.contains(arama_kucuk, na=False) | 
+            df_filtered['id'].astype(str).str.contains(arama_kucuk, na=False)
         ]
     
     # 2. Tarih Filtresi
@@ -433,6 +447,11 @@ def show_pacal_gecmisi():
         df_filtered = df_filtered.sort_values('tarih', ascending=True)
     else:
         df_filtered = df_filtered.sort_values('tarih', ascending=False)
+
+    # --- [YENİ] BOŞ SONUÇ KONTROLÜ ---
+    if df_filtered.empty:
+        st.warning("🔍 Arama kriterlerine uygun kayıt bulunamadı. Lütfen filtreleri değiştirin.")
+        return
 
     # --- İKİ SÜTUNLU YAPI (SOL: LİSTE, SAĞ: DETAY) ---
     col_list, col_detail = st.columns([1.2, 2.8], gap="medium")
@@ -454,12 +473,13 @@ def show_pacal_gecmisi():
         
         # Kayıt Kartları (Butonlar)
         for idx, row in current_items.iterrows():
-            # Maliyet verisini güvenli çek
+            # [YENİ] Maliyet verisini daha güvenli ve anlaşılır çek
             try:
                 analiz_json = json.loads(row['sonuc_analizleri_json'])
-                maliyet_txt = f"{float(analiz_json.get('maliyet', 0)):.2f} TL"
+                maliyet_val = float(analiz_json.get('maliyet', 0))
+                maliyet_txt = f"{maliyet_val:.2f} TL" if maliyet_val > 0 else "Hesaplanmadı"
             except:
-                maliyet_txt = "? TL"
+                maliyet_txt = "Veri Hatası"
             
             # Kart Görünümlü Buton
             btn_label = f"🍞 {row['urun_adi']}\n📅 {row['Tarih_Str']} ⏰ {row.get('Saat_Str','')}\n💰 {maliyet_txt}"
@@ -467,16 +487,16 @@ def show_pacal_gecmisi():
             if st.button(btn_label, key=f"btn_pacal_{row['id']}", use_container_width=True):
                 st.session_state.selected_pacal_id = row['id']
         
-        # Sayfalama Butonları
+        # Sayfalama Butonları ([YENİ] KEY EKLENDİ)
         c_prev, c_page, c_next = st.columns([1, 2, 1])
         with c_prev:
-            if st.button("◀", disabled=(st.session_state.pacal_page == 0)):
+            if st.button("◀", disabled=(st.session_state.pacal_page == 0), key="pacal_prev_btn"):
                 st.session_state.pacal_page -= 1
                 st.rerun()
         with c_page:
             st.markdown(f"<div style='text-align:center; padding-top:5px;'>Sayfa {st.session_state.pacal_page + 1}/{total_pages}</div>", unsafe_allow_html=True)
         with c_next:
-            if st.button("▶", disabled=(st.session_state.pacal_page >= total_pages - 1)):
+            if st.button("▶", disabled=(st.session_state.pacal_page >= total_pages - 1), key="pacal_next_btn"):
                 st.session_state.pacal_page += 1
                 st.rerun()
 
@@ -529,7 +549,7 @@ def show_pacal_gecmisi():
                         oran_data = [{"Depo/Silo Adı": k, "Kullanım Oranı (%)": f"%{v}"} for k, v in oranlar.items() if v > 0]
                         st.table(pd.DataFrame(oran_data))
                         
-                        # Görsel Pasta Grafik (Opsiyonel - Eğer plotly varsa)
+                        # Görsel Pasta Grafik
                         try:
                             import plotly.express as px
                             pie_data = pd.DataFrame(list(oranlar.items()), columns=['Silo', 'Oran'])
@@ -564,34 +584,37 @@ def show_pacal_gecmisi():
 
                     st.divider()
                     
-                    # 4. Aksiyon Butonları
+                    # 4. Aksiyon Butonları (PDF İndirme İyileştirmesi)
                     col_b1, col_b2 = st.columns(2)
                     with col_b1:
-                        # Benzersiz key vererek çakışmayı önledik
-                        if st.button("📥 PDF Rapor Oluştur", key=f"pdf_gen_{kayit['id']}", type="primary", use_container_width=True):
-                            with st.spinner("PDF hazırlanıyor..."):
-                                pdf_bytes = create_pacal_pdf_report(
-                                    tarih=kayit['Tarih_Str'],
-                                    urun_adi=kayit['urun_adi'],
-                                    oranlar=oranlar,
-                                    analizler=analizler
+                        # Butona basılınca kapanmasın diye expander kullanımı
+                        with st.expander("📥 PDF Rapor İndir", expanded=True):
+                            if st.button("📄 Raporu Hazırla", key=f"pdf_gen_{kayit['id']}", type="primary", use_container_width=True):
+                                with st.spinner("PDF hazırlanıyor..."):
+                                    pdf_bytes = create_pacal_pdf_report(
+                                        tarih=kayit['Tarih_Str'],
+                                        urun_adi=kayit['urun_adi'],
+                                        oranlar=oranlar,
+                                        analizler=analizler
+                                    )
+                                    if pdf_bytes:
+                                        st.session_state[f"pdf_ready_{kayit['id']}"] = pdf_bytes
+                                        st.success("Hazır!")
+                                    else:
+                                        st.error("PDF oluşturulamadı.")
+                            
+                            # Eğer PDF hafızadaysa indirme butonunu göster
+                            if f"pdf_ready_{kayit['id']}" in st.session_state:
+                                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                                st.download_button(
+                                    label="💾 Dosyayı İndir",
+                                    data=st.session_state[f"pdf_ready_{kayit['id']}"],
+                                    file_name=f"PACAL_{turkce_karakter_duzelt_pdf(kayit['urun_adi'])}_{timestamp}.pdf",
+                                    mime="application/pdf",
+                                    use_container_width=True
                                 )
-                                if pdf_bytes:
-                                    # Expander içinde göstererek butonun hemen kapanmasını önlüyoruz
-                                    with st.expander("✅ Rapor Hazır! Tıklayıp İndirin", expanded=True):
-                                        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                                        st.download_button(
-                                            label="💾 Dosyayı İndir",
-                                            data=pdf_bytes,
-                                            file_name=f"PACAL_{turkce_karakter_duzelt_pdf(kayit['urun_adi'])}_{timestamp}.pdf",
-                                            mime="application/pdf",
-                                            use_container_width=True
-                                        )
-                                else:
-                                    st.error("PDF oluşturulamadı.")
                     
                     with col_b2:
-                        # Bu reçeteyi tekrar yükle butonu (İleride yapılabilir)
                         st.button("🔄 Bu Reçeteyi Düzenle (Yakında)", disabled=True, use_container_width=True)
 
                 except Exception as e:
