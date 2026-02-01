@@ -25,6 +25,7 @@ import app.modules.mill as production
 import app.modules.flour as flour
 import app.modules.admin as admin
 import app.modules.calculations as calculations
+from app.core.languages import t, LANGUAGES # <--- YENİ EKLENEN
 
 # --- APP BAŞLANGIÇ ---
 
@@ -310,6 +311,7 @@ elif selected_page == "ADMIN" or selected_page == "PROFILE":
 # 🚪 PROFİL SAYFASI
 elif selected_page == "PROFILE":
     show_profile_settings()
+
 
 
 
