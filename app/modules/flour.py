@@ -1104,6 +1104,41 @@ def show_un_maliyet_gecmisi():
     if st.button("📥 Excel İndir", type="primary"):
         filename = f"un_maliyet_{datetime.now().strftime('%Y%m%d')}.xlsx"
         download_styled_excel(df, filename, "Maliyet Geçmişi")
+        
+    # SİLME PANELİ (Sadece Admin Görebilir)
+    if st.session_state.get('user_role') == 'admin':
+        st.divider()
+        with st.expander("🗑️ Kayıt Silme Paneli (Test Verilerini Temizle)", expanded=False):
+            st.warning("⚠️ Dikkat: Bu işlem geri alınamaz!")
+            
+            # Seçim Listesi (Tarih ve Un Çeşidi gösterelim)
+            secenekler = df.to_dict('records')
+            
+            def format_func_del(row):
+                # Güvenli gösterim
+                tarih = row.get('tarih_str', str(row.get('tarih')))
+                un = row.get('un_cesidi', 'Bilinmiyor')
+                kar = row.get('net_kar_50kg', 0)
+                return f"{tarih} - {un} (Net Kar: {kar:.2f} TL)"
+
+            silinecek_kayit = st.selectbox(
+                "Silinecek Kaydı Seçin:", 
+                secenekler, 
+                format_func=format_func_del,
+                key="del_maliyet_select"
+            )
+
+            if silinecek_kayit:
+                col_del_btn, col_del_info = st.columns([1, 4])
+                with col_del_btn:
+                    if st.button("🔥 Kaydı Sil", type="primary", key="btn_del_confirm"):
+                        # Orijinal 'tarih' verisini kullanarak sil
+                        if delete_un_maliyet_record(silinecek_kayit['tarih']):
+                            st.success("✅ Kayıt başarıyla silindi!")
+                            time.sleep(1)
+                            st.rerun() # Listeyi yenile
+                        else:
+                            st.error("❌ Silme işlemi sırasında hata oluştu.")
 def show_flour_yonetimi():
     """
     Un Bölümü Ana Kontrol Paneli
@@ -1167,6 +1202,7 @@ def show_flour_yonetimi():
                 st.error("⚠️ Enzim modülü (calculations.py) bulunamadı.")
             except Exception as e:
                 st.error(f"⚠️ Modül yüklenirken hata oluştu: {e}")
+
 
 
 
