@@ -567,7 +567,8 @@ def show_pacal_gecmisi():
                     # 4. Aksiyon Butonları
                     col_b1, col_b2 = st.columns(2)
                     with col_b1:
-                        if st.button("📥 Resmi PDF Raporu Oluştur", key=f"pdf_btn_{kayit['id']}", type="primary", use_container_width=True):
+                        # Benzersiz key vererek çakışmayı önledik
+                        if st.button("📥 PDF Rapor Oluştur", key=f"pdf_gen_{kayit['id']}", type="primary", use_container_width=True):
                             with st.spinner("PDF hazırlanıyor..."):
                                 pdf_bytes = create_pacal_pdf_report(
                                     tarih=kayit['Tarih_Str'],
@@ -576,13 +577,16 @@ def show_pacal_gecmisi():
                                     analizler=analizler
                                 )
                                 if pdf_bytes:
-                                    st.download_button(
-                                        label="💾 PDF İNDİR",
-                                        data=pdf_bytes,
-                                        file_name=f"PACAL_{turkce_karakter_duzelt_pdf(kayit['urun_adi'])}_{datetime.now().strftime('%Y%m%d')}.pdf",
-                                        mime="application/pdf",
-                                        use_container_width=True
-                                    )
+                                    # Expander içinde göstererek butonun hemen kapanmasını önlüyoruz
+                                    with st.expander("✅ Rapor Hazır! Tıklayıp İndirin", expanded=True):
+                                        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                                        st.download_button(
+                                            label="💾 Dosyayı İndir",
+                                            data=pdf_bytes,
+                                            file_name=f"PACAL_{turkce_karakter_duzelt_pdf(kayit['urun_adi'])}_{timestamp}.pdf",
+                                            mime="application/pdf",
+                                            use_container_width=True
+                                        )
                                 else:
                                     st.error("PDF oluşturulamadı.")
                     
@@ -602,6 +606,7 @@ def show_pacal_gecmisi():
                 <h3>Lütfen detaylarını görmek için<br>soldaki listeden bir paçal seçiniz.</h3>
             </div>
             """, unsafe_allow_html=True)
+
 
 
 
