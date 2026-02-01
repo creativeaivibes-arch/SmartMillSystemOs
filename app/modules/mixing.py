@@ -57,7 +57,7 @@ def get_pacal_history():
             
         return df
     except Exception as e:
-        # Hata durumunda boş dataframe dön, sistemi kırma
+        st.error(f"⚠️ Paçal geçmişi yüklenirken hata: {str(e)}") # <--- HATA GÖSTERİMİ EKLENDİ
         return pd.DataFrame()
 def get_tavli_analiz_agirlikli_ortalama(silo_isim):
     """Silo için tüm tavlı analizlerin tonaj ağırlıklı ortalamasını hesapla - GOOGLE SHEETS UYUMLU"""
@@ -384,10 +384,13 @@ def show_pacal_gecmisi():
     
     # Tarih formatlama
     if 'tarih' in df_pacal.columns:
+        # errors='coerce' ekleyerek bozuk tarihlerin hata vermesini engelliyoruz
+        df_pacal['tarih'] = pd.to_datetime(df_pacal['tarih'], errors='coerce') 
         df_pacal['Tarih_Str'] = df_pacal['tarih'].dt.strftime('%d.%m.%Y')
         df_pacal['Saat_Str'] = df_pacal['tarih'].dt.strftime('%H:%M')
     else:
         df_pacal['Tarih_Str'] = "-"
+        df_pacal['Saat_Str'] = ""
 
     # --- ÜST BAR: ARAMA VE FİLTRE ---
     with st.container(border=True):
@@ -599,6 +602,7 @@ def show_pacal_gecmisi():
                 <h3>Lütfen detaylarını görmek için<br>soldaki listeden bir paçal seçiniz.</h3>
             </div>
             """, unsafe_allow_html=True)
+
 
 
 
