@@ -41,10 +41,10 @@ def get_silo_data():
         st.error(f"Silo verisi çekme hatası: {e}")
         return pd.DataFrame()
 
+@st.cache_data(ttl=60)
 def get_pacal_history():
-    """Paçal geçmişini getir - GOOGLE SHEETS UYUMLU"""
+    
     try:
-        # SQL yerine fetch_data
         df = fetch_data("pacal_kayitlari")
         
         if df.empty:
@@ -57,9 +57,8 @@ def get_pacal_history():
             
         return df
     except Exception as e:
-        st.error(f"Paçal geçmişi yüklenemedi: {str(e)}")
+        # Hata durumunda boş dataframe dön, sistemi kırma
         return pd.DataFrame()
-
 def get_tavli_analiz_agirlikli_ortalama(silo_isim):
     """Silo için tüm tavlı analizlerin tonaj ağırlıklı ortalamasını hesapla - GOOGLE SHEETS UYUMLU"""
     try:
@@ -473,4 +472,5 @@ def show_pacal_gecmisi():
                         
         except Exception as e:
             st.error(f"Veri hatası: {e}")
+
 
