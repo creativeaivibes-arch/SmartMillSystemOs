@@ -113,7 +113,84 @@ DICTIONARY = {
     },
     "role_management": {
         "TR": "Üst Yönetim", "EN": "Top Management", "FR": "Haute Direction", "RU": "Высшее руководство"
-    }
+    },
+    # --- MAL KABUL EKRANI (WHEAT INTAKE) ---
+    "header_goods_receipt": {
+        "TR": "Mal Kabul ve Stok Girişi",
+        "EN": "Goods Receipt & Stock Entry",
+        "FR": "Réception Marchandises & Entrée Stock",
+        "RU": "Прием товаров и ввод запасов"
+    },
+    "subheader_basic_info": {
+        "TR": "Temel Bilgiler",
+        "EN": "Basic Information",
+        "FR": "Informations de Base",
+        "RU": "Основная информация"
+    },
+    "subheader_lab_analysis": {
+        "TR": "Laboratuvar Analiz Değerleri",
+        "EN": "Lab Analysis Values",
+        "FR": "Valeurs d'Analyse de Laboratoire",
+        "RU": "Лабораторные анализы"
+    },
+    "label_silo_select": {
+        "TR": "Depolanacak Silo",
+        "EN": "Target Silo",
+        "FR": "Silo de Stockage",
+        "RU": "Целевой силос"
+    },
+    "label_date": {
+        "TR": "Kabul Tarihi",
+        "EN": "Receipt Date",
+        "FR": "Date de Réception",
+        "RU": "Дата приема"
+    },
+    "label_wheat_type": {
+        "TR": "Buğday Cinsi",
+        "EN": "Wheat Type",
+        "FR": "Type de Blé",
+        "RU": "Сорт пшеницы"
+    },
+    "label_supplier": {
+        "TR": "Tedarikçi/Firma",
+        "EN": "Supplier/Company",
+        "FR": "Fournisseur/Entreprise",
+        "RU": "Поставщик/Компания"
+    },
+    "label_region": {
+        "TR": "Yöre/Bölge",
+        "EN": "Region",
+        "FR": "Région",
+        "RU": "Region"
+    },
+    "label_plate": {
+        "TR": "Plaka",
+        "EN": "Vehicle Plate",
+        "FR": "Plaque d'immatriculation",
+        "RU": "Номер машины"
+    },
+    "label_quantity": {
+        "TR": "Gelen Miktar (Ton)",
+        "EN": "Quantity (Ton)",
+        "FR": "Quantité (Tonne)",
+        "RU": "Количество (Тонн)"
+    },
+    "label_price": {
+        "TR": "Alış Fiyatı (TL)",
+        "EN": "Purchase Price (Currency)",
+        "FR": "Prix d'Achat",
+        "RU": "Цена покупки"
+    },
+    "btn_save_record": {
+        "TR": "Kaydı Tamamla",
+        "EN": "Complete Record",
+        "FR": "Terminer l'Enregistrement",
+        "RU": "Завершить запись"
+    },
+    # Analizler
+    "ana_moisture": {"TR": "Rutubet (%)", "EN": "Moisture (%)", "FR": "Humidité (%)", "RU": "Влажность (%)"},
+    "ana_protein": {"TR": "Protein (%)", "EN": "Protein (%)", "FR": "Protéine (%)", "RU": "Белок (%)"},
+    "ana_gluten": {"TR": "Gluten (%)", "EN": "Gluten (%)", "FR": "Gluten (%)", "RU": "Глютен (%)"},
 }
 
 def t(key):
@@ -137,3 +214,4 @@ def t(key):
             return f"[{key}]" # Çeviri unutulmuşsa belli et (Debug için)
     except Exception:
         return key
+
