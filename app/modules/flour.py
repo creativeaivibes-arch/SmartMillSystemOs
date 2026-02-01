@@ -841,6 +841,29 @@ def show_un_analiz_kayitlari():
                     st.rerun()
                 else:
                     st.error(msg)
+
+def delete_un_maliyet_record(tarih_val):
+    """Maliyet kaydını tarihe göre siler"""
+    try:
+        conn = get_conn()
+        df = fetch_data("un_maliyet_hesaplamalari")
+        if df.empty: return False
+
+        # Tarih sütununu stringe çevirip karşılaştıralım (Eşleşme garantisi için)
+        df['tarih'] = df['tarih'].astype(str)
+        tarih_str = str(tarih_val)
+        
+        # Eşleşmeyenleri tut (Silme mantığı)
+        df_new = df[df['tarih'] != tarih_str]
+        
+        # Eğer satır sayısı azaldıysa silme başarılıdır
+        if len(df_new) < len(df):
+            conn.update(worksheet="un_maliyet_hesaplamalari", data=df_new)
+            return True
+        return False
+    except Exception as e:
+        return False
+
 def save_un_maliyet(data):
     """Maliyet hesaplamasını kaydet"""
     try:
@@ -1144,6 +1167,7 @@ def show_flour_yonetimi():
                 st.error("⚠️ Enzim modülü (calculations.py) bulunamadı.")
             except Exception as e:
                 st.error(f"⚠️ Modül yüklenirken hata oluştu: {e}")
+
 
 
 
