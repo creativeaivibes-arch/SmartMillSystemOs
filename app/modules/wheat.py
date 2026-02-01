@@ -631,11 +631,12 @@ def delete_bugday_spec_group(cins):
 
 def show_mal_kabul():
     """Mal Kabul Ekranı - Çok Dilli (Multi-Language)"""
+    # Yetki Kontrolü
     if st.session_state.get('user_role') not in ["admin", "operations", "quality"]:
-        st.warning(t("error_auth") if "error_auth" in DICTIONARY else "Yetkisiz Erişim")
+        st.warning("Yetkisiz Erişim")
         return
 
-    # Başlık Çevirisi
+    # BAŞLIK (Çevrildi)
     st.header(f"🚜 {t('header_goods_receipt')}")
     
     lot_no = f"BUGDAY-{datetime.now().strftime('%y%m%d%H%M%S')}"
@@ -643,7 +644,7 @@ def show_mal_kabul():
     col1, col2 = st.columns([1, 1.5], gap="large")
     
     with col1:
-        # Alt Başlık: Temel Bilgiler
+        # Alt Başlık: Temel Bilgiler (Çevrildi)
         st.subheader(f"📋 {t('subheader_basic_info')}")
         st.info(f"**Lot No:** `{lot_no}`")
         
@@ -652,17 +653,17 @@ def show_mal_kabul():
             st.warning("Silo tanımlayınız.")
             return
             
-        # Silo Seçimi
+        # Silo Seçimi (Çevrildi)
         secilen_silo = st.selectbox(f"{t('label_silo_select')} *", df_silo['isim'].tolist())
         
-        # Kapasite Kontrolü
+        # Kapasite Gösterimi
         silo_row = df_silo[df_silo['isim'] == secilen_silo].iloc[0]
         mevcut = float(silo_row.get('mevcut_miktar', 0))
         kapasite = float(silo_row.get('kapasite', 0))
         kalan = kapasite - mevcut
         st.info(f"Kalan: {kalan:.1f} Ton")
         
-        # Tarih
+        # Tarih (Çevrildi)
         tarih = st.date_input(f"{t('label_date')} *", datetime.now())
         
         # Spec Listesi
@@ -671,9 +672,9 @@ def show_mal_kabul():
         if not df_specs.empty:
             specs_list = df_specs['bugday_cinsi'].unique().tolist()
             
-        secilen_standart = st.selectbox(t("select"), ["(Standart Yok)"] + specs_list)
+        secilen_standart = st.selectbox("Standart", ["(Standart Yok)"] + specs_list)
         
-        # Buğday Cinsi, Tedarikçi vb.
+        # Buğday Cinsi (Çevrildi)
         bugday_cinsi = st.text_input(f"{t('label_wheat_type')} *", placeholder="Örn: Esperia")
         
         current_specs = {}
@@ -682,22 +683,22 @@ def show_mal_kabul():
             for _, row in df_s.iterrows():
                 current_specs[row['parametre']] = row
 
+        # Tedarikçi, Yöre, Plaka (Çevrildi)
         tedarikci = st.text_input(f"{t('label_supplier')} *")
         yore = st.text_input(f"{t('label_region')} *")
         plaka = st.text_input(f"{t('label_plate')} *")
         
-        # Notlar (Çeviriye gerek yok veya "Notes" diyebilirsin)
         notlar = st.text_area("Notlar / Notes", key="mal_kabul_notlar")
         
-        # Miktar ve Fiyat
+        # Miktar ve Fiyat (Çevrildi)
         miktar = st.number_input(f"{t('label_quantity')} *", min_value=0.0, format="%.1f")
         fiyat = st.number_input(f"{t('label_price')} *", min_value=0.0, format="%.2f")
 
     with col2:
-        # Alt Başlık: Analiz Değerleri
+        # Alt Başlık: Analizler (Çevrildi)
         st.subheader(f"🧪 {t('subheader_lab_analysis')}")
         
-        # Validasyon Helper
+        # Validasyon Yardımcısı
         def validate_val(key, val, label):
             if key in current_specs:
                 spec = current_specs[key]
@@ -714,7 +715,7 @@ def show_mal_kabul():
             g_hl = st.number_input("Hektolitre", 0.0, 100.0, 78.0)
             validate_val("hektolitre", g_hl, "Hektolitre")
             
-            # Rutubet, Protein, Gluten (Çevrildi)
+            # Rutubet, Protein, Gluten --> ÇEVRİLDİ (t fonksiyonu ile)
             g_rut = st.number_input(t("ana_moisture"), 0.0, 20.0, 13.5)
             validate_val("rutubet", g_rut, "Rutubet")
             
@@ -725,8 +726,7 @@ def show_mal_kabul():
             validate_val("gluten", g_glut, "Gluten")
 
         with c2:
-            # Diğer analizler için sözlüğe ekleme yapmadıysak Türkçe kalabilir, 
-            # veya t("ana_gluten_index") gibi ekleyebilirsin.
+            # Diğer analizler şimdilik sabit kalabilir veya ilerde eklersin
             g_index = st.number_input("Gluten Index", 0.0, 100.0, 90.0)
             validate_val("gluten_index", g_index, "G.Index")
             
@@ -757,15 +757,14 @@ def show_mal_kabul():
         
         validasyon_hatalari = []
         
-        # 1. Miktar kontrolü
+        # Miktar ve Fiyat Kontrolü
         valid, msg, _ = validate_numeric_input(miktar, 'tonaj', allow_zero=False, allow_negative=False)
         if not valid: validasyon_hatalari.append(f"Miktar: {msg}")
         
-        # 2. Fiyat kontrolü
         valid, msg, _ = validate_numeric_input(fiyat, 'fiyat', allow_zero=False, allow_negative=False)
         if not valid: validasyon_hatalari.append(f"Fiyat: {msg}")
         
-        # 3. Analiz değerleri kontrolü
+        # Analiz Değerleri Kontrolü
         analiz_checks = [
             (g_hl, 'hektolitre', 'Hektolitre'),
             (g_rut, 'rutubet', 'Rutubet'),
@@ -781,26 +780,25 @@ def show_mal_kabul():
                 valid, msg, _ = validate_numeric_input(deger, key, allow_zero=True, allow_negative=False)
                 if not valid: validasyon_hatalari.append(f"{label}: {msg}")
         
-        # 4. Kapasite kontrolü
+        # Kapasite Kontrolü
         valid, msg, kalan_yeni = validate_capacity(mevcut, kapasite, miktar)
         if not valid: validasyon_hatalari.append(msg)
         
-        # 5. Zorunlu alanlar
+        # Zorunlu Alanlar
         if not (bugday_cinsi and tedarikci and plaka):
             validasyon_hatalari.append("❌ Buğday cinsi, tedarikçi ve plaka zorunludur!")
         
-        # Hata Gösterimi
         if validasyon_hatalari:
             st.error("🚫 Lütfen aşağıdaki hataları düzeltin:")
             for hata in validasyon_hatalari: st.write(f"- {hata}")
             return
         
-        # ===== KAYIT İŞLEMİ (ORİJİNAL MANTIK) =====
+        # ===== KAYIT İŞLEMİ =====
         note_final = notlar if notlar else ""
         if hasere == "Var": 
             note_final = f"{note_final} | HAŞERE RİSKİ" if note_final else "HAŞERE RİSKİ"
         
-        # Stok Hareketi
+        # Stok Hareketi Logla
         ok_log = log_stok_hareketi(
             secilen_silo, "Giriş", miktar,
             protein=g_prot, gluten=g_glut, rutubet=g_rut, hektolitre=g_hl,
@@ -809,7 +807,7 @@ def show_mal_kabul():
         )
         
         if ok_log:
-            # Arşiv Kaydı
+            # Arşive Ekle
             ok_arc = add_to_bugday_giris_arsivi(
                 lot_no, tarih=str(tarih), bugday_cinsi=bugday_cinsi,
                 tedarikci=tedarikci, yore=yore, plaka=plaka,
@@ -822,7 +820,7 @@ def show_mal_kabul():
             
             if ok_arc:
                 st.success("✅ Kayıt Başarılı!")
-                recalculate_silos_from_logs()
+                recalculate_silos_from_logs() # Siloları güncelle
                 time.sleep(1)
                 st.rerun()
             else:
@@ -2147,6 +2145,7 @@ def show_tavli_analiz_arsivi():
                     st.rerun()
                 else:
                     st.error(msg)
+
 
 
 
