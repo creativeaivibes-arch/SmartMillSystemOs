@@ -176,40 +176,52 @@ with st.sidebar:
     
     st.divider()
     
-    # --- MENÜ YAPISI (Senin Belirlediğin Başlıklarla) ---
+    # --- MENÜ YAPISI (DİNAMİK ÇEVİRİ) ---
     user_role = st.session_state.get('user_role', 'viewer')
     
+    # 1. ÖNCE: Menü isimlerini seçilen dile göre alıp değişkenlere atıyoruz.
+    # Böylece aşağıda hem listede hem de if koşullarında aynısını kullanacağız.
+    opt_dashboard = t("menu_dashboard")
+    opt_quality = t("menu_quality")
+    opt_mill = t("menu_mill")
+    opt_finance = t("menu_finance")
+    opt_admin = t("menu_admin")
+    
+    # 2. Rol Bazlı Menü Listesi (Değişkenleri kullanıyoruz)
     if user_role == "admin":
-        # Admin her şeyi görür
-        menu_secenekleri = ["Dashboard", "Kalite Kontrol", "Değirmen", "Finans & Strateji", "Yönetim Paneli"]
+        menu_secenekleri = [opt_dashboard, opt_quality, opt_mill, opt_finance, opt_admin]
     elif user_role == "quality":
-        # Kaliteci sadece Dashboard ve Kalite Kontrol görür
-        menu_secenekleri = ["Dashboard", "Kalite Kontrol", "Değirmen"]
+        menu_secenekleri = [opt_dashboard, opt_quality, opt_mill]
     elif user_role == "operations":
-        # Operasyon sadece Dashboard ve Değirmen görür
-        menu_secenekleri = ["Dashboard", "Değirmen"]
+        menu_secenekleri = [opt_dashboard, opt_mill]
     elif user_role == "management":
-        # Üst Yönetim sadece Dashboard ve Finans & Strateji görür
-        menu_secenekleri = ["Dashboard","Kalite Kontrol","Finans & Strateji"]
+        menu_secenekleri = [opt_dashboard, opt_quality, opt_finance]
     else:
-        menu_secenekleri = ["Dashboard"]
+        menu_secenekleri = [opt_dashboard]
 
+    # 3. Menüyü Göster
     ana_menu = st.sidebar.radio(
-        "📂 Ana Menü",
+        "📂 Menu",  # Başlık 'collapsed' olduğu için önemli değil
         menu_secenekleri,
         label_visibility="collapsed"
     )
     
     st.sidebar.divider()
     
-    # --- SAYFA BELİRLEME (Routing) ---
+    # --- SAYFA BELİRLEME (Routing - Çok Dilli) ---
     selected_page = None
     
-    if ana_menu == "Dashboard":
+    # Karşılaştırmaları yukarıdaki değişkenlerle (opt_...) yapıyoruz
+    
+    if ana_menu == opt_dashboard:
         selected_page = "Dashboard"
 
-    elif ana_menu == "Kalite Kontrol":
-        st.sidebar.markdown("### 🧪 Kalite Kontrol")
+    elif ana_menu == opt_quality:
+        # Alt başlığı da çeviriyoruz
+        st.sidebar.markdown(f"### 🧪 {t('menu_quality')}")
+        
+        # Alt menüleri henüz languages.py'ye eklemedik, Türkçe kalsın şimdilik
+        # İleride bunları da t('submenu_wheat') gibi yapabiliriz
         kk_bolum = st.sidebar.radio(
             "Bölüm Seçiniz", 
             ["🌾 Buğday Yönetimi", "🍞 Un Yönetimi"]
@@ -219,15 +231,14 @@ with st.sidebar:
         elif kk_bolum == "🍞 Un Yönetimi":
             selected_page = "KK_UN"
 
-    elif ana_menu == "Değirmen":
+    elif ana_menu == opt_mill:
         selected_page = "PRODUCTION_MANAGER"
         
-    elif ana_menu == "Finans & Strateji":
+    elif ana_menu == opt_finance:
         selected_page = "FINANCE_DASHBOARD"
         
-    elif ana_menu == "Yönetim Paneli":
+    elif ana_menu == opt_admin:
         selected_page = "ADMIN"
-      
     
 # --- YÖNLENDIRME (ROUTING) ---
 
@@ -349,6 +360,7 @@ elif selected_page == "ADMIN" or selected_page == "PROFILE":
 # 🚪 PROFİL SAYFASI
 elif selected_page == "PROFILE":
     show_profile_settings()
+
 
 
 
