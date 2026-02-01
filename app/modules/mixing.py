@@ -329,6 +329,7 @@ def show_pacal_hesaplayici():
                                     }
                                     
                                     if add_data("pacal_kayitlari", data_to_save):
+                                        st.cache_data.clear()
                                         st.success("✅ Paçal kaydedildi!")
                                         time.sleep(1)
                                         st.rerun()
@@ -598,5 +599,6 @@ def show_pacal_gecmisi():
                 <h3>Lütfen detaylarını görmek için<br>soldaki listeden bir paçal seçiniz.</h3>
             </div>
             """, unsafe_allow_html=True)
+
 
 
