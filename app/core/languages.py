@@ -114,84 +114,112 @@ DICTIONARY = {
     "role_management": {
         "TR": "Üst Yönetim", "EN": "Top Management", "FR": "Haute Direction", "RU": "Высшее руководство"
     },
-    # --- MAL KABUL EKRANI (WHEAT INTAKE) ---
+    # --- MAL KABUL / WHEAT INTAKE (EXCEL'DEN GÜNCELLENDİ) ---
     "header_goods_receipt": {
-        "TR": "Mal Kabul ve Stok Girişi",
-        "EN": "Goods Receipt & Stock Entry",
-        "FR": "Réception Marchandises & Entrée Stock",
-        "RU": "Прием товаров и ввод запасов"
+        "TR": "Ham Madde Giriş",
+        "EN": "Raw Material Intake",
+        "FR": "Réception Matières Premières",
+        "RU": "Прием сырья"
     },
     "subheader_basic_info": {
         "TR": "Temel Bilgiler",
-        "EN": "Basic Information",
-        "FR": "Informations de Base",
-        "RU": "Основная информация"
+        "EN": "General Information",
+        "FR": "Informations Générales",
+        "RU": "Общая информация"
     },
-    "subheader_lab_analysis": {
-        "TR": "Laboratuvar Analiz Değerleri",
-        "EN": "Lab Analysis Values",
-        "FR": "Valeurs d'Analyse de Laboratoire",
-        "RU": "Лабораторные анализы"
+    "label_lot": {
+        "TR": "Lot No",
+        "EN": "Batch No / Lot ID",
+        "FR": "N° de Lot",
+        "RU": "Номер партии"
     },
-    "label_silo_select": {
+    "label_silo": {
         "TR": "Depolanacak Silo",
-        "EN": "Target Silo",
-        "FR": "Silo de Stockage",
-        "RU": "Целевой силос"
+        "EN": "Target Bin / Dest. Silo",
+        "FR": "Silo de Destination",
+        "RU": "Силос назначения"
+    },
+    "label_balance": {
+        "TR": "Kalan Kapasite",
+        "EN": "Current Stock / Balance",
+        "FR": "Stock Actuel",
+        "RU": "Текущий остаток"
     },
     "label_date": {
         "TR": "Kabul Tarihi",
-        "EN": "Receipt Date",
+        "EN": "Intake Date",
         "FR": "Date de Réception",
-        "RU": "Дата приема"
+        "RU": "Дата приемки"
     },
-    "label_wheat_type": {
+    "label_standard": {
+        "TR": "Standart",
+        "EN": "Standard",
+        "FR": "Standard",
+        "RU": "Стандарт / ГОСТ"
+    },
+    "label_variety": {
         "TR": "Buğday Cinsi",
-        "EN": "Wheat Type",
-        "FR": "Type de Blé",
+        "EN": "Wheat Variety",
+        "FR": "Variété de Blé",
         "RU": "Сорт пшеницы"
     },
     "label_supplier": {
         "TR": "Tedarikçi/Firma",
-        "EN": "Supplier/Company",
-        "FR": "Fournisseur/Entreprise",
-        "RU": "Поставщик/Компания"
+        "EN": "Supplier",
+        "FR": "Fournisseur",
+        "RU": "Поставщик"
     },
-    "label_region": {
+    "label_origin": {
         "TR": "Yöre/Bölge",
-        "EN": "Region",
-        "FR": "Région",
-        "RU": "Region"
+        "EN": "Origin / Region",
+        "FR": "Provenance",
+        "RU": "Происхождение"
     },
     "label_plate": {
         "TR": "Plaka",
-        "EN": "Vehicle Plate",
-        "FR": "Plaque d'immatriculation",
-        "RU": "Номер машины"
+        "EN": "Truck Plate / Vehicle ID",
+        "FR": "Immatriculation",
+        "RU": "Номер ТС"
     },
-    "label_quantity": {
+    "label_notes": {
+        "TR": "Notlar",
+        "EN": "Remarks / Notes",
+        "FR": "Remarques",
+        "RU": "Примечания"
+    },
+    "label_weight": {
         "TR": "Gelen Miktar (Ton)",
-        "EN": "Quantity (Ton)",
-        "FR": "Quantité (Tonne)",
-        "RU": "Количество (Тонн)"
+        "EN": "Net Weight / Intake Qty",
+        "FR": "Poids Net",
+        "RU": "Вес нетто / Приход"
     },
     "label_price": {
         "TR": "Alış Fiyatı (TL)",
-        "EN": "Purchase Price (Currency)",
+        "EN": "Purchase Price",
         "FR": "Prix d'Achat",
-        "RU": "Цена покупки"
+        "RU": "Закупочная цена"
     },
-    "btn_save_record": {
+    "subheader_quality": {
+        "TR": "Laboratuvar Analiz Değerleri",
+        "EN": "Quality Parameters",
+        "FR": "Paramètres de Qualité",
+        "RU": "Лабораторные показатели"
+    },
+    "btn_submit": {
         "TR": "Kaydı Tamamla",
-        "EN": "Complete Record",
-        "FR": "Terminer l'Enregistrement",
-        "RU": "Завершить запись"
+        "EN": "Submit Entry / Save",
+        "FR": "Enregistrer",
+        "RU": "Сохранить запись"
     },
-    # Analizler
-    "ana_moisture": {"TR": "Rutubet (%)", "EN": "Moisture (%)", "FR": "Humidité (%)", "RU": "Влажность (%)"},
-    "ana_protein": {"TR": "Protein (%)", "EN": "Protein (%)", "FR": "Protéine (%)", "RU": "Белок (%)"},
-    "ana_gluten": {"TR": "Gluten (%)", "EN": "Gluten (%)", "FR": "Gluten (%)", "RU": "Глютен (%)"},
-}
+    
+    # --- ANALİZ PARAMETRELERİ (LİTERATÜRE UYGUN) ---
+    "ana_test_weight": {"TR": "Hektolitre", "EN": "Test Weight", "FR": "Poids Spécifique (PS)", "RU": "Натура (Natura)"},
+    "ana_moisture": {"TR": "Rutubet (%)", "EN": "Moisture", "FR": "Humidité", "RU": "Влажность"},
+    "ana_protein": {"TR": "Protein (%)", "EN": "Protein", "FR": "Protéine", "RU": "Белок"},
+    "ana_gluten": {"TR": "Gluten (%)", "EN": "Wet Gluten", "FR": "Gluten Humide", "RU": "Клейковина"},
+    "ana_gluten_index": {"TR": "Gluten Index", "EN": "Gluten Index", "FR": "Index de Gluten", "RU": "Индекс клейковины (ИДК)"},
+    "ana_sedim": {"TR": "Sedim (ml)", "EN": "Sedimentation (Zeleny)", "FR": "Indice de Zélény", "RU": "Седиментация"},
+    "ana_falling_number": {"TR": "Düşme Sayısı (FN)", "EN": "Falling Number", "FR": "Temps de Chute", "RU": "Число падения"},
 
 def t(key):
     """
@@ -214,4 +242,5 @@ def t(key):
             return f"[{key}]" # Çeviri unutulmuşsa belli et (Debug için)
     except Exception:
         return key
+
 
