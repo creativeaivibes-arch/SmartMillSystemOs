@@ -13,28 +13,16 @@ LANGUAGES = {
 DICTIONARY = {
     # --- GİRİŞ EKRANI (LOGIN SCREEN) ---
     "login_header": {
-        "TR": "Giriş Yap",
-        "EN": "Login",
-        "FR": "Connexion",
-        "RU": "Вход"
+        "TR": "Giriş Yap", "EN": "Login", "FR": "Connexion", "RU": "Вход"
     },
     "username": {
-        "TR": "Kullanıcı Adı",
-        "EN": "Username",
-        "FR": "Nom d'utilisateur",
-        "RU": "Имя пользователя"
+        "TR": "Kullanıcı Adı", "EN": "Username", "FR": "Nom d'utilisateur", "RU": "Имя пользователя"
     },
     "password": {
-        "TR": "Şifre",
-        "EN": "Password",
-        "FR": "Mot de passe",
-        "RU": "Пароль"
+        "TR": "Şifre", "EN": "Password", "FR": "Mot de passe", "RU": "Пароль"
     },
     "login_button": {
-        "TR": "Sisteme Giriş",
-        "EN": "Sign In",
-        "FR": "Se connecter",
-        "RU": "Войти"
+        "TR": "Sisteme Giriş", "EN": "Sign In", "FR": "Se connecter", "RU": "Войти"
     },
     "login_error": {
         "TR": "❌ Hatalı kullanıcı adı veya şifre!",
@@ -43,62 +31,35 @@ DICTIONARY = {
         "RU": "❌ Неверное имя пользователя или пароль!"
     },
     "login_welcome": {
-        "TR": "Hoşgeldiniz",
-        "EN": "Welcome",
-        "FR": "Bienvenue",
-        "RU": "Добро пожаловать"
+        "TR": "Hoşgeldiniz", "EN": "Welcome", "FR": "Bienvenue", "RU": "Добро пожаловать"
     },
 
     # --- GENEL / GENERAL ---
     "welcome": {
-        "TR": "Hoşgeldiniz",
-        "EN": "Welcome",
-        "FR": "Bienvenue",
-        "RU": "Добро пожаловать"
+        "TR": "Hoşgeldiniz", "EN": "Welcome", "FR": "Bienvenue", "RU": "Добро пожаловать"
     },
     "logout": {
-        "TR": "Çıkış Yap",
-        "EN": "Logout",
-        "FR": "Déconnexion",
-        "RU": "Выйти"
+        "TR": "Çıkış Yap", "EN": "Logout", "FR": "Déconnexion", "RU": "Выйти"
     },
     "select": {
-        "TR": "Seçiniz",
-        "EN": "Select",
-        "FR": "Sélectionner",
-        "RU": "Выбрать"
+        "TR": "Seçiniz", "EN": "Select", "FR": "Sélectionner", "RU": "Выбрать"
     },
     
     # --- ANA MENÜ / MAIN MENU ---
     "menu_dashboard": {
-        "TR": "Dashboard",
-        "EN": "Dashboard",
-        "FR": "Tableau de bord",
-        "RU": "Панель управления"
+        "TR": "Dashboard", "EN": "Dashboard", "FR": "Tableau de bord", "RU": "Панель управления"
     },
     "menu_quality": {
-        "TR": "Kalite Kontrol",
-        "EN": "Quality Control",
-        "FR": "Contrôle Qualité",
-        "RU": "Контроль качества"
+        "TR": "Kalite Kontrol", "EN": "Quality Control", "FR": "Contrôle Qualité", "RU": "Контроль качества"
     },
     "menu_mill": {
-        "TR": "Değirmen",
-        "EN": "Mill Management",
-        "FR": "Gestion du Moulin",
-        "RU": "Управление мельницей"
+        "TR": "Değirmen", "EN": "Mill Management", "FR": "Gestion du Moulin", "RU": "Управление мельницей"
     },
     "menu_finance": {
-        "TR": "Finans & Strateji",
-        "EN": "Finance & Strategy",
-        "FR": "Finance & Stratégie",
-        "RU": "Финансы и стратегия"
+        "TR": "Finans & Strateji", "EN": "Finance & Strategy", "FR": "Finance & Stratégie", "RU": "Финансы и стратегия"
     },
     "menu_admin": {
-        "TR": "Yönetim Paneli",
-        "EN": "Admin Panel",
-        "FR": "Panneau d'administration",
-        "RU": "Админ панель"
+        "TR": "Yönetim Paneli", "EN": "Admin Panel", "FR": "Panneau d'administration", "RU": "Админ панель"
     },
     
     # --- KULLANICI ROLLERİ ---
@@ -114,7 +75,8 @@ DICTIONARY = {
     "role_management": {
         "TR": "Üst Yönetim", "EN": "Top Management", "FR": "Haute Direction", "RU": "Высшее руководство"
     },
-    # --- MAL KABUL / WHEAT INTAKE (EXCEL'DEN GÜNCELLENDİ) ---
+
+    # --- MAL KABUL / WHEAT INTAKE (YENİ EKLENENLER) ---
     "header_goods_receipt": {
         "TR": "Ham Madde Giriş",
         "EN": "Raw Material Intake",
@@ -212,7 +174,7 @@ DICTIONARY = {
         "RU": "Сохранить запись"
     },
     
-    # --- ANALİZ PARAMETRELERİ (LİTERATÜRE UYGUN) ---
+    # --- ANALİZ PARAMETRELERİ ---
     "ana_test_weight": {"TR": "Hektolitre", "EN": "Test Weight", "FR": "Poids Spécifique (PS)", "RU": "Натура (Natura)"},
     "ana_moisture": {"TR": "Rutubet (%)", "EN": "Moisture", "FR": "Humidité", "RU": "Влажность"},
     "ana_protein": {"TR": "Protein (%)", "EN": "Protein", "FR": "Protéine", "RU": "Белок"},
@@ -220,6 +182,8 @@ DICTIONARY = {
     "ana_gluten_index": {"TR": "Gluten Index", "EN": "Gluten Index", "FR": "Index de Gluten", "RU": "Индекс клейковины (ИДК)"},
     "ana_sedim": {"TR": "Sedim (ml)", "EN": "Sedimentation (Zeleny)", "FR": "Indice de Zélény", "RU": "Седиментация"},
     "ana_falling_number": {"TR": "Düşme Sayısı (FN)", "EN": "Falling Number", "FR": "Temps de Chute", "RU": "Число падения"},
+    
+} # <--- İŞTE BU PARANTEZ ÇOK ÖNEMLİ, UNUTULURSA SYNTAX HATASI VERİR
 
 def t(key):
     """
@@ -239,8 +203,6 @@ def t(key):
                 # Dil yoksa varsayılan olarak İngilizce veya Türkçe dön
                 return DICTIONARY[key].get("EN", DICTIONARY[key].get("TR", key))
         else:
-            return f"[{key}]" # Çeviri unutulmuşsa belli et (Debug için)
+            return f"[{key}]" # Çeviri unutulmuşsa belli et
     except Exception:
         return key
-
-
