@@ -2122,16 +2122,44 @@ def show_tavli_analiz_arsivi():
                 else:
                     st.error(msg)
         
-        with st.expander("🗑️ Bu Kaydı Sil", expanded=False):
-            st.warning(f"Bu işlem **{selected_record['silo_isim']}** silosundan **{selected_record['analiz_tonaj']}** tonluk stoğu düşecektir.")
-            if st.button("🔥 KALICI OLARAK SİL"):
-                success, msg = delete_tavli_record_backend(selected_record)
-                if success:
-                    st.success(msg)
-                    time.sleep(1.5)
+        # --- YENİ GÜVENLİ SİLME BLOĞU (Burayı yapıştır) ---
+        st.markdown("---")
+        st.subheader("🗑️ Güvenli Silme")
+        
+        # Session state kontrolü (Onay mekanizması için)
+        if 'silme_onayi_aktif' not in st.session_state:
+            st.session_state.silme_onayi_aktif = False
+
+        # 1. Aşama: Silme niyetini belli et
+        if st.button("🔥 Bu Kaydı Sil", type="secondary", use_container_width=True):
+            st.session_state.silme_onayi_aktif = True
+
+        # 2. Aşama: Onay Kutusu (Eğer butona basıldıysa görünür)
+        if st.session_state.silme_onayi_aktif:
+            st.warning(f"⚠️ **DİKKAT!** \n\nSilo: **{selected_record['silo_isim']}**\nTonaj: **{selected_record['analiz_tonaj']} Ton**\n\nBu işlem geri alınamaz ve ilgili silo stoğundan düşülen miktar geri eklenir. Emin misiniz?")
+            
+            col_evet, col_hayir = st.columns(2)
+            
+            with col_evet:
+                if st.button("✅ EVET, SİL", type="primary", use_container_width=True):
+                    with st.spinner("Kayıt siliniyor ve stoklar düzeltiliyor..."):
+                        # Backend silme fonksiyonu
+                        success, msg = delete_tavli_record_backend(selected_record)
+                        
+                        if success:
+                            st.success(msg)
+                            st.cache_data.clear() # <--- Tabloyu anında güncellemek için hafızayı sil
+                            st.session_state.silme_onayi_aktif = False # Onayı kapat
+                            time.sleep(1.5)
+                            st.rerun()
+                        else:
+                            st.error(f"Hata: {msg}")
+
+            with col_hayir:
+                if st.button("❌ İPTAL", use_container_width=True):
+                    st.session_state.silme_onayi_aktif = False
                     st.rerun()
-                else:
-                    st.error(msg)
+
 
 
 
