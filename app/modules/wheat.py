@@ -1028,6 +1028,7 @@ def show_tavli_analiz():
             ok, msg = save_tavli_analiz(silo, tonaj, **vals, notlar=notlar, tarih=str(tarih))
             
             if ok:
+                st.cache_data.clear()
                 # 2. Tavlı stoku güncelle - DÜZELTİLMİŞ VERSİYON
                 try:
                     conn = get_conn()
@@ -2127,6 +2128,7 @@ def show_tavli_analiz_arsivi():
                     st.rerun()
                 else:
                     st.error(msg)
+
 
 
 
