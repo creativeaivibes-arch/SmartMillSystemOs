@@ -826,7 +826,7 @@ def show_stok_cikis():
     st.divider()
     
     if st.button("📤 Çıkışı Onayla", type="primary", use_container_width=True):
-        # ===== 1. VALİDASYONLAR =====
+        # ===== 1. VALİDASYONLAR (Hızlı çalışır, spinner'a gerek yok) =====
         from app.core.config import validate_stock_withdrawal, validate_capacity
         
         validasyon_hatalari = []
@@ -851,77 +851,77 @@ def show_stok_cikis():
             for hata in validasyon_hatalari: st.write(f"- {hata}")
             return
         
-        # ===== 2. İŞLEM BAŞLIYOR =====
+        # ===== 2. İŞLEM BAŞLIYOR (Ağır kısım burası) =====
         
-        # A) Kaynak Silodan Çıkış (Standart İşlem - Google Sheets 'hareketler' tablosuna yazar)
-        if log_stok_hareketi(silo, "Çıkış", miktar, notlar=neden):
-            update_tavli_bugday_stok(silo, miktar, "cikar")
+        # 👇 SPINNER BURAYA EKLENDİ 👇
+        with st.spinner("Stok düşülüyor ve hesaplamalar yapılıyor..."):
             
-            # B) TRANSFER İSE: AKILLI KALİTE KOPYALAMA
-            if neden == "Silo Transferi" and hedef:
-                try:
-                    # 1. Kaynak Silonun Kalite DNA'sını Çıkar (Mixing Modülünden)
-                    # Bu fonksiyon Google Sheets'teki 'tavli_analiz' tablosunu okuyup ağırlıklı ortalamayı hesaplar.
-                    from app.modules.mixing import get_tavli_analiz_agirlikli_ortalama
-                    
-                    kaynak_analiz = get_tavli_analiz_agirlikli_ortalama(silo)
-                    
-                    if not kaynak_analiz:
-                        # Eğer detaylı analiz yoksa, en azından temel bilgileri silolar tablosundan al
-                        kaynak_analiz = {
-                            'protein': float(row.get('protein', 0)),
-                            'gluten': float(row.get('gluten', 0)),
-                            'rutubet': float(row.get('rutubet', 0)),
-                            'hektolitre': float(row.get('hektolitre', 0)),
-                            'sedim': float(row.get('sedim', 0)),
-                            'maliyet': float(row.get('maliyet', 0))
-                        }
-                    
-                    # Gereksiz sistem alanlarını temizle
-                    if 'toplam_tonaj' in kaynak_analiz: del kaynak_analiz['toplam_tonaj']
-                    if 'analiz_sayisi' in kaynak_analiz: del kaynak_analiz['analiz_sayisi']
-                    
-                    # 2. Hedef Siloya "Giriş" Hareketi Yaz (Google Sheets 'hareketler' tablosu)
-                    log_stok_hareketi(
-                        hedef, 
-                        "Giriş", 
-                        miktar, 
-                        # Hesaplanan ortalamaları buraya aktarıyoruz
-                        protein=kaynak_analiz.get('protein', 0),
-                        gluten=kaynak_analiz.get('gluten', 0),
-                        rutubet=kaynak_analiz.get('rutubet', 0),
-                        hektolitre=kaynak_analiz.get('hektolitre', 0),
-                        sedim=kaynak_analiz.get('sedim', 0),
-                        maliyet=kaynak_analiz.get('maliyet', 0),
-                        notlar=f"Transfer: {silo} -> {hedef}"
-                    )
-                    
-                    # 3. Hedef Siloya "Tavlı Analiz" Kaydı Yaz (Google Sheets 'tavli_analiz' tablosu)
-                    # Burası Farino/Extenso gibi detaylı verilerin taşındığı kritik nokta!
-                    save_tavli_analiz(
-                        hedef, 
-                        miktar, # Transfer edilen tonaj kadar ağırlığı olur
-                        **kaynak_analiz, # Tüm analiz parametrelerini açıp kaydediyoruz
-                        notlar=f"Transfer Kaynak: {silo}"
-                    )
-                    
-                    # 4. Hedef Silonun Tavlı Stoğunu Artır (Google Sheets 'silolar' tablosu)
-                    update_tavli_bugday_stok(hedef, miktar, "ekle")
-                    
-                    st.success(f"✅ {silo} silosundaki kalite değerleri {hedef} silosuna {miktar} ton ağırlıkla işlendi.")
-                    
-                except Exception as e:
-                    st.error(f"Transfer analiz taşıma hatası: {e}")
-            
-            # C) Tüm Siloları Yeniden Hesapla (Google Sheets Senkronizasyonu)
-            # Bu fonksiyon 'hareketler' tablosunu okuyup 'silolar' tablosundaki güncel stok ve ortalamaları düzeltir.
-            recalculate_silos_from_logs()
-            
-            st.success("✅ Stok ve Analiz Transferi Tamamlandı!")
-            time.sleep(1)
-            st.rerun()
-        else:
-            st.error("❌ Çıkış kaydı oluşturulamadı!")
+            # A) Kaynak Silodan Çıkış
+            # DİKKAT: Buradan aşağısı bir TAB içeriye girdi (Indent)
+            if log_stok_hareketi(silo, "Çıkış", miktar, notlar=neden):
+                update_tavli_bugday_stok(silo, miktar, "cikar")
+                
+                # B) TRANSFER İSE: AKILLI KALİTE KOPYALAMA
+                if neden == "Silo Transferi" and hedef:
+                    try:
+                        # 1. Kaynak Silonun Kalite DNA'sını Çıkar
+                        from app.modules.mixing import get_tavli_analiz_agirlikli_ortalama
+                        
+                        kaynak_analiz = get_tavli_analiz_agirlikli_ortalama(silo)
+                        
+                        if not kaynak_analiz:
+                            # Yedek veriyi al
+                            kaynak_analiz = {
+                                'protein': float(row.get('protein', 0)),
+                                'gluten': float(row.get('gluten', 0)),
+                                'rutubet': float(row.get('rutubet', 0)),
+                                'hektolitre': float(row.get('hektolitre', 0)),
+                                'sedim': float(row.get('sedim', 0)),
+                                'maliyet': float(row.get('maliyet', 0))
+                            }
+                        
+                        # Gereksiz sistem alanlarını temizle
+                        if 'toplam_tonaj' in kaynak_analiz: del kaynak_analiz['toplam_tonaj']
+                        if 'analiz_sayisi' in kaynak_analiz: del kaynak_analiz['analiz_sayisi']
+                        
+                        # 2. Hedef Siloya "Giriş" Hareketi Yaz
+                        log_stok_hareketi(
+                            hedef, 
+                            "Giriş", 
+                            miktar, 
+                            protein=kaynak_analiz.get('protein', 0),
+                            gluten=kaynak_analiz.get('gluten', 0),
+                            rutubet=kaynak_analiz.get('rutubet', 0),
+                            hektolitre=kaynak_analiz.get('hektolitre', 0),
+                            sedim=kaynak_analiz.get('sedim', 0),
+                            maliyet=kaynak_analiz.get('maliyet', 0),
+                            notlar=f"Transfer: {silo} -> {hedef}"
+                        )
+                        
+                        # 3. Hedef Siloya "Tavlı Analiz" Kaydı Yaz
+                        save_tavli_analiz(
+                            hedef, 
+                            miktar, 
+                            **kaynak_analiz, 
+                            notlar=f"Transfer Kaynak: {silo}"
+                        )
+                        
+                        # 4. Hedef Silonun Tavlı Stoğunu Artır
+                        update_tavli_bugday_stok(hedef, miktar, "ekle")
+                        
+                        st.success(f"✅ {silo} -> {hedef} transferi ve kalite kopyalaması başarılı.")
+                        
+                    except Exception as e:
+                        st.error(f"Transfer analiz taşıma hatası: {e}")
+                
+                # C) Tüm Siloları Yeniden Hesapla
+                recalculate_silos_from_logs()
+                
+                st.success("✅ İşlem Tamamlandı!")
+                time.sleep(1)
+                st.rerun()
+            else:
+                st.error("❌ Çıkış kaydı oluşturulamadı!")
 def show_tavli_analiz():
     """Tavlı Buğday Analizi - TAM VE EKSİKSİZ Parametreler"""
     st.header("🧪 Tavlı Buğday Analiz Kaydı")
@@ -2110,6 +2110,7 @@ def show_tavli_analiz_arsivi():
                     st.rerun()
                 else:
                     st.error(msg)
+
 
 
 
