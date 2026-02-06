@@ -999,65 +999,69 @@ def show_tavli_analiz():
             vals['enerji135'] = cols135[2].number_input("Enerji (135)", value=126.0, format="%.2f", key="e135")
 
     st.divider()
+    # 3. Kısım: Tavlı Analiz Kaydet Butonu
     if st.button("💾 Kaydet", type="primary", use_container_width=True):
-        if tonaj > kalan + 0.1:
-            st.error(f"❌ Kapasite hatası: Sadece {kalan:.1f} ton eklenebilir!")
-            return
         
-        # 1. Tavlı analiz kaydet
-        ok, msg = save_tavli_analiz(silo, tonaj, **vals, notlar=notlar, tarih=str(tarih))
-        
-        if ok:
-            # 2. Tavlı stoku güncelle - DÜZELTİLMİŞ VERSİYON
-            try:
-                conn = get_conn()
-                df_update = fetch_data("silolar")
-                
-                # DEBUG: Mevcut sütunları göster
-                st.info(f"📊 Silolar tablosundaki sütunlar: {list(df_update.columns)}")
-                
-                if not df_update.empty:
-                    mask = df_update['isim'] == silo
+        # 👇 SPINNER EKLENDİ 👇
+        with st.spinner("Analiz kaydediliyor ve stok güncelleniyor..."):
+            
+            # --- Buradan aşağısı bir TAB içeri girdi ---
+            
+            if tonaj > kalan + 0.1:
+                st.error(f"❌ Kapasite hatası: Sadece {kalan:.1f} ton eklenebilir!")
+                return
+            
+            # 1. Tavlı analiz kaydet
+            ok, msg = save_tavli_analiz(silo, tonaj, **vals, notlar=notlar, tarih=str(tarih))
+            
+            if ok:
+                # 2. Tavlı stoku güncelle - DÜZELTİLMİŞ VERSİYON
+                try:
+                    conn = get_conn()
+                    df_update = fetch_data("silolar")
                     
-                    if mask.any():
-                        # Sütun adını kontrol et - TÜM OLASILIKLARı KAPSAYAN VERSİYON
-                        tavli_col = None
-                        for col_name in ['tavli_bugday_stok', 'tavli_stok', 'tavli_bugday', 'tavlı_stok']:
-                            if col_name in df_update.columns:
-                                tavli_col = col_name
-                                break
+                    # DEBUG: Mevcut sütunları göster (İstersen bu satırı silebilirsin artık)
+                    # st.info(f"📊 Silolar tablosundaki sütunlar: {list(df_update.columns)}")
+                    
+                    if not df_update.empty:
+                        mask = df_update['isim'] == silo
                         
-                        # Eğer sütun yoksa oluştur
-                        if tavli_col is None:
-                            st.warning("⚠️ Tavlı stok sütunu bulunamadı, 'tavli_bugday_stok' oluşturuluyor...")
-                            df_update['tavli_bugday_stok'] = 0.0
-                            tavli_col = 'tavli_bugday_stok'
-                        
-                        st.info(f"🔍 Kullanılan sütun adı: **{tavli_col}**")
-                        
-                        # Mevcut tavlı stoku al
-                        current_tavli = float(df_update.loc[mask, tavli_col].iloc[0]) if pd.notnull(df_update.loc[mask, tavli_col].iloc[0]) else 0.0
-                        
-                        # Yeni tavlı stok hesapla
-                        yeni_tavli = current_tavli + float(tonaj)
-                        
-                        # Güncelle
-                        df_update.loc[mask, tavli_col] = yeni_tavli
-                        conn.update(worksheet="silolar", data=df_update)
-                        
-                        st.success(f"✅ Tavlı analiz kaydedildi! Tavlı Stok: {current_tavli:.1f} → {yeni_tavli:.1f} Ton")
-                        time.sleep(2)
-                        st.rerun()
+                        if mask.any():
+                            # Sütun adını kontrol et
+                            tavli_col = None
+                            for col_name in ['tavli_bugday_stok', 'tavli_stok', 'tavli_bugday', 'tavlı_stok']:
+                                if col_name in df_update.columns:
+                                    tavli_col = col_name
+                                    break
+                            
+                            # Eğer sütun yoksa oluştur
+                            if tavli_col is None:
+                                # st.warning("⚠️ Tavlı stok sütunu bulunamadı...") # Kullanıcıyı korkutmamak için kapattım
+                                df_update['tavli_bugday_stok'] = 0.0
+                                tavli_col = 'tavli_bugday_stok'
+                            
+                            # Mevcut tavlı stoku al
+                            current_tavli = float(df_update.loc[mask, tavli_col].iloc[0]) if pd.notnull(df_update.loc[mask, tavli_col].iloc[0]) else 0.0
+                            
+                            # Yeni tavlı stok hesapla
+                            yeni_tavli = current_tavli + float(tonaj)
+                            
+                            # Güncelle
+                            df_update.loc[mask, tavli_col] = yeni_tavli
+                            conn.update(worksheet="silolar", data=df_update)
+                            
+                            st.success(f"✅ Tavlı analiz kaydedildi! Stok: {current_tavli:.1f} → {yeni_tavli:.1f} Ton")
+                            time.sleep(1) # Mesajı okumak için kısa bir bekleme
+                            st.rerun()
+                        else:
+                            st.error("Silo bulunamadı!")
                     else:
-                        st.error("Silo bulunamadı!")
-                else:
-                    st.error("Silo verisi yüklenemedi!")
-                    
-            except Exception as e:
-                st.error(f"❌ Stok güncelleme hatası: {str(e)}")
-                st.error(f"🔍 Debug: {type(e).__name__}")
-        else:
-            st.error(f"❌ Kayıt hatası: {msg}")
+                        st.error("Silo verisi yüklenemedi!")
+                        
+                except Exception as e:
+                    st.error(f"❌ Stok güncelleme hatası: {str(e)}")
+            else:
+                st.error(f"❌ Kayıt hatası: {msg}")
 def show_stok_hareketleri():
     """
     Stok Hareketleri (Dijital Defter) Modülü
@@ -2110,6 +2114,7 @@ def show_tavli_analiz_arsivi():
                     st.rerun()
                 else:
                     st.error(msg)
+
 
 
 
