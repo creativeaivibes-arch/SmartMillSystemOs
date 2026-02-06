@@ -294,6 +294,7 @@ def update_tavli_bugday_stok(silo_isim, eklenen_tonaj, islem_tipi="ekle"):
         return False
 
 def recalculate_silos_from_logs():
+    st.cache_data.clear()
     """
     Geçmiş hareketleri tarayıp siloları senkronize eder (SQL Mantığı -> Pandas Mantığı)
     
@@ -2126,6 +2127,7 @@ def show_tavli_analiz_arsivi():
                     st.rerun()
                 else:
                     st.error(msg)
+
 
 
 
