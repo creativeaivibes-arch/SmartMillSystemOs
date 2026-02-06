@@ -330,8 +330,12 @@ elif selected_page == "FINANCE_DASHBOARD":
         try:
             import app.modules.strategy as strategy
             strategy.show_strategy_module()
-        except:
-            st.warning("Strateji modülü bulunamadı.")
+        except ImportError:
+            # Sadece dosya yoksa bu uyarıyı ver
+            st.warning("⚠️ Strateji modülü (strategy.py) bulunamadı.")
+        except Exception as e:
+            # Dosya var ama içinde kod hatası varsa bunu göster!
+            st.error(f"❌ Strateji modülü çalıştırılamadı! Hata detayı: {str(e)}")
     with tab4: calculations.show_fire_maliyet_hesaplama()
     with tab5: calculations.show_katki_maliyeti_modulu()
 
@@ -360,6 +364,7 @@ elif selected_page == "ADMIN" or selected_page == "PROFILE":
 # 🚪 PROFİL SAYFASI
 elif selected_page == "PROFILE":
     show_profile_settings()
+
 
 
 
