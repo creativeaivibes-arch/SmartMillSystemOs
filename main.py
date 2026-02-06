@@ -339,8 +339,8 @@ elif selected_page == "FINANCE_DASHBOARD":
     with tab4: calculations.show_fire_maliyet_hesaplama()
     with tab5: calculations.show_katki_maliyeti_modulu()
 
-# 🛠️ YÖNETİM PANELİ (ADMIN)
-elif selected_page == "ADMIN" or selected_page == "PROFILE":
+# 🛠️ YÖNETİM PANELİ (ADMIN) - Sadece Adminler Görebilir
+elif selected_page == "ADMIN":
     if st.session_state.user_role == "admin":
         tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
             "👤 Profilim", 
@@ -350,20 +350,21 @@ elif selected_page == "ADMIN" or selected_page == "PROFILE":
             "📜 Sistem Logları", 
             "🛠️ Debug"
         ])
-        with tab1: show_profile_settings()
+        with tab1: show_profile_settings() # Admin de kendi profilini buradan yönetir
         with tab2: admin.show_user_management()
         with tab3: admin.show_silo_management()
-        with tab4: admin.show_backup_management()
+        with tab4: admin.show_backup_restore()
         with tab5: admin.show_system_logs()
-        with tab6: admin.show_debug_panel()
+        with tab6: admin.show_debug_tools()
     else:
-        # Diğer roller sadece profil görür
-        tab1, = st.tabs(["👤 Profil Ayarları"])
-        with tab1: show_profile_settings()
+        # Admin olmayan biri buraya sızmaya çalışırsa (URL zorlaması vb.)
+        st.error("🚫 Bu sayfaya erişim yetkiniz bulunmamaktadır.")
 
-# 🚪 PROFİL SAYFASI
+# 👤 PROFİL VE AYARLAR - Tüm Kullanıcılar İçin
 elif selected_page == "PROFILE":
-    show_profile_settings()
+    st.markdown("### 👤 Profil ve Kullanıcı Ayarları")
+    show_profile_settings() # auth.py içindeki genel profil fonksiyonu
+
 
 
 
