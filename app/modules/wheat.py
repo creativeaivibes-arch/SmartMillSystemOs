@@ -3,6 +3,7 @@ import pandas as pd
 import time
 from datetime import datetime
 import numpy as np
+import uuid
 
 # --- DATABASE VE CORE IMPORTLARI ---
 from app.core.database import fetch_data, add_data, get_conn, update_data
@@ -516,6 +517,7 @@ def get_bugday_arsiv():
 def save_tavli_analiz(silo_isim, analiz_tonaj, **analiz_degerleri):
     try:
         data = {
+            'id': str(uuid.uuid4()), # <-- Yeni, benzersiz kimlik burada oluşuyor
             'silo_isim': silo_isim, 
             'analiz_tonaj': float(analiz_tonaj),
             'tarih': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
@@ -2114,6 +2116,7 @@ def show_tavli_analiz_arsivi():
                     st.rerun()
                 else:
                     st.error(msg)
+
 
 
 
