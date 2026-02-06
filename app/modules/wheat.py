@@ -846,8 +846,10 @@ def show_stok_cikis():
         
         # Stok Yeterlilik Kontrolü
         valid, msg = validate_stock_withdrawal(mevcut, miktar)
-        if not valid: validasyon_hatalari.append(msg)
-        
+        if not valid:
+            # Teknik hata yerine kullanıcı dostu uyarı:
+            st.error(f"❌ İşlem Durduruldu: {silo} silosunda yeterli buğday yok. (Mevcut: {mevcut:.1f} Ton, İstenen: {miktar:.1f} Ton)")
+            return
         # Transfer Hedef Kontrolü
         if neden == "Silo Transferi":
             if not hedef:
@@ -2128,6 +2130,7 @@ def show_tavli_analiz_arsivi():
                     st.rerun()
                 else:
                     st.error(msg)
+
 
 
 
