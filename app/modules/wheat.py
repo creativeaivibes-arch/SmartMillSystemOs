@@ -32,6 +32,7 @@ def update_tavli_record_backend(original_record, new_data):
         
         # --- BURASI DEĞİŞTİ (ID KONTROLÜ EKLENDİ) ---
         idx = None
+            return False, "⚠️ Bu kayıt sistemde bulunamadı. Muhtemelen başka bir kullanıcı tarafından silinmiş veya ID yapısı güncellenmeden önce kaydedilmiş olabilir. Lütfen sayfayı yenileyip tekrar deneyin."
         
         # 1. Önce ID var mı diye bak (En güvenli yol)
         if 'id' in original_record and 'id' in df_tavli.columns:
@@ -2130,6 +2131,7 @@ def show_tavli_analiz_arsivi():
                     st.rerun()
                 else:
                     st.error(msg)
+
 
 
 
