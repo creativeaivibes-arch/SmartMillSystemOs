@@ -30,34 +30,42 @@ def update_tavli_record_backend(original_record, new_data):
         conn = get_conn()
         df_tavli = fetch_data("tavli_analiz")
         
-        # Kaydı bul (Tarih ve Silo ismine göre eşleştirme - ID olmadığı için)
-        # Not: Gerçek sistemde ID olması daha iyidir ama mevcut yapıda timestamp kullanıyoruz.
-        match_idx = df_tavli[
-            (df_tavli['tarih'].astype(str) == str(original_record['tarih'])) & 
-            (df_tavli['silo_isim'] == original_record['silo_isim'])
-        ].index
+        # --- BURASI DEĞİŞTİ (ID KONTROLÜ EKLENDİ) ---
+        idx = None
         
-        if len(match_idx) == 0:
-            return False, "Kayıt veritabanında bulunamadı."
+        # 1. Önce ID var mı diye bak (En güvenli yol)
+        if 'id' in original_record and 'id' in df_tavli.columns:
+            matches = df_tavli[df_tavli['id'] == original_record['id']].index
+            if not matches.empty:
+                idx = matches[0]
+        
+        # 2. ID ile bulamazsa, eski yöntemle (Tarih + Silo) ara (Yedek plan)
+        if idx is None:
+            matches = df_tavli[
+                (df_tavli['tarih'].astype(str) == str(original_record['tarih'])) & 
+                (df_tavli['silo_isim'] == original_record['silo_isim'])
+            ].index
+            if not matches.empty:
+                idx = matches[0]
+        
+        # Eğer kayıt hala yoksa hata ver
+        if idx is None:
+            return False, "Kayıt veritabanında bulunamadı (ID veya Tarih eşleşmedi)."
             
-        idx = match_idx[0]
-        
-        # --- STOK DÜZELTME MANTIĞI ---
-        # Eğer Silo veya Tonaj değiştiyse, eski stoğu geri al, yenisini işle.
+        # ------------------------------------------------
+            
+        # Eski ve yeni değerleri karşılaştır (Stok güncellemesi için)
         old_silo = original_record['silo_isim']
         new_silo = new_data['silo_isim']
         old_tonaj = float(original_record['analiz_tonaj'])
         new_tonaj = float(new_data['analiz_tonaj'])
         
+        # Eğer silo veya tonaj değiştiyse stokları düzelt
         if old_silo != new_silo or old_tonaj != new_tonaj:
-            # 1. Eski silodan düş (Reverse operation)
-            # update_tavli_bugday_stok fonksiyonunu 'cikar' modunda eski veriyle çalıştır
-            update_tavli_bugday_stok(old_silo, old_tonaj, "cikar")
+            update_tavli_bugday_stok(old_silo, old_tonaj, "cikar") # Eskiyi iade et
+            update_tavli_bugday_stok(new_silo, new_tonaj, "ekle")  # Yeniyi düş
             
-            # 2. Yeni siloya ekle
-            update_tavli_bugday_stok(new_silo, new_tonaj, "ekle")
-            
-        # --- VERİ GÜNCELLEME ---
+        # Verileri güncelle
         for key, val in new_data.items():
             df_tavli.at[idx, key] = val
             
@@ -2116,6 +2124,7 @@ def show_tavli_analiz_arsivi():
                     st.rerun()
                 else:
                     st.error(msg)
+
 
 
 
