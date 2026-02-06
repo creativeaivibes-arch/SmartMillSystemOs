@@ -252,16 +252,17 @@ if selected_page == "Dashboard":
 # --- A) KALİTE KONTROL: BUĞDAY YÖNETİMİ ---
 elif selected_page == "KK_BUGDAY":
     try:
-        st.markdown("## 🌾 Giriş & Buğday Kalite Yönetimi")
+        # Başlık Dinamik Oldu
+        st.markdown(f"## 🌾 {t('nav_wheat')}")
         
-        # ARTIK 6 SEKME VAR
+        # Sekme İsimleri Dinamik Oldu
         tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-            "📏 Kalite Standartları",
-            "🚛 Hammadde Giriş",
-            "🧪 Tavlı Analiz",
-            "🧮 Akıllı Paçal",
-            "📉 Stok Çıkışı",
-            "📂 İzlenebilirlik"
+            t("tab_specs"),      # Kalite Standartları
+            t("tab_intake"),     # Hammadde Giriş
+            t("tab_tempered"),   # Tavlı Analiz
+            t("tab_mixing"),     # Akıllı Paçal
+            t("tab_stock_out"),  # Stok Çıkışı
+            t("tab_trace")       # İzlenebilirlik
         ])
         
         with tab1: wheat.show_bugday_spec_yonetimi()
@@ -270,13 +271,13 @@ elif selected_page == "KK_BUGDAY":
         with tab4: mixing.show_pacal_hesaplayici()
         with tab5: wheat.show_stok_cikis()
         
-        # 🔥🔥🔥 İZLENEBİLİRLİK İÇİNE TAŞINDI 🔥🔥🔥
+        # İzlenebilirlik Alt Sekmeleri
         with tab6:
             sub_tab1, sub_tab2, sub_tab3, sub_tab4 = st.tabs([
-                "🗄️ Buğday Giriş Arşivi", 
-                "📉 Stok Hareketleri",
-                "🧪 Tavlı Analiz Arşivi",
-                "📜 Paçal Geçmişi"  
+                t("sub_archive_in"),    # Buğday Giriş Arşivi
+                t("sub_stock_log"),     # Stok Hareketleri
+                t("sub_archive_temp"),  # Tavlı Analiz Arşivi
+                t("sub_mixing_log")     # Paçal Geçmişi
             ])
             
             with sub_tab1: wheat.show_bugday_giris_arsivi()
@@ -292,13 +293,13 @@ elif selected_page == "KK_BUGDAY":
 # --- B) KALİTE KONTROL: UN YÖNETİMİ ---
 elif selected_page == "KK_UN":
     try:
-        st.markdown("## 🍞 Un Kalite & Katkı Yönetimi")
+        st.markdown(f"## 🍞 {t('nav_flour')}")
         
         tab1, tab2, tab3, tab4 = st.tabs([
-            "🎯 Un Spektleri", 
-            "📝 Un Analiz Kaydı", 
-            "📚 Analiz Arşivi", 
-            "🧬 Enzim Dozaj Hesaplama"
+            t("tab_flour_specs"),    # Un Spektleri
+            t("tab_flour_entry"),    # Un Analiz Kaydı
+            t("tab_flour_archive"),  # Analiz Arşivi
+            t("tab_enzyme")          # Enzim Dozaj Hesaplama
         ])
         
         with tab1: flour.show_spec_yonetimi()
@@ -313,6 +314,7 @@ elif selected_page == "KK_UN":
 # 🏭 DEĞİRMEN (PRODUCTION)
 elif selected_page == "PRODUCTION_MANAGER":
     try:
+        # Burası mill.py içinden başlık alıyorsa oraya da el atılabilir ama şimdilik kalsın
         production.show_production_yonetimi()
     except Exception as e:
         st.error("🚨 Üretim Yönetim Modülü yüklenirken hata oluştu.")
@@ -321,20 +323,20 @@ elif selected_page == "PRODUCTION_MANAGER":
 # 💰 FİNANS & STRATEJİ
 elif selected_page == "FINANCE_DASHBOARD":
     try:
-        st.markdown("## 💰 Finansal Yönetim & Strateji")
+        st.markdown(f"## 💰 {t('nav_finance')}")
         
         tab1, tab2, tab3, tab4, tab5 = st.tabs([
-            "💵 Un Maliyet", 
-            "📉 Maliyet Geçmişi", 
-            "♟️ Stratejik Analiz",
-            "🌾 Buğday Fire Maliyet",
-            "🧪 Katkı Maliyet"
+            t("tab_cost_calc"),  # Un Maliyet
+            t("tab_cost_hist"),  # Maliyet Geçmişi
+            t("tab_strategy"),   # Stratejik Analiz
+            t("tab_loss"),       # Buğday Fire Maliyet
+            t("tab_additives")   # Katkı Maliyet
         ])
         
         with tab1: flour.show_un_maliyet_hesaplama()
         with tab2: flour.show_un_maliyet_gecmisi()
         
-        # Strateji sekmesi için ekstra özel koruma (Dosya yoksa uyarısı için)
+        # Strateji sekmesi koruması
         with tab3:
             try:
                 import app.modules.strategy as strategy
@@ -376,6 +378,7 @@ elif selected_page == "ADMIN":
 elif selected_page == "PROFILE":
     st.markdown("### 👤 Profil ve Kullanıcı Ayarları")
     show_profile_settings() # auth.py içindeki genel profil fonksiyonu
+
 
 
 
