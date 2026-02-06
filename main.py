@@ -243,101 +243,113 @@ with st.sidebar:
 # --- YÖNLENDIRME (ROUTING) ---
 
 if selected_page == "Dashboard":
-    dashboard.show_dashboard()
+    try:
+        dashboard.show_dashboard()
+    except Exception as e:
+        st.error("🚨 Dashboard yüklenirken bir hata oluştu.")
+        st.caption(f"Hata Detayı: {str(e)}")
 
 # --- A) KALİTE KONTROL: BUĞDAY YÖNETİMİ ---
 elif selected_page == "KK_BUGDAY":
-    st.markdown("## 🌾 Giriş & Buğday Kalite Yönetimi")
-    
-    # ARTIK 6 SEKME VAR (Reçete Geçmişi buradan kalktı)
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-        "📏 Kalite Standartları",
-        "🚛 Hammadde Giriş",
-        "🧪 Tavlı Analiz",
-        "🧮 Akıllı Paçal",
-        "📉 Stok Çıkışı",
-        "📂 İzlenebilirlik"
-    ])
-    
-    # Fonksiyon Eşleştirmeleri:
-    with tab1: wheat.show_bugday_spec_yonetimi()
-    with tab2: wheat.show_mal_kabul()
-    with tab3: wheat.show_tavli_analiz()
-    with tab4: mixing.show_pacal_hesaplayici()
-    # Not: show_pacal_gecmisi buradan kaldırıldı
-    with tab5: wheat.show_stok_cikis()
-    
-    # 🔥🔥🔥 İZLENEBİLİRLİK İÇİNE TAŞINDI 🔥🔥🔥
-    with tab6:
+    try:
+        st.markdown("## 🌾 Giriş & Buğday Kalite Yönetimi")
         
-        sub_tab1, sub_tab2, sub_tab3, sub_tab4 = st.tabs([
-            "🗄️ Buğday Giriş Arşivi", 
-            "📉 Stok Hareketleri",
-            "🧪 Tavlı Analiz Arşivi",
-            "📜 Paçal Geçmişi"  
+        # ARTIK 6 SEKME VAR
+        tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+            "📏 Kalite Standartları",
+            "🚛 Hammadde Giriş",
+            "🧪 Tavlı Analiz",
+            "🧮 Akıllı Paçal",
+            "📉 Stok Çıkışı",
+            "📂 İzlenebilirlik"
         ])
         
-        with sub_tab1:
-            wheat.show_bugday_giris_arsivi()
+        with tab1: wheat.show_bugday_spec_yonetimi()
+        with tab2: wheat.show_mal_kabul()
+        with tab3: wheat.show_tavli_analiz()
+        with tab4: mixing.show_pacal_hesaplayici()
+        with tab5: wheat.show_stok_cikis()
+        
+        # 🔥🔥🔥 İZLENEBİLİRLİK İÇİNE TAŞINDI 🔥🔥🔥
+        with tab6:
+            sub_tab1, sub_tab2, sub_tab3, sub_tab4 = st.tabs([
+                "🗄️ Buğday Giriş Arşivi", 
+                "📉 Stok Hareketleri",
+                "🧪 Tavlı Analiz Arşivi",
+                "📜 Paçal Geçmişi"  
+            ])
             
-        with sub_tab2:
-            wheat.show_stok_hareketleri()
-            
-        with sub_tab3:
-            wheat.show_tavli_analiz_arsivi()
-            
-        with sub_tab4:
-            mixing.show_pacal_gecmisi()  
+            with sub_tab1: wheat.show_bugday_giris_arsivi()
+            with sub_tab2: wheat.show_stok_hareketleri()
+            with sub_tab3: wheat.show_tavli_analiz_arsivi()
+            with sub_tab4: mixing.show_pacal_gecmisi()
+
+    except Exception as e:
+        st.error("🚨 Buğday Yönetim Modülü yüklenirken hata oluştu.")
+        st.info("Lütfen sayfayı yenileyiniz.")
+        st.caption(f"Teknik Hata: {str(e)}")
 
 # --- B) KALİTE KONTROL: UN YÖNETİMİ ---
 elif selected_page == "KK_UN":
-    st.markdown("## 🍞 Un Kalite & Katkı Yönetimi")
-    
-    # Senin belirlediğin 4 Kritik Sekme
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "🎯 Un Spektleri", 
-        "📝 Un Analiz Kaydı", 
-        "📚 Analiz Arşivi", 
-        "🧬 Enzim Dozaj Hesaplama"
-    ])
-    
-    # flour.py içindeki GERÇEK fonksiyon isimleri ile eşleştirme:
-    with tab1: flour.show_spec_yonetimi()          # show_un_spekleri -> show_spec_yonetimi
-    with tab2: flour.show_un_analiz_kaydi()       # show_un_analiz_giris -> show_un_analiz_kaydi
-    with tab3: flour.show_un_analiz_kayitlari()    # show_analiz_arsivi -> show_un_analiz_kayitlari
-    with tab4: 
-        calculations.show_enzim_dozajlama()
+    try:
+        st.markdown("## 🍞 Un Kalite & Katkı Yönetimi")
+        
+        tab1, tab2, tab3, tab4 = st.tabs([
+            "🎯 Un Spektleri", 
+            "📝 Un Analiz Kaydı", 
+            "📚 Analiz Arşivi", 
+            "🧬 Enzim Dozaj Hesaplama"
+        ])
+        
+        with tab1: flour.show_spec_yonetimi()
+        with tab2: flour.show_un_analiz_kaydi()
+        with tab3: flour.show_un_analiz_kayitlari()
+        with tab4: calculations.show_enzim_dozajlama()
+
+    except Exception as e:
+        st.error("🚨 Un Kalite Modülü yüklenirken hata oluştu.")
+        st.caption(f"Teknik Hata: {str(e)}")
+
 # 🏭 DEĞİRMEN (PRODUCTION)
 elif selected_page == "PRODUCTION_MANAGER":
-    # mill.py içindeki sekmeli ana fonksiyonu çağırıyoruz
-    production.show_production_yonetimi()
+    try:
+        production.show_production_yonetimi()
+    except Exception as e:
+        st.error("🚨 Üretim Yönetim Modülü yüklenirken hata oluştu.")
+        st.caption(f"Teknik Hata: {str(e)}")
 
 # 💰 FİNANS & STRATEJİ
 elif selected_page == "FINANCE_DASHBOARD":
-    st.markdown("## 💰 Finansal Yönetim & Strateji")
-    
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "💵 Un Maliyet", 
-        "📉 Maliyet Geçmişi", 
-        "♟️ Stratejik Analiz",
-        "🌾 Buğday Fire Maliyet",
-        "🧪 Katkı Maliyet"
-    ])
-    
-    with tab1: flour.show_un_maliyet_hesaplama()
-    with tab2: flour.show_un_maliyet_gecmisi()
-    with tab3:
-        try:
-            import app.modules.strategy as strategy
-            strategy.show_strategy_module()
-        except ImportError:
-            # Sadece dosya yoksa bu uyarıyı ver
-            st.warning("⚠️ Strateji modülü (strategy.py) bulunamadı.")
-        except Exception as e:
-            # Dosya var ama içinde kod hatası varsa bunu göster!
-            st.error(f"❌ Strateji modülü çalıştırılamadı! Hata detayı: {str(e)}")
-    with tab4: calculations.show_fire_maliyet_hesaplama()
-    with tab5: calculations.show_katki_maliyeti_modulu()
+    try:
+        st.markdown("## 💰 Finansal Yönetim & Strateji")
+        
+        tab1, tab2, tab3, tab4, tab5 = st.tabs([
+            "💵 Un Maliyet", 
+            "📉 Maliyet Geçmişi", 
+            "♟️ Stratejik Analiz",
+            "🌾 Buğday Fire Maliyet",
+            "🧪 Katkı Maliyet"
+        ])
+        
+        with tab1: flour.show_un_maliyet_hesaplama()
+        with tab2: flour.show_un_maliyet_gecmisi()
+        
+        # Strateji sekmesi için ekstra özel koruma (Dosya yoksa uyarısı için)
+        with tab3:
+            try:
+                import app.modules.strategy as strategy
+                strategy.show_strategy_module()
+            except ImportError:
+                st.warning("⚠️ Strateji modülü (strategy.py) bulunamadı.")
+            except Exception as e_strat:
+                st.error(f"❌ Strateji modülü hatası: {str(e_strat)}")
+                
+        with tab4: calculations.show_fire_maliyet_hesaplama()
+        with tab5: calculations.show_katki_maliyeti_modulu()
+
+    except Exception as e:
+        st.error("🚨 Finans Modülü genel yükleme hatası.")
+        st.caption(f"Teknik Hata: {str(e)}")
 
 # 🛠️ YÖNETİM PANELİ (ADMIN) - Sadece Adminler Görebilir
 elif selected_page == "ADMIN":
@@ -364,6 +376,7 @@ elif selected_page == "ADMIN":
 elif selected_page == "PROFILE":
     st.markdown("### 👤 Profil ve Kullanıcı Ayarları")
     show_profile_settings() # auth.py içindeki genel profil fonksiyonu
+
 
 
 
