@@ -211,11 +211,13 @@ def draw_silo(fill_ratio, name):
               fill="#333">{name}</text>
     </svg>'''
     return svg
-
+@st.cache_data(ttl=300) # 300 saniye (5 dakika) boyunca veriyi hafızada tutar
+def get_silo_data_cached():
+    return fetch_data("silolar")
 def get_silo_data():
     """Silo verilerini getir"""
     try:
-        df = fetch_data("silolar")
+        df = get_silo_data_cached()
         if df.empty:
             return pd.DataFrame(columns=['isim', 'kapasite', 'mevcut_miktar', 'bugday_cinsi', 'maliyet'])
         # NaN temizliği
@@ -2124,6 +2126,7 @@ def show_tavli_analiz_arsivi():
                     st.rerun()
                 else:
                     st.error(msg)
+
 
 
 
