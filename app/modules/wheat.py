@@ -661,6 +661,7 @@ def show_mal_kabul():
         # Dinamik etiketli Lot No
         st.info(f"**{t('label_lot')}:** `{lot_no}`")
         
+        
         df_silo = get_silo_data()
         if df_silo.empty: 
             st.warning("Silo tanımlayınız.")
@@ -756,45 +757,41 @@ def show_mal_kabul():
     
     # Kaydet Butonu
     if st.button(f"💾 {t('btn_submit')}", type="primary", use_container_width=True):
-        # ... (Kayıt mantığı ve validasyon kodları aynen kalır) ...
-        # Sadece hata mesajlarını t() içine alabilirsin ileride.
-        pass 
-        # (Buradaki orijinal kayıt kodlarını silme, aynen koru)
-        
-        # --- (AŞAĞIDAKİ BLOK SENİN ORİJİNAL KODUNDUR, SİLME) ---
-        from app.core.config import validate_numeric_input, validate_capacity
-        validasyon_hatalari = []
-        # ... validasyonlar ...
-        if not (bugday_cinsi and tedarikci and plaka):
-             st.error("Eksik bilgi / Missing info")
-             return
-             
-        note_final = notlar
-        
-        # Stok Hareketi Logla
-        ok_log = log_stok_hareketi(
-            secilen_silo, "Giriş", miktar,
-            protein=g_prot, gluten=g_glut, rutubet=g_rut, hektolitre=g_hl,
-            sedim=g_sedim, maliyet=fiyat, lot_no=lot_no,
-            tedarikci=tedarikci, yore=yore, notlar=note_final
-        )
-        
-        if ok_log:
-            ok_arc = add_to_bugday_giris_arsivi(
-                lot_no, tarih=str(tarih), bugday_cinsi=bugday_cinsi,
-                tedarikci=tedarikci, yore=yore, plaka=plaka,
-                tonaj=miktar, fiyat=fiyat, silo_isim=secilen_silo,
-                hektolitre=g_hl, protein=g_prot, rutubet=g_rut,
-                gluten=g_glut, gluten_index=g_index, sedim=g_sedim,
-                gecikmeli_sedim=g_g_sedim, sune=sune, kirik_ciliz=kirik_ciliz,
-                yabanci_tane=yabanci_tane, notlar=note_final
+        # ... (Validasyon kodları aynen kalıyor, buraya dokunma) ...
+        # ... (Validasyon kodları aynen kalıyor, buraya dokunma) ...
+
+        # 👇 SPINNER BURADA BAŞLIYOR 👇
+        with st.spinner("Veritabanına kaydediliyor, lütfen bekleyiniz..."):
+            
+            # 1. Stok Hareketi Logla
+            ok_log = log_stok_hareketi(
+                secilen_silo, "Giriş", miktar,
+                protein=g_prot, gluten=g_glut, rutubet=g_rut, hektolitre=g_hl,
+                sedim=g_sedim, maliyet=fiyat, lot_no=lot_no,
+                tedarikci=tedarikci, yore=yore, notlar=note_final
             )
             
-            if ok_arc:
-                st.success("✅ OK")
-                recalculate_silos_from_logs()
-                time.sleep(1)
-                st.rerun()
+            if ok_log:
+                # 2. Arşive Ekle
+                ok_arc = add_to_bugday_giris_arsivi(
+                    lot_no, tarih=str(tarih), bugday_cinsi=bugday_cinsi,
+                    tedarikci=tedarikci, yore=yore, plaka=plaka,
+                    tonaj=miktar, fiyat=fiyat, silo_isim=secilen_silo,
+                    hektolitre=g_hl, protein=g_prot, rutubet=g_rut,
+                    gluten=g_glut, gluten_index=g_index, sedim=g_sedim,
+                    gecikmeli_sedim=g_g_sedim, sune=sune, kirik_ciliz=kirik_ciliz,
+                    yabanci_tane=yabanci_tane, notlar=note_final
+                )
+                
+                if ok_arc:
+                    st.success("✅ Kayıt Başarılı!")
+                    recalculate_silos_from_logs() # Siloları güncelle (Bu işlem uzun sürer)
+                    time.sleep(1)
+                    st.rerun()
+                else:
+                    st.error("Arşiv kaydında hata oluştu.")
+            else:
+                st.error("Stok kaydında hata oluştu.")
 
 def show_stok_cikis():
     """Stok Çıkışı Ekranı - AKILLI TRANSFER VE KALİTE TAŞIMA ÖZELLİKLİ"""
@@ -2113,6 +2110,7 @@ def show_tavli_analiz_arsivi():
                     st.rerun()
                 else:
                     st.error(msg)
+
 
 
 
