@@ -24,16 +24,26 @@ DICTIONARY = {
     "select": {"TR": "Seçiniz", "EN": "Select", "FR": "Sélectionner", "RU": "Выбрать"},
     "btn_submit": {"TR": "Kaydı Tamamla", "EN": "Submit", "FR": "Soumettre", "RU": "Отправить"},
 
-    # --- SOL MENÜ (NAVIGASYON) - EKSİK OLAN KISIMLAR BURASIYDI ---
+    # --- MENÜ İSİMLERİ (Hem Eski 'menu_' hem Yeni 'nav_' anahtarlarını destekler) ---
+    "menu_dashboard": {"TR": "Genel Bakış", "EN": "Dashboard", "FR": "Tableau de bord", "RU": "Обзор"},
     "nav_dashboard": {"TR": "Genel Bakış", "EN": "Dashboard", "FR": "Tableau de bord", "RU": "Обзор"},
+    
+    "menu_quality": {"TR": "Kalite Kontrol", "EN": "Quality Control", "FR": "Contrôle Qualité", "RU": "Контроль качества"},
     "nav_wheat": {"TR": "Buğday Yönetimi", "EN": "Wheat Mgmt", "FR": "Gestion Blé", "RU": "Упр. Пшеницей"},
     "nav_flour": {"TR": "Un Yönetimi", "EN": "Flour Mgmt", "FR": "Gestion Farine", "RU": "Упр. Мукой"},
-    "nav_mill": {"TR": "Üretim Takip", "EN": "Production", "FR": "Production", "RU": "Производство"},
-    "nav_finance": {"TR": "Finans & Strateji", "EN": "Finance", "FR": "Finance", "RU": "Финансы"},
-    "nav_admin": {"TR": "Yönetim Paneli", "EN": "Admin Panel", "FR": "Admin", "RU": "Админ"},
-    "nav_profile": {"TR": "Profil & Ayarlar", "EN": "Profile", "FR": "Profil", "RU": "Профиль"},
     
-    # Rol İsimleri
+    "menu_mill": {"TR": "Üretim Takip", "EN": "Production", "FR": "Production", "RU": "Производство"},
+    "nav_mill": {"TR": "Üretim Takip", "EN": "Production", "FR": "Production", "RU": "Производство"},
+    
+    "menu_finance": {"TR": "Finans & Strateji", "EN": "Finance", "FR": "Finance", "RU": "Финансы"},
+    "nav_finance": {"TR": "Finans & Strateji", "EN": "Finance", "FR": "Finance", "RU": "Финансы"},
+    
+    "menu_admin": {"TR": "Yönetim Paneli", "EN": "Admin Panel", "FR": "Admin", "RU": "Админ"},
+    "nav_admin": {"TR": "Yönetim Paneli", "EN": "Admin Panel", "FR": "Admin", "RU": "Админ"},
+    
+    "nav_profile": {"TR": "Profil & Ayarlar", "EN": "Profile", "FR": "Profil", "RU": "Профиль"},
+
+    # --- KULLANICI ROLLERİ ---
     "role_admin": {"TR": "Yönetici", "EN": "Admin", "FR": "Administrateur", "RU": "Администратор"},
     "role_quality": {"TR": "Kalite Kontrol", "EN": "Quality Control", "FR": "Contrôle Qualité", "RU": "Контроль качества"},
     "role_operations": {"TR": "Operasyon", "EN": "Operations", "FR": "Opérations", "RU": "Операции"},
