@@ -1076,7 +1076,8 @@ def show_tavli_analiz():
                         st.error("Silo verisi yüklenemedi!")
                         
                 except Exception as e:
-                    st.error(f"❌ Stok güncelleme hatası: {str(e)}")
+                    st.error("📡 Sunucu ile bağlantı kurulamadı. Lütfen internetinizi kontrol edip tekrar deneyin.")
+                    st.caption(f"Teknik Detay: {str(e)}")
             else:
                 st.error(f"❌ Kayıt hatası: {msg}")
 def show_stok_hareketleri():
@@ -2131,6 +2132,7 @@ def show_tavli_analiz_arsivi():
                     st.rerun()
                 else:
                     st.error(msg)
+
 
 
 
