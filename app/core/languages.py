@@ -24,7 +24,7 @@ DICTIONARY = {
     "select": {"TR": "Seçiniz", "EN": "Select", "FR": "Sélectionner", "RU": "Выбрать"},
     "btn_submit": {"TR": "Kaydı Tamamla", "EN": "Submit", "FR": "Soumettre", "RU": "Отправить"},
 
-    # --- SOL MENÜ (NAVIGASYON) ---
+    # --- SOL MENÜ (NAVIGASYON) - EKSİK OLAN KISIMLAR BURASIYDI ---
     "nav_dashboard": {"TR": "Genel Bakış", "EN": "Dashboard", "FR": "Tableau de bord", "RU": "Обзор"},
     "nav_wheat": {"TR": "Buğday Yönetimi", "EN": "Wheat Mgmt", "FR": "Gestion Blé", "RU": "Упр. Пшеницей"},
     "nav_flour": {"TR": "Un Yönetimi", "EN": "Flour Mgmt", "FR": "Gestion Farine", "RU": "Упр. Мукой"},
@@ -32,6 +32,12 @@ DICTIONARY = {
     "nav_finance": {"TR": "Finans & Strateji", "EN": "Finance", "FR": "Finance", "RU": "Финансы"},
     "nav_admin": {"TR": "Yönetim Paneli", "EN": "Admin Panel", "FR": "Admin", "RU": "Админ"},
     "nav_profile": {"TR": "Profil & Ayarlar", "EN": "Profile", "FR": "Profil", "RU": "Профиль"},
+    
+    # Rol İsimleri
+    "role_admin": {"TR": "Yönetici", "EN": "Admin", "FR": "Administrateur", "RU": "Администратор"},
+    "role_quality": {"TR": "Kalite Kontrol", "EN": "Quality Control", "FR": "Contrôle Qualité", "RU": "Контроль качества"},
+    "role_operations": {"TR": "Operasyon", "EN": "Operations", "FR": "Opérations", "RU": "Операции"},
+    "role_management": {"TR": "Üst Yönetim", "EN": "Top Management", "FR": "Haute Direction", "RU": "Высшее руководство"},
 
     # --- BUĞDAY (WHEAT) SEKMELERİ ---
     "tab_specs": {"TR": "📏 Kalite Standartları", "EN": "📏 Standards", "FR": "📏 Normes", "RU": "📏 Стандарты"},
