@@ -50,7 +50,7 @@ def update_tavli_record_backend(original_record, new_data):
         
         # Eğer kayıt hala yoksa hata ver
         if idx is None:
-            return False, "Kayıt veritabanında bulunamadı (ID veya Tarih eşleşmedi)."
+            return False, "⚠️ Bu kayıt sistemde bulunamadı. Muhtemelen başka bir kullanıcı tarafından silinmiş veya ID yapısı güncellenmeden önce kaydedilmiş olabilir. Lütfen sayfayı yenileyip tekrar deneyin."
             
         # ------------------------------------------------
             
@@ -2158,6 +2158,7 @@ def show_tavli_analiz_arsivi():
                 if st.button("❌ İPTAL", use_container_width=True):
                     st.session_state.silme_onayi_aktif = False
                     st.rerun()
+
 
 
 
