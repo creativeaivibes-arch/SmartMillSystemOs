@@ -1,16 +1,10 @@
+# -*- coding: utf-8 -*-
 import streamlit as st
 import pandas as pd
 from streamlit_gsheets import GSheetsConnection
 import time
 
-# --------------------------------------------------------------------------
-# CACHE YÖNETİMİ - API KOTA OPTİMİZASYONU
-# --------------------------------------------------------------------------
-# Her worksheet için son fetch zamanını ve veriyi sakla
-if 'db_cache' not in st.session_state:
-    st.session_state.db_cache = {}
-if 'db_cache_time' not in st.session_state:
-    st.session_state.db_cache_time = {}
+
 
 # Cache süresi (saniye) - worksheet'e göre farklı süreler
 CACHE_DURATIONS = {
@@ -259,3 +253,4 @@ def delete_rows_by_filter(worksheet_name, filter_dict):
         
     except Exception as e:
         return False, f"Hata: {str(e)}", 0
+
