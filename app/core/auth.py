@@ -218,26 +218,57 @@ def login_user(username, password):
     return False
 
 def show_profile_settings():
-    """Kullanıcının kendi bilgilerini ve şifresini değiştirebileceği ekran"""
+    """Kullanıcının kendi bilgilerini ve şifresini değiştirebileceği ekran (Hata Korumalı)"""
     st.subheader("👤 Profil ve Şifre Ayarları")
     
-    # Kullanıcı bilgilerini çek
-    df = fetch_data("kullanicilar")
+    # 1. Veriyi Çek
+    df = fetch_data("users")
+    
+    # 2. Tablo Boş mu Kontrol Et
+    if df.empty:
+        st.warning("⚠️ 'users' tablosu boş veya okunamadı.")
+        return
+
+    # 3. Sütun İsimlerini Kontrol Et (KeyError Çözümü)
+    # Eğer 'kullanici_adi' yoksa, olası İngilizce karşılıkları kontrol et
+    if 'kullanici_adi' not in df.columns:
+        # Yaygın alternatif isimleri düzeltmeye çalış
+        col_map = {
+            'username': 'kullanici_adi',
+            'user_name': 'kullanici_adi',
+            'email': 'email',
+            'password': 'sifre_hash',
+            'pass': 'sifre_hash',
+            'role': 'rol'
+        }
+        df = df.rename(columns=col_map)
+        
+        # Hala yoksa hata mesajı verip dur (Çökme yerine mesaj)
+        if 'kullanici_adi' not in df.columns:
+            st.error("🚨 Veritabanı Hatası: 'users' tablosunda **'kullanici_adi'** sütunu bulunamadı.")
+            st.write("Mevcut Sütunlar:", list(df.columns))
+            st.info("Lütfen Google Sheets dosyasındaki başlıkların şu şekilde olduğundan emin olun: `kullanici_adi`, `sifre_hash`, `rol`, `ad_soyad`, `email`")
+            return
+
+    # 4. Kullanıcıyı Bul
     user_data = df[df['kullanici_adi'] == st.session_state.username]
     
     user_email = ""
     if not user_data.empty and 'email' in user_data.columns:
         user_email = user_data.iloc[0]['email']
     
-    # Kullanıcı bilgilerini gösteren küçük bir kart
+    # 5. Bilgileri Göster
     with st.container(border=True):
         st.write(f"**Ad Soyad:** {st.session_state.user_fullname}")
         st.write(f"**Kullanıcı Adı:** {st.session_state.username}")
         st.write(f"**Email:** {user_email if user_email else '(Tanımlanmamış)'}")
-        st.write(f"**Yetki Seviyesi:** {ROLES.get(st.session_state.user_role, st.session_state.user_role)}")
+        # Rol ismini güvenli çek
+        rol_adi = ROLES.get(st.session_state.user_role, st.session_state.user_role)
+        st.write(f"**Yetki Seviyesi:** {rol_adi}")
 
     st.divider()
     
+    # 6. Şifre Değiştirme Formu
     with st.form("password_change_form"):
         st.write("🔑 **Şifre Değiştir**")
         new_pass = st.text_input("Yeni Şifre", type="password")
@@ -336,6 +367,7 @@ def migrate_user_to_bcrypt(username, plain_password):
     except Exception as e:
         st.error(f"Bcrypt geçiş hatası: {e}")
         return False
+
 
 
 
