@@ -37,45 +37,86 @@ def get_un_maliyet_gecmisi():
         df = df.sort_values('tarih', ascending=False)
     return df
 
-def save_spec(un_cinsi, parametre, min_val, max_val, hedef_val, tolerans):
+# --- VERİTABANI İŞLEMLERİ (DRY PRENSİBİNE UYGUN) ---
+def _update_spec_table(df_new):
+    """Yardımcı Fonksiyon: Spec tablosunu güvenli şekilde günceller"""
     try:
         conn = get_conn()
-        df = fetch_data("un_spekleri")
-        new_row = {
-            'un_cinsi': un_cinsi, 'parametre': parametre, 
-            'min_deger': float(min_val), 'max_deger': float(max_val), 
-            'hedef_deger': float(hedef_val), 'tolerans': float(tolerans), 'aktif': 1
-        }
-        if df.empty:
-            return add_data("un_spekleri", new_row)
-        mask = (df['un_cinsi'] == un_cinsi) & (df['parametre'] == parametre)
-        if mask.any():
-            df.loc[mask, ['min_deger', 'max_deger', 'hedef_deger', 'tolerans', 'aktif']] = \
-                [float(min_val), float(max_val), float(hedef_val), float(tolerans), 1]
-            conn.update(worksheet="un_spekleri", data=df)
-            return True
-        else:
-            return add_data("un_spekleri", new_row)
+        conn.update(worksheet="un_spekleri", data=df_new)
+        return True
     except Exception as e:
-        st.error(f"Kayıt Hatası: {e}")
+        st.error(f"Veritabanı Güncelleme Hatası: {e}")
+        return False
+
+def save_spec(un_cinsi, parametre, min_val, max_val, hedef_val, tolerans):
+    """Spec ekleme veya güncelleme işlemini tek merkezden yönetir"""
+    try:
+        df = fetch_data("un_spekleri")
+        
+        # Yeni kayıt verisi
+        new_row = {
+            'un_cinsi': un_cinsi, 
+            'parametre': parametre, 
+            'min_deger': float(min_val), 
+            'max_deger': float(max_val), 
+            'hedef_deger': float(hedef_val), 
+            'tolerans': float(tolerans), 
+            'aktif': FLOUR_CONFIG['SPEC_ACTIVE_STATE']
+        }
+        
+        if df.empty:
+            # Tablo boşsa direkt ekle (add_data kullanabiliriz ama update standardı için DataFrame oluşturuyoruz)
+            df_new = pd.DataFrame([new_row])
+            return _update_spec_table(df_new)
+        
+        # Mevcut kaydı ara
+        mask = (df['un_cinsi'] == un_cinsi) & (df['parametre'] == parametre)
+        
+        if mask.any():
+            # Varsa GÜNCELLE
+            df.loc[mask, ['min_deger', 'max_deger', 'hedef_deger', 'tolerans', 'aktif']] = \
+                [float(min_val), float(max_val), float(hedef_val), float(tolerans), FLOUR_CONFIG['SPEC_ACTIVE_STATE']]
+        else:
+            # Yoksa EKLE (DataFrame'e append et)
+            new_df_row = pd.DataFrame([new_row])
+            df = pd.concat([df, new_df_row], ignore_index=True)
+            
+        return _update_spec_table(df)
+
+    except Exception as e:
+        st.error(f"Kayıt İşlemi Hatası: {e}")
         return False
 
 def delete_spec_group(un_cinsi):
+    """Belirtilen un cinsine ait tüm spekleri siler"""
     try:
-        conn = get_conn()
         df = fetch_data("un_spekleri")
         if df.empty: return True
+        
+        # Filtreleme mantığı ile silme (O un cinsi OLMAYANLARI tut)
         df_new = df[df['un_cinsi'] != un_cinsi]
-        conn.update(worksheet="un_spekleri", data=df_new)
+        
+        # Eğer satır sayısı değiştiyse güncelle
+        if len(df_new) < len(df):
+            return _update_spec_table(df_new)
         return True
-    except: return False
+        
+    except Exception as e:
+        st.error(f"Silme Hatası: {e}")
+        return False
 
 def get_all_specs_dataframe():
+    """Tüm spekleri listelemek için veriyi çeker ve formatlar"""
     df = fetch_data("un_spekleri")
     if df.empty: return pd.DataFrame()
+    
+    # Sütun isimlerini kullanıcı dostu hale getir
     return df.rename(columns={
-        'un_cinsi': 'Un Cinsi', 'parametre': 'Parametre',
-        'min_deger': 'Min', 'hedef_deger': 'Hedef', 'max_deger': 'Max'
+        'un_cinsi': 'Un Cinsi', 
+        'parametre': 'Parametre',
+        'min_deger': 'Min', 
+        'hedef_deger': 'Hedef', 
+        'max_deger': 'Max'
     })
 
 def show_spec_yonetimi():
@@ -1208,6 +1249,7 @@ def show_flour_yonetimi():
                 st.error("⚠️ Enzim modülü (calculations.py) bulunamadı.")
             except Exception as e:
                 st.error(f"⚠️ Modül yüklenirken hata oluştu: {e}")
+
 
 
 
