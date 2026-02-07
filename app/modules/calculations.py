@@ -447,9 +447,14 @@ def show_enzim_dozajlama():
             except:
                 cuval_sayisi = 0
                 toplam_gereken_karisim = 0
+                toplam_dakika = 0
+            # Saat ve Dakika Hesaplama
+            saat = int(toplam_dakika // 60)
+            dakika = int(toplam_dakika % 60)
+            sure_metni = f"{saat} Saat {dakika} Dk" if saat > 0 else f"{dakika} Dk"
 
             # Bilgi Gösterimi
-            st.info(f"📦 Toplam Çuval: **{cuval_sayisi:,.0f}** | ⏳ Süre: **{toplam_dakika:.0f} dk**")
+            st.info(f"📦 Toplam Çuval: **{cuval_sayisi:,.0f}** | ⏳ Süre: **{sure_metni}**")
 
     # --- 2. ENZİM LİSTESİ VE CANLI HESAPLAMA ---
     with col_right:
@@ -694,6 +699,7 @@ def show_fire_maliyet_hesaplama():
             <p style='color: #7f1d1d; margin:0;'>Bu fire olmasaydı (veya %0 olsaydı) cebinizde kalacak olan tutar.</p>
         </div>
         """, unsafe_allow_html=True)
+
 
 
 
