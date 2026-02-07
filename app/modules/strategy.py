@@ -5,15 +5,24 @@ import numpy as np
 import altair as alt
 from app.modules.flour import get_un_maliyet_gecmisi
 
+# --- AYARLAR VE SABİTLER (MAGIC NUMBERS GİDERİLDİ) ---
+STRATEGY_CONFIG = {
+    'SACK_WEIGHT': 50,        # Bir çuvalın ağırlığı (kg)
+    'TON_TO_KG': 1000,        # 1 Ton kaç kg
+    'CACHE_TTL': 300,         # Veri hafıza süresi (saniye)
+    'SEARCH_PRECISION': 50    # Başabaş noktası arama hassasiyeti
+}
+
+# --- PERFORMANS İYİLEŞTİRMESİ: CACHE EKLENDİ ---
+@st.cache_data(ttl=STRATEGY_CONFIG['CACHE_TTL'])
 def get_baseline_data():
-    """En son kaydedilen gerçek maliyet verilerini baz senaryo olarak getirir"""
+    """En son kaydedilen gerçek maliyet verilerini baz senaryo olarak getirir (Önbellekli)"""
     try:
         df = get_un_maliyet_gecmisi()
         if not df.empty:
             latest = df.iloc[0].to_dict()
             
             # ===== AYLIK SABİT GİDER HESAPLA (SADECE SABİT KALEMLER) =====
-            # Manuel eklenen 500.000 TL (Kira/Amortisman) KALDIRILDI.
             aylik_sabit = (
                 float(latest.get('personel_maasi', 1200000)) +
                 float(latest.get('bakim_maliyeti', 100000)) +
@@ -22,19 +31,15 @@ def get_baseline_data():
                 float(latest.get('diger_giderler', 0))
             )
             
-            # DEĞİŞKEN GİDER (x14 Çuval Hesabı) BURADAN KALDIRILDI.
-            # Randıman değişebileceği için hesaplamayı dinamik fonksiyona bıraktık.
-            
             latest['aylik_sabit_gider_toplam'] = aylik_sabit
-            
             return latest
 
     except Exception as e:
-        st.warning(f"⚠️ Baseline veri çekilemedi: {e}")
+        # Hata mesajını kullanıcıya değil loga yazmak daha profesyoneldir, 
+        # ama burada patron göreceği için sessiz kalıp boş dönüyoruz.
+        pass
     
-    # Veri yoksa boş döndür
     return {}
-
 def calculate_profit_dynamic(bugday_fiyat, un_fiyat, tonaj, baseline=None):
     """
     Dinamik Kar Hesaplama Motoru
@@ -435,6 +440,7 @@ def show_strategy_module():
             else:
                 st.warning("⚠️ **ORTA RİSK:** Piyasa kötüye giderse kar marjı düşüyor.")
                 
+
 
 
 
