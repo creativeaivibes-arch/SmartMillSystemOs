@@ -42,14 +42,13 @@ def get_baseline_data():
     return {}
 def calculate_profit_dynamic(bugday_fiyat, un_fiyat, tonaj, baseline=None):
     """
-    Dinamik Kar Hesaplama Motoru
-    Tüm değişkenleri (randıman, çuval maliyetleri vb.) veritabanından alır,
-    Sadece Fiyat ve Tonaj senaryosunu değiştirir.
+    Dinamik Kar Hesaplama Motoru (Optimize Edilmiş)
+    Tüm değişkenleri veritabanından alır, Fiyat ve Tonaj senaryosunu işler.
     """
-    # Baseline verisi yoksa çekelim
+    # Baseline verisi yoksa çekelim (Cache'ten hızlıca gelir)
     if baseline is None or not baseline:
         baseline = get_baseline_data()
-        # Eğer hala veri yoksa program çökmesin diye varsayılan değerler
+        # Eğer hala veri yoksa (Veritabanı boşsa) varsayılan değerler
         if not baseline: 
              baseline = {
                 'un_randimani': 70.0, 'un2_orani': 7.0, 'bongalite_orani': 1.5,
@@ -59,20 +58,21 @@ def calculate_profit_dynamic(bugday_fiyat, un_fiyat, tonaj, baseline=None):
                 'pp_cuval': 15.0, 'katki_maliyeti': 9.0, 'aylik_sabit_gider_toplam': 1500000.0
              }
 
-    # 1. TEMEL DEĞERLER (Veritabanından)
+    # 1. AYARLARI YÜKLE (Magic Numbers yerine Config)
+    sack_weight = STRATEGY_CONFIG['SACK_WEIGHT']
+    ton_to_kg = STRATEGY_CONFIG['TON_TO_KG']
     randiman = float(baseline.get('un_randimani', 70))
     
-    # 2. ÜRETİM MİKTARLARI (Tonaj değişirse bunlar da değişir)
-    toplam_bugday_kg = tonaj * 1000
+    # 2. ÜRETİM MİKTARLARI
+    toplam_bugday_kg = tonaj * ton_to_kg
     un_kg = toplam_bugday_kg * (randiman / 100)
-    cuval_sayisi = un_kg / 50
+    cuval_sayisi = un_kg / sack_weight
     
     # 3. GELİRLER
-    # a) Ana Un Geliri (Simülasyon Fiyatı ile)
+    # a) Ana Un Geliri
     gelir_un = cuval_sayisi * un_fiyat
     
-    # b) Yan Ürün Gelirleri (Veritabanındaki oran ve fiyatlar sabit kalır)
-    # Yan ürün gelirleri tonaj arttıkça artar
+    # b) Yan Ürün Gelirleri
     gelir_yan_urunler = (
         (toplam_bugday_kg * float(baseline.get('un2_orani', 0)) / 100) * float(baseline.get('un2_fiyati', 0)) +
         (toplam_bugday_kg * float(baseline.get('bongalite_orani', 0)) / 100) * float(baseline.get('bongalite_fiyati', 0)) +
@@ -86,14 +86,13 @@ def calculate_profit_dynamic(bugday_fiyat, un_fiyat, tonaj, baseline=None):
     toplam_gelir = gelir_un + gelir_yan_urunler
     
     # 4. GİDERLER
-    # a) Buğday Maliyeti (Simülasyon Fiyatı ile)
+    # a) Buğday Maliyeti
     gider_bugday = toplam_bugday_kg * bugday_fiyat
     
-    # b) Sabit Giderler (1. Adımda düzelttiğimiz "aylik_sabit_gider_toplam" alanından gelir)
+    # b) Sabit Giderler
     gider_sabit = float(baseline.get('aylik_sabit_gider_toplam', 0))
     
-    # c) Değişken Giderler (Üretim miktarına göre dinamik hesaplanır)
-    # Çuval sayısına bağlı giderler (Nakliye, Çuval, Katkı vb.):
+    # c) Değişken Giderler (Çuval başına)
     cuval_maliyeti_birim = (
         float(baseline.get('nakliye', 0)) +
         float(baseline.get('satis_pazarlama', 0)) +
@@ -102,7 +101,7 @@ def calculate_profit_dynamic(bugday_fiyat, un_fiyat, tonaj, baseline=None):
     )
     gider_cuval_bazli = cuval_sayisi * cuval_maliyeti_birim
     
-    # Tona bağlı giderler (Elektrik):
+    # d) Tona bağlı giderler (Elektrik)
     gider_elektrik = tonaj * float(baseline.get('ton_bugday_elektrik', 0))
     
     toplam_gider = gider_bugday + gider_sabit + gider_cuval_bazli + gider_elektrik
@@ -440,6 +439,7 @@ def show_strategy_module():
             else:
                 st.warning("⚠️ **ORTA RİSK:** Piyasa kötüye giderse kar marjı düşüyor.")
                 
+
 
 
 
