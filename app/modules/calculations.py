@@ -577,26 +577,47 @@ def show_enzim_dozajlama():
         try:
             df = fetch_data("enzim_receteleri")
             if not df.empty:
-                # Tarih sıralaması
+                # 1. Tarih Sıralaması
                 if 'tarih' in df.columns:
                     df['tarih'] = pd.to_datetime(df['tarih'])
                     df = df.sort_values('tarih', ascending=False)
                 
+                # 2. Enzim Detaylarını JSON'dan Okunabilir Metne Çevirme
+                def format_enzimler(json_str):
+                    try:
+                        veri = json.loads(json_str)
+                        # Örn: "Alfa: 10g, Beta: 5g" formatına çevir
+                        return ", ".join([f"{item['ad']} ({item['doz']}g)" for item in veri])
+                    except:
+                        return "-"
+
+                if 'enzim_verisi_json' in df.columns:
+                    df['Enzimler ve Dozajları'] = df['enzim_verisi_json'].apply(format_enzimler)
+                else:
+                    df['Enzimler ve Dozajları'] = "-"
+
+                # 3. Sadece İstenen Sütunları Seçme
+                gosterilecek_sutunlar = ['tarih', 'uretim_adi', 'Enzimler ve Dozajları']
+                # Eğer tabloda bu sütunlar varsa filtrele, yoksa hata vermesin diye kontrol
+                mevcut_sutunlar = [col for col in gosterilecek_sutunlar if col in df.columns]
+                
+                df_ozet = df[mevcut_sutunlar].copy()
+                
+                # 4. Tabloyu Gösterme
                 st.dataframe(
-                    df, 
+                    df_ozet, 
                     use_container_width=True,
+                    hide_index=True,
                     column_config={
                         "tarih": st.column_config.DatetimeColumn("Tarih", format="DD.MM.YYYY HH:mm"),
                         "uretim_adi": "Üretim Adı",
-                        "un_ton": st.column_config.NumberColumn("Hedef Un (Ton)", format="%.1f"),
-                        "irmik_miktari": st.column_config.NumberColumn("İrmik (gr)", format="%.0f")
+                        "Enzimler ve Dozajları": st.column_config.TextColumn("Kullanılan Enzimler (Dozaj)", width="large")
                     }
                 )
             else:
                 st.info("Henüz kayıtlı reçete yok.")
         except Exception:
             st.info("Kayıt bulunamadı.")
-
 def show_fire_maliyet_hesaplama():
     """Fire Maliyet Hesaplama Modülü - NET ZARAR GÖSTERGELİ & TR FORMATLI"""
     
@@ -699,6 +720,7 @@ def show_fire_maliyet_hesaplama():
             <p style='color: #7f1d1d; margin:0;'>Bu fire olmasaydı (veya %0 olsaydı) cebinizde kalacak olan tutar.</p>
         </div>
         """, unsafe_allow_html=True)
+
 
 
 
