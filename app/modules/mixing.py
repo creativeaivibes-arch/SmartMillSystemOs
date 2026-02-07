@@ -4,6 +4,7 @@ import json
 import time
 from datetime import datetime
 import io
+import uuid
 
 # ESKİ IMPORTLAR KALDIRILDI, YENİLERİ EKLENDİ
 from app.core.database import fetch_data, add_data, get_conn
@@ -629,6 +630,7 @@ def show_pacal_gecmisi():
                 <h3>Lütfen detaylarını görmek için<br>soldaki listeden bir paçal seçiniz.</h3>
             </div>
             """, unsafe_allow_html=True)
+
 
 
 
