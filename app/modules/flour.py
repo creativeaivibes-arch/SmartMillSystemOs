@@ -15,6 +15,16 @@ try:
 except ImportError:
     def create_un_maliyet_pdf_report(*args): return None
     def download_styled_excel(*args): pass
+
+# --- AYARLAR (CONFIG) - MAGIC NUMBERS ---
+FLOUR_CONFIG = {
+    'SPEC_ACTIVE_STATE': 1,       # Varsayılan aktiflik durumu
+    'DEFAULT_TABLE_HEIGHT': 400,  # Tablo yükseklikleri
+    'DECIMAL_PRECISION': 2,       # Varsayılan ondalık hassasiyet
+    'DEFAULT_ANALYSIS_COUNT': 10, # Varsayılan gösterilecek analiz sayısı
+    'DATE_FORMAT_DB': '%Y-%m-%d %H:%M:%S',
+    'DATE_FORMAT_DISPLAY': '%d.%m.%Y %H:%M'
+}
     
 
 def get_un_maliyet_gecmisi():
@@ -1139,12 +1149,8 @@ def show_un_maliyet_gecmisi():
                             st.rerun() # Listeyi yenile
                         else:
                             st.error("❌ Silme işlemi sırasında hata oluştu.")
-def show_flour_yonetimi():
-    """
-    Un Bölümü Ana Kontrol Paneli
-    Navigasyon: Spekler, Analiz, Arşiv, Enzim
-    """
-    
+  
+  
 def show_flour_yonetimi():
     # 1. Başlık Alanı
     st.markdown("""
@@ -1202,6 +1208,7 @@ def show_flour_yonetimi():
                 st.error("⚠️ Enzim modülü (calculations.py) bulunamadı.")
             except Exception as e:
                 st.error(f"⚠️ Modül yüklenirken hata oluştu: {e}")
+
 
 
 
