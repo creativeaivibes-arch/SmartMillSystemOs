@@ -42,28 +42,42 @@ def draw_silo(fill_ratio, name):
     return svg
 
 @error_handler(context="Dashboard Veri")
-def get_dashboard_data():
-    try:
-        # CACHE EKLE - 30 saniyede bir güncelle (API kota optimizasyonu)
-        @st.cache_data(ttl=30)
-        def cached_silo_fetch():
-            return fetch_data("silolar")
-        
-        @st.cache_data(ttl=30)
-        def cached_hareket_fetch():
-            return fetch_data("hareketler")
-        
-        df_silo = cached_silo_fetch()
-        if df_silo.empty:
-            df_silo = pd.DataFrame(columns=['isim', 'kapasite', 'mevcut_miktar', 'bugday_cinsi', 'maliyet', 'tavli_bugday_stok'])
-        
-        df_silo = df_silo.fillna(0)
-        if 'isim' in df_silo.columns: df_silo = df_silo.sort_values('isim')
-        
-        df_hareket = cached_hareket_fetch()
-        return df_silo, df_hareket
-    except Exception as e:
-        return pd.DataFrame(), pd.DataFrame()
+def get_dashboard_data(force_refresh=False):
+    """
+    Dashboard verilerini optimize şekilde çeker.
+    force_refresh=True ise önbelleği temizleyip taze veri çeker.
+    """
+    # 1. Önbellek kontrolü (Session State)
+    if not force_refresh and 'dashboard_data' in st.session_state:
+        # Eğer veri çok eskimediyse (örn: 5 dakikadan azsa) önbellekten kullan
+        last_update = st.session_state.get('dashboard_last_update', datetime.min)
+        if (datetime.now() - last_update).total_seconds() < 300: # 300 saniye = 5 dk
+            return st.session_state['dashboard_data']
+
+    # 2. Verileri Çekme (Spinner ile kullanıcıya bilgi vererek)
+    with st.spinner('📊 Dashboard verileri güncelleniyor...'):
+        try:
+            # Mevcut tabloları çekiyoruz (Olmayan tabloları uydurmadık!)
+            data = {
+                'silolar': fetch_data("silolar"),
+                'hareketler': fetch_data("hareketler"),
+                'uretim_kaydi': fetch_data("uretim_kaydi") 
+            }
+            
+            # Veri Temizliği: NaN değerleri 0 yap
+            if not data['silolar'].empty and 'isim' in data['silolar'].columns:
+                data['silolar'] = data['silolar'].fillna(0)
+                data['silolar'] = data['silolar'].sort_values('isim')
+            
+            # 3. Önbelleğe Kaydet
+            st.session_state['dashboard_data'] = data
+            st.session_state['dashboard_last_update'] = datetime.now()
+            
+            return data
+            
+        except Exception as e:
+            st.error(f"Veri çekme hatası: {e}")
+            return {}
 
 # --------------------------------------------------------------------------
 # SİLO KARTI (Senin "Aynı Kalsın" Dediğin Orijinal Kart Yapısı)
@@ -141,19 +155,49 @@ def show_dashboard():
     """
     OPTIMAL DASHBOARD - PROFESYONEL VERSİYON (REVİZE EDİLMİŞ)
     - Finansal özet
-    - Akıllı uyarı sistemi (ÜST KISIMDA)
-    - 7 günlük trend grafiği (TARİH FORMATI DÜZELTİLDİ)
+    - Akıllı uyarı sistemi
+    - Trend grafiği
     - Kalite skorkart
     - Silo kartları
     """
-    df_silo, df_hareket = get_dashboard_data()
+    
+    # 1. ÜST KONTROL PANELİ (YENİLE BUTONU VE BAŞLIK)
+    col_title, col_refresh, col_info = st.columns([6, 1, 2])
+    
+    with col_title:
+        st.markdown("<h2 style='color:#0B4F6C; margin:0;'>🏭 Fabrika Kontrol Merkezi</h2>", unsafe_allow_html=True)
+    
+    with col_refresh:
+        # Manuel Yenileme Butonu
+        if st.button("🔄 Yenile", use_container_width=True):
+            st.cache_data.clear() # Streamlit cache temizle
+            get_dashboard_data(force_refresh=True) # Session cache yenile
+            st.success("Güncellendi!")
+            time.sleep(0.5)
+            st.rerun()
+            
+    with col_info:
+        # Son güncelleme bilgisini göster
+        if 'dashboard_last_update' in st.session_state:
+            last_up = st.session_state['dashboard_last_update'].strftime('%H:%M:%S')
+            st.caption(f"🕒 Son Güncelleme: {last_up}")
+    
+    st.divider()
+
+    # 2. VERİLERİ GETİR (YENİ SÖZLÜK YAPISINDAN AYIKLA)
+    data = get_dashboard_data()
+    
+    # Yeni sistemden gelen veriyi eski değişken isimlerine ata
+    # Böylece alt satırlardaki kodlar bozulmaz.
+    df_silo = data.get('silolar', pd.DataFrame())
+    df_hareket = data.get('hareketler', pd.DataFrame())
+    
+    # Veri Kontrolü
     if df_silo.empty:
-        st.warning("⚠️ Henüz silo tanımlanmamış. Yönetim Paneli'nden silo ekleyin.")
+        st.warning("⚠️ Henüz silo tanımlanmamış veya veri çekilemedi. Yönetim Paneli'nden silo ekleyin.")
         return
 
-    # ===== 1. ÜST YÖNETİCİ ŞERİDİ (FİNANS + STOK ÖMRÜ + 24 SAAT) =====
-    st.markdown("<h2 style='color:#0B4F6C;'>🏭 Fabrika Kontrol Merkezi</h2>", unsafe_allow_html=True)
-    
+    # ===== 3. ÜST YÖNETİCİ ŞERİDİ (FİNANS + STOK ÖMRÜ + 24 SAAT) =====
     with st.container(border=True):
         col_fin, col_sim, col_24h = st.columns([1, 1.5, 1])
         
@@ -180,16 +224,19 @@ def show_dashboard():
             st.markdown("### 🚛 Son 24 Saat")
             # Son 24 saatteki hareketler
             if not df_hareket.empty and 'tarih' in df_hareket.columns:
-                df_hareket['tarih'] = pd.to_datetime(df_hareket['tarih'], errors='coerce')
-                son_24h = df_hareket[df_hareket['tarih'] >= (datetime.now() - timedelta(hours=24))]
-                
-                giris_24h = son_24h[son_24h['hareket_tipi'] == 'Giriş']['miktar'].sum() if 'hareket_tipi' in son_24h.columns else 0
-                cikis_24h = son_24h[son_24h['hareket_tipi'] == 'Çıkış']['miktar'].sum() if 'hareket_tipi' in son_24h.columns else 0
-                
-                st.metric("Giriş", f"{giris_24h:.1f} T", delta=f"+{giris_24h:.1f}")
-                st.metric("Çıkış", f"{cikis_24h:.1f} T", delta=f"-{cikis_24h:.1f}")
+                try:
+                    df_hareket['tarih'] = pd.to_datetime(df_hareket['tarih'], errors='coerce')
+                    son_24h = df_hareket[df_hareket['tarih'] >= (datetime.now() - timedelta(hours=24))]
+                    
+                    giris_24h = son_24h[son_24h['hareket_tipi'] == 'Giriş']['miktar'].sum()
+                    cikis_24h = son_24h[son_24h['hareket_tipi'] == 'Çıkış']['miktar'].sum()
+                    
+                    st.metric("Giriş", f"{giris_24h:.1f} T", delta=f"+{giris_24h:.1f}")
+                    st.metric("Çıkış", f"{cikis_24h:.1f} T", delta=f"-{cikis_24h:.1f}")
+                except:
+                     st.metric("Veri Hatası", "-")
             else:
-                st.metric("Toplam Stok", f"{toplam_stok:,.0f} Ton")
+                st.metric("Hareket Yok", "-")
 
     st.divider()
 
@@ -393,3 +440,4 @@ def show_dashboard():
             if i + j < num_silos:
                 with cols[j]:
                     show_silo_card(df_silo.iloc[i + j])
+
