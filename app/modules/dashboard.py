@@ -50,44 +50,65 @@ def draw_silo(fill_ratio, name):
     </svg>'''
     return svg
 
-@error_handler(context="Dashboard Veri")
-def get_dashboard_data(force_refresh=False):
-    """
-    Dashboard verilerini optimize şekilde çeker.
-    force_refresh=True ise önbelleği temizleyip taze veri çeker.
-    """
-    # 1. Önbellek kontrolü (Session State)
-    if not force_refresh and 'dashboard_data' in st.session_state:
-        # Eğer veri çok eskimediyse (örn: 5 dakikadan azsa) önbellekten kullan
-        last_update = st.session_state.get('dashboard_last_update', datetime.min)
-        if (datetime.now() - last_update).total_seconds() < 300: # 300 saniye = 5 dk
-            return st.session_state['dashboard_data']
-
-    # 2. Verileri Çekme (Spinner ile kullanıcıya bilgi vererek)
-    with st.spinner('📊 Dashboard verileri güncelleniyor...'):
+# --------------------------------------------------------------------------
+# VERİ KATMANI (DATA LAYER) - GÜVENLİ VE HIZLI
+# --------------------------------------------------------------------------
+def fetch_all_dashboard_data():
+    """Tüm verileri tek seferde çeker, temizler ve session_state'e kaydeder"""
+    with st.spinner('📊 Veriler güncelleniyor...'):
         try:
-            # Mevcut tabloları çekiyoruz (Olmayan tabloları uydurmadık!)
             data = {
                 'silolar': fetch_data("silolar"),
                 'hareketler': fetch_data("hareketler"),
                 'uretim_kaydi': fetch_data("uretim_kaydi") 
             }
             
-            # Veri Temizliği: NaN değerleri 0 yap
-            if not data['silolar'].empty and 'isim' in data['silolar'].columns:
-                data['silolar'] = data['silolar'].fillna(0)
-                data['silolar'] = data['silolar'].sort_values('isim')
-            
-            # 3. Önbelleğe Kaydet
-            st.session_state['dashboard_data'] = data
-            st.session_state['dashboard_last_update'] = datetime.now()
-            
-            return data
-            
-        except Exception as e:
-            st.error(f"Veri çekme hatası: {e}")
-            return {}
+            # --- 1. SİLO VERİSİ KONTROLÜ VE TEMİZLİĞİ ---
+            df_silo = data['silolar']
+            if not df_silo.empty:
+                # Kritik sütunlar yoksa oluştur ve 0 bas (Sütun Varlık Kontrolü)
+                critical_cols = ['protein', 'gluten', 'hektolitre', 'maliyet', 'kapasite', 'mevcut_miktar']
+                for col in critical_cols:
+                    if col not in df_silo.columns:
+                        df_silo[col] = 0
+                    else:
+                        # Sayısal dönüşüm (hatalı verileri 0 yapar)
+                        df_silo[col] = pd.to_numeric(df_silo[col], errors='coerce').fillna(0)
 
+                if 'isim' in df_silo.columns:
+                    df_silo = df_silo.sort_values('isim')
+                data['silolar'] = df_silo
+
+            # --- 2. HAREKET VERİSİ TARİH KONTROLÜ ---
+            df_hareket = data['hareketler']
+            if not df_hareket.empty:
+                if 'tarih' not in df_hareket.columns:
+                     df_hareket['tarih'] = datetime.now()
+                
+                # Tarih formatını zorla, bozuk olanları temizle (Tarih Sütunu Kontrolü)
+                df_hareket['tarih'] = pd.to_datetime(df_hareket['tarih'], errors='coerce')
+                df_hareket = df_hareket.dropna(subset=['tarih'])
+                data['hareketler'] = df_hareket
+
+        except Exception as e:
+            st.error(f"Veri işleme hatası: {e}")
+            return {}
+            
+    # Session state'e kaydet
+    st.session_state['dashboard_data'] = data
+    st.session_state['dashboard_last_update'] = datetime.now()
+    
+    return data
+
+def get_dashboard_data(force_refresh=False):
+    """Veriyi session state'den getirir, yoksa yeni çeker (Cache Mekanizması)"""
+    if not force_refresh and 'dashboard_data' in st.session_state:
+        last_update = st.session_state.get('dashboard_last_update', datetime.min)
+        # Config'den süreyi al
+        if (datetime.now() - last_update).total_seconds() < DASHBOARD_CONFIG['REFRESH_INTERVAL']:
+            return st.session_state['dashboard_data']
+            
+    return fetch_all_dashboard_data()
 # --------------------------------------------------------------------------
 # SİLO KARTI (Senin "Aynı Kalsın" Dediğin Orijinal Kart Yapısı)
 # --------------------------------------------------------------------------
@@ -449,5 +470,6 @@ def show_dashboard():
             if i + j < num_silos:
                 with cols[j]:
                     show_silo_card(df_silo.iloc[i + j])
+
 
 
