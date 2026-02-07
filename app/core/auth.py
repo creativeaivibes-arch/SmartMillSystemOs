@@ -159,7 +159,7 @@ def login_user(username, password):
     """
     Kullanıcı giriş işlemi (SHA256 ve bcrypt destekli - geriye uyumlu)
     """
-    df = fetch_data("kullanicilar")
+    df = fetch_data("users")
     
     if df.empty:
         # Tablo boşsa varsayılan admin oluştur (bcrypt ile)
@@ -336,6 +336,7 @@ def migrate_user_to_bcrypt(username, plain_password):
     except Exception as e:
         st.error(f"Bcrypt geçiş hatası: {e}")
         return False
+
 
 
 
