@@ -14,6 +14,15 @@ try:
 except ImportError:
     def create_silo_pdf_report(*args): return None
     def turkce_karakter_duzelt_pdf(x): return x
+# --- AYARLAR (CONFIG) - MAGIC NUMBERS ---
+DASHBOARD_CONFIG = {
+    'REFRESH_INTERVAL': 300,       # 5 dakika (Cache süresi)
+    'RECENT_DAYS': 7,              # Son kaç günün verisi
+    'CRITICAL_CAPACITY': 0.95,     # Kırmızı alarm seviyesi (%95)
+    'WARNING_CAPACITY': 0.85,      # Sarı alarm seviyesi (%85)
+    'LOW_STOCK_CAPACITY': 0.15,    # Düşük stok uyarısı (%15)
+    'TARGET_PROTEIN': 11.5         # Hedef protein alt limiti
+}
 
 # --------------------------------------------------------------------------
 # SİLO GÖRSELLEŞTİRME (Senin Orijinal draw_silo Fonksiyonun)
@@ -440,4 +449,5 @@ def show_dashboard():
             if i + j < num_silos:
                 with cols[j]:
                     show_silo_card(df_silo.iloc[i + j])
+
 
