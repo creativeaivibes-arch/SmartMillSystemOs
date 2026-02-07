@@ -1,3 +1,5 @@
+
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -8,23 +10,18 @@ import time
 # --- DATABASE IMPORTLARI ---
 from app.core.database import fetch_data, add_data, get_conn
 
-# Plotly ve PDF Kontrolü
-try:
-    import plotly.express as px
-    import plotly.graph_objects as go
-except ImportError:
-    px = None
-    go = None
+# --- AYARLAR (CONFIG) - HARDCODED DEĞERLER BURAYA TAŞINDI ---
+CALCULATIONS_CONFIG = {
+    'DEFAULT_USD': 43.28,       # Varsayılan Dolar Kuru (DB boşsa)
+    'DEFAULT_EUR': 50.08,       # Varsayılan Euro Kuru (DB boşsa)
+    'MAX_ENZIM_ROWS': 10,       # Dozajlama modülündeki satır sayısı
+    'DEFAULT_UN_TON': 100.0,    # Varsayılan üretim tonajı
+    'DEFAULT_BUGDAY_HIZ': 12500.0, # Kg/Saat
+    'DEFAULT_RANDIMAN': 70.0
+}
 
-PDF_AVAILABLE = False
-try:
-    from reportlab.lib import colors
-    from reportlab.lib.pagesizes import A4
-    PDF_AVAILABLE = True
-except ImportError:
-    pass
 # ==============================================================================
-# BÖLÜM 3: ENZİM VE KATKI MODÜLLERİ (AYNEN KORUNDU)
+# BÖLÜM 3: ENZİM VE KATKI MODÜLLERİ
 # ==============================================================================
 
 def show_katki_maliyeti_modulu():
@@ -37,7 +34,7 @@ def show_katki_maliyeti_modulu():
     df_recete = fetch_data("katki_recete")
     df_arsiv = fetch_data("katki_maliyet_arsivi")
 
-    # A) Tablo Başlatıcılar
+    # A) Tablo Başlatıcılar (Boşsa oluştur)
     if df_recete.empty or 'urun_id' not in df_recete.columns:
         df_recete = pd.DataFrame(columns=['urun_id', 'enzim_id', 'gramaj'])
 
@@ -45,15 +42,18 @@ def show_katki_maliyeti_modulu():
         cols = ['id', 'tarih', 'urun_adi', 'maliyet_tl', 'maliyet_usd', 'maliyet_eur', 'usd_kuru', 'eur_kuru', 'detay_json']
         df_arsiv = pd.DataFrame(columns=cols)
 
-    # B) Kurları Al
-    usd_val = 43.28
-    eur_val = 50.08
+    # B) Kurları Al (Config'den veya DB'den)
+    usd_val = CALCULATIONS_CONFIG['DEFAULT_USD']
+    eur_val = CALCULATIONS_CONFIG['DEFAULT_EUR']
+    
     if not df_kurlar.empty:
         try:
-            usd_val = float(df_kurlar.iloc[0]['usd_tl'])
-            eur_val = float(df_kurlar.iloc[0]['eur_tl'])
+            # Sütun isimlerini güvenli çek
+            if 'usd_tl' in df_kurlar.columns: usd_val = float(df_kurlar.iloc[0]['usd_tl'])
+            if 'eur_tl' in df_kurlar.columns: eur_val = float(df_kurlar.iloc[0]['eur_tl'])
         except: pass
     else:
+        # DB boşsa varsayılanı kaydet
         add_data("katki_kurlar", {"id": 1, "usd_tl": usd_val, "eur_tl": eur_val})
 
     # --- 2. ARAYÜZ ---
@@ -706,6 +706,7 @@ def show_fire_maliyet_hesaplama():
             <p style='color: #7f1d1d; margin:0;'>Bu fire olmasaydı (veya %0 olsaydı) cebinizde kalacak olan tutar.</p>
         </div>
         """, unsafe_allow_html=True)
+
 
 
 
