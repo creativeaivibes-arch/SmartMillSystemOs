@@ -555,14 +555,17 @@ def show_uretim_arsivi():
             vardiya_filter = st.selectbox("Vardiya", vardiya_list)
         else:
             vardiya_filter = "Tümü"
+
     with col_f4:
         st.write("🔍 Detaylı Arama") # Hizalama için boş etiket
         arama_terimi = st.text_input("Arama", placeholder="Parti No, Sorumlu, Ürün...", label_visibility="collapsed")
     
-    # FİLTRELEME MANTIĞI BAŞLANGICI
+    # --- FİLTRELEME MANTIĞI BAŞLANGICI ---
+    
+    # 1. KOPYA OLUŞTUR (Sadece burada olacak)
     filtered_df = df.copy()
 
-    # 1. ARAMA KUTUSU FİLTRESİ (En başta uygula)
+    # 2. ARAMA KUTUSU FİLTRESİ (Varsa uygula)
     if arama_terimi:
         term = arama_terimi.lower()
         # Parti No, Sorumlu veya Üretim Adı içinde arama yapar
@@ -575,17 +578,21 @@ def show_uretim_arsivi():
         
         filtered_df = filtered_df[mask]
     
-    filtered_df = df.copy()
-    
+    # [DİKKAT: Buradaki hatalı 'filtered_df = df.copy()' satırı SİLİNDİ] 
+
+    # 3. TARİH FİLTRESİ (Kalanlar üzerinden devam et)
     if start_date and end_date:
         filtered_df = filtered_df[(filtered_df['tarih'].dt.date >= start_date) & (filtered_df['tarih'].dt.date <= end_date)]
     
+    # 4. HAT FİLTRESİ
     if hat_filter != "Tümü":
         filtered_df = filtered_df[filtered_df['uretim_hatti'] == hat_filter]
     
+    # 5. VARDİYA FİLTRESİ
     if vardiya_filter != "Tümü":
         filtered_df = filtered_df[filtered_df['vardiya'] == vardiya_filter]
     
+    # --- TABLO GÖSTERİMİ ---
     st.info(f"📋 Toplam {len(filtered_df)} kayıt gösteriliyor.")
     
     st.divider()
@@ -611,8 +618,10 @@ def show_uretim_arsivi():
         'parti_no': 'Parti No'
     }
     
+    # Tabloyu görselleştirme için hazırla
     display_df = filtered_df.rename(columns=column_mapping)
     
+    # Tarih formatını düzelt
     if 'Tarih' in display_df.columns:
         display_df['Tarih'] = display_df['Tarih'].dt.strftime('%d.%m.%Y %H:%M')
     
@@ -721,6 +730,7 @@ def show_production_yonetimi():
     elif secim == "📊 Üretim Performans Analizi":
         with st.container(border=True):
             show_yonetim_dashboard()
+
 
 
 
