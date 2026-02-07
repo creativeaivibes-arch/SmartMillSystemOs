@@ -238,12 +238,24 @@ def show_pacal_hesaplayici():
             
             if toplam_oran > 0:
                 paçal_maliyeti = 0.0
+                sifir_maliyetli_silolar = [] # <--- YENİ: Hatalı silo takibi
+                
                 for isim, oran in oranlar.items():
                     if oran > 0:
                         silo_verisi = dolu_silolar[dolu_silolar['isim'] == isim]
                         if not silo_verisi.empty:
+                            # Maliyeti çek, yoksa 0 al
                             maliyet = float(silo_verisi.iloc[0].get('maliyet', 0))
+                            
+                            # Eğer maliyet 0 veya negatifse listeye not et
+                            if maliyet <= 0:
+                                sifir_maliyetli_silolar.append(isim)
+                                
                             paçal_maliyeti += maliyet * (oran / 100)
+                
+                # UYARI MEKANİZMASI: Eğer 0 TL'lik silo varsa kullanıcıyı uyar
+                if sifir_maliyetli_silolar:
+                     st.warning(f"⚠️ Dikkat: {', '.join(sifir_maliyetli_silolar)} silosunun maliyeti 0 TL görünüyor. Paçal maliyeti gerçekte daha yüksek olabilir!")
                 
                 # Hesaplama
                 analiz_sonuclari = calculate_pacal_metrics(oranlar, tavli_analizler)
@@ -633,6 +645,7 @@ def show_pacal_gecmisi():
                 <h3>Lütfen detaylarını görmek için<br>soldaki listeden bir paçal seçiniz.</h3>
             </div>
             """, unsafe_allow_html=True)
+
 
 
 
