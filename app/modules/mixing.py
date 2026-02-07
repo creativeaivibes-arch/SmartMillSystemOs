@@ -316,13 +316,15 @@ def show_pacal_hesaplayici():
                         if st.button("✅ Paçalı Kaydet", type="primary"):
                             if urun_adi.strip():
                                 try:
-                                    # Google Sheets için ID oluştur (Timestamp)
-                                    unique_id = int(datetime.now().timestamp())
+                                    # --- GÜNCELLEME: UUID İLE GÜVENLİ ID ---
+                                    # PCL-20260207-A1B2 formatında okunabilir ve benzersiz ID
+                                    unique_suffix = str(uuid.uuid4())[:4].upper()
+                                    unique_id_str = f"PCL-{datetime.now().strftime('%Y%m%d')}-{unique_suffix}"
                                     
                                     kayit_verisi = {'maliyet': paçal_maliyeti, **analiz_sonuclari}
                                     
                                     data_to_save = {
-                                        'id': unique_id,
+                                        'id': unique_id_str, 
                                         'tarih': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                                         'urun_adi': urun_adi.strip(),
                                         'silo_oranlari_json': json.dumps(oranlar, ensure_ascii=False),
@@ -630,6 +632,7 @@ def show_pacal_gecmisi():
                 <h3>Lütfen detaylarını görmek için<br>soldaki listeden bir paçal seçiniz.</h3>
             </div>
             """, unsafe_allow_html=True)
+
 
 
 
