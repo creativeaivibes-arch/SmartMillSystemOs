@@ -460,16 +460,24 @@ def show_dashboard():
 
     st.divider()
 
-    # ===== 4. ANLIK SİLO DURUMU (MEVCUT SİSTEM) =====
+    # ===== 5. ANLIK SİLO DURUMU (YENİ VERİ YAPISI İLE) =====
     st.subheader("🏭 Anlık Silo Durumu")
     
+    # Veri setindeki silo sayısını al
     num_silos = len(df_silo)
-    for i in range(0, num_silos, 4):
-        cols = st.columns(4)
-        for j in range(4):
-            if i + j < num_silos:
-                with cols[j]:
-                    show_silo_card(df_silo.iloc[i + j])
+    
+    if num_silos > 0:
+        # Siloları 4'lü sütunlar halinde diz
+        for i in range(0, num_silos, 4):
+            cols = st.columns(4)
+            for j in range(4):
+                if i + j < num_silos:
+                    with cols[j]:
+                        # Tekil silo kartını çağır
+                        show_silo_card(df_silo.iloc[i + j])
+    else:
+        st.info("📭 Gösterilecek aktif silo verisi bulunamadı.")
+
 
 
 
