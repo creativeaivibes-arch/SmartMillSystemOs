@@ -400,17 +400,18 @@ def show_katki_maliyeti_modulu():
         else:
             st.info("Henüz arşiv kaydı yok.")
 def show_enzim_dozajlama():
-    """Un Geliştirici Enzim Dozajlama Hesaplama Modülü - ANLIK HESAPLAMA"""
+    """Un Geliştirici Enzim Dozajlama Hesaplama Modülü - Config Entegreli"""
     
-    # Session State Başlatma
+    # Session State Başlatma (Config'den gelen değerleri kullanır)
     if 'enzim_last_data' not in st.session_state:
         st.session_state.enzim_last_data = {
             'uretim_adi': 'Ekmeklik',
-            'un_ton': 100.0,
-            'bugday_hiz': 12500.0,
-            'randiman': 70.0,
+            'un_ton': CALCULATIONS_CONFIG['DEFAULT_UN_TON'],
+            'bugday_hiz': CALCULATIONS_CONFIG['DEFAULT_BUGDAY_HIZ'],
+            'randiman': CALCULATIONS_CONFIG['DEFAULT_RANDIMAN'],
             'dk_akis_gr': 30.0,
-            'enzim_rows': [{'name': '', 'doz': '', 'total': 0} for _ in range(10)]
+            # Config'den gelen max satır sayısı
+            'enzim_rows': [{'name': '', 'doz': '', 'total': 0} for _ in range(CALCULATIONS_CONFIG['MAX_ENZIM_ROWS'])]
         }
     
     st.markdown("""
@@ -477,7 +478,8 @@ def show_enzim_dozajlama():
         c_head2.caption("**Doz (gr/çuval)**")
         c_head3.caption("**Toplam İhtiyaç**")
 
-        for i in range(10):
+        # Config'den gelen sayı kadar döngü
+        for i in range(CALCULATIONS_CONFIG['MAX_ENZIM_ROWS']):
             cols = st.columns([2, 1, 1])
             
             # A) İSİM GİRİŞİ
@@ -572,7 +574,7 @@ def show_enzim_dozajlama():
                 
     with col_btn2:
         if st.button("🗑️ TEMİZLE", use_container_width=True, type="secondary"):
-            st.session_state.enzim_rows = [{'name': '', 'doz': '', 'total': 0} for _ in range(10)]
+            st.session_state.enzim_rows = [{'name': '', 'doz': '', 'total': 0} for _ in range(CALCULATIONS_CONFIG['MAX_ENZIM_ROWS'])]
             if 'irmik_total' in st.session_state: del st.session_state.irmik_total
             st.rerun()
             
@@ -704,6 +706,7 @@ def show_fire_maliyet_hesaplama():
             <p style='color: #7f1d1d; margin:0;'>Bu fire olmasaydı (veya %0 olsaydı) cebinizde kalacak olan tutar.</p>
         </div>
         """, unsafe_allow_html=True)
+
 
 
 
