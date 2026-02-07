@@ -21,6 +21,7 @@ except ImportError:
     def turkce_karakter_duzelt_pdf(text): return text
 
 # --- YENİ EKLENEN FONKSİYON (BAĞIMLILIĞI KALDIRMAK İÇİN) ---
+@st.cache_data(ttl=300) 
 def get_silo_data():
     """Silo verilerini getir (Dashboard'dan bağımsız çalışması için buraya eklendi)"""
     try:
@@ -632,6 +633,7 @@ def show_pacal_gecmisi():
                 <h3>Lütfen detaylarını görmek için<br>soldaki listeden bir paçal seçiniz.</h3>
             </div>
             """, unsafe_allow_html=True)
+
 
 
 
