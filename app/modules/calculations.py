@@ -70,10 +70,12 @@ def show_katki_maliyeti_modulu():
         
         with col1:
             with st.container(border=True):
-                st.markdown("##### 💱 Kurlar")
+                st.markdown("##### 💱 Döviz Kurları")
                 c_kur1, c_kur2 = st.columns(2)
-                input_usd = c_kur1.number_input("USD", value=usd_val, format="%.2f", label_visibility="collapsed")
-                input_eur = c_kur2.number_input("EUR", value=eur_val, format="%.2f", label_visibility="collapsed")
+                
+                # Etiketleri görünür yaptık ve bayrak ekledik
+                input_usd = c_kur1.number_input("🇺🇸 USD ($)", value=usd_val, format="%.2f")
+                input_eur = c_kur2.number_input("🇪🇺 EUR (€)", value=eur_val, format="%.2f")
                 
                 if st.button("Güncelle", use_container_width=True, key="btn_kur_update"):
                     with st.spinner("Kur güncelleniyor..."):
@@ -692,6 +694,7 @@ def show_fire_maliyet_hesaplama():
             <p style='color: #7f1d1d; margin:0;'>Bu fire olmasaydı (veya %0 olsaydı) cebinizde kalacak olan tutar.</p>
         </div>
         """, unsafe_allow_html=True)
+
 
 
 
