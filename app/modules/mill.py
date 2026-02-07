@@ -63,13 +63,15 @@ def save_uretim_kaydi(uretim_tarihi, uretim_hatti, uretim_adi, vardiya, sorumlu,
     except Exception as e:
         return False, f"Sistem hatası: {str(e)}"
 # --- CACHING MEKANİZMASI ---
+
 @st.cache_data(ttl=300) # 5 dakika hafızada tut
 def get_uretim_kayitlari_cached():
     return fetch_data("uretim_kaydi")
 def get_uretim_kayitlari():
-    """Üretim kayıtlarını getir"""
+    """Üretim kayıtlarını getir (Cache'li - HIZLI VERSİYON)"""
     try:
-        df = fetch_data("uretim_kaydi")
+        # 👇 İŞTE BU SATIR DEĞİŞTİ. ARTIK HIZLI FONKSİYONU ÇAĞIRIYORUZ.
+        df = get_uretim_kayitlari_cached() 
         
         if df.empty:
             return pd.DataFrame()
@@ -82,7 +84,6 @@ def get_uretim_kayitlari():
     except Exception as e:
         st.error(f"Kayıtlar yüklenemedi: {e}")
         return pd.DataFrame()
-
 def show_uretim_kaydi():
     """Üretim Kaydı Modülü"""
     
@@ -720,6 +721,7 @@ def show_production_yonetimi():
     elif secim == "📊 Üretim Performans Analizi":
         with st.container(border=True):
             show_yonetim_dashboard()
+
 
 
 
