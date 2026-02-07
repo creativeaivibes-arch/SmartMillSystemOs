@@ -120,14 +120,13 @@ def get_all_specs_dataframe():
     })
 
 def show_spec_yonetimi():
-    """Un Kalite Spesifikasyonları (Spec) Ekranı - Hata Korumalı"""
+    """Un Kalite Spesifikasyonları (Spec) Ekranı - Güvenli ve Validasyonlu"""
     st.markdown("### 🎯 Un Kalite Spesifikasyonları (Spec)")
     
     # --- 1. GÜVENLİ VERİ ÇEKME ---
-    df_spek = pd.DataFrame() # Varsayılan boş tablo
+    df_spek = pd.DataFrame()
     try:
         raw_data = fetch_data("un_spekleri")
-        # Gelen veri DataFrame mi kontrol et, değilse boş kabul et
         if isinstance(raw_data, pd.DataFrame):
             df_spek = raw_data
     except Exception as e:
@@ -135,7 +134,6 @@ def show_spec_yonetimi():
 
     # --- 2. LİSTE HAZIRLIĞI ---
     un_listesi = set()
-    # Sadece veri varsa ve sütunlar doğruysa işlem yap
     if not df_spek.empty and 'un_cinsi' in df_spek.columns:
         try:
             items = df_spek['un_cinsi'].dropna().unique().tolist()
@@ -144,7 +142,7 @@ def show_spec_yonetimi():
     
     all_types = sorted(list(un_listesi))
 
-    # --- 3. ARAYÜZ ---
+    # --- 3. ARAYÜZ VE GİRİŞ KONTROLÜ (VALIDASYON EKLENDİ) ---
     col_sel, col_add = st.columns([2, 1])
     with col_sel:
         secilen_urun = st.selectbox(
@@ -155,30 +153,37 @@ def show_spec_yonetimi():
         
     if secilen_urun == "(Seçiniz/Yeni Ekle)":
         with col_add:
-            yeni_isim = st.text_input("➕ Yeni Un Tanımla", placeholder="Örn: Tam Buğday Unu").strip()
-            if yeni_isim: 
-                secilen_urun = yeni_isim
-            else: 
+            ham_isim = st.text_input("➕ Yeni Un Tanımla", placeholder="Örn: Tam Buğday").strip()
+            
+            # [GÜVENLİK] Türkçe karakter düzeltme ve standartlaştırma
+            if ham_isim:
+                # İsim temizliği (Örn: "tam buğday" -> "TAM BUGDAY")
+                temiz_isim = turkce_karakter_duzelt(ham_isim).upper()
+                
+                # [VALIDASYON] Uzunluk ve tekrar kontrolü
+                if len(temiz_isim) < 3:
+                    st.caption("⚠️ İsim en az 3 karakter olmalı.")
+                    secilen_urun = None
+                elif temiz_isim in all_types:
+                    st.toast("⚠️ Bu un cinsi zaten kayıtlı, mevcut kayda yönlendirildi.", icon="ℹ️")
+                    secilen_urun = temiz_isim # Mevcut olana yönlendir
+                else:
+                    secilen_urun = temiz_isim
+            else:
                 secilen_urun = None
 
-    # Eğer seçim yapılmadıysa (veya yeni isim girilmediyse) burada dur ve listeyi göster
+    # Eğer geçerli bir seçim yoksa dur
     if not secilen_urun:
-        st.info("👆 Lütfen düzenlemek veya oluşturmak için yukarıdan bir un cinsi seçin.")
-        
-        st.divider()
-        st.caption("📋 Sistemde Kayıtlı Tüm Spekler")
-        try:
-            # Tabloyu güvenli göster
-            if not df_spek.empty and {'un_cinsi', 'parametre', 'hedef_deger'}.issubset(df_spek.columns):
-                st.dataframe(
-                    df_spek[['un_cinsi', 'parametre', 'min_deger', 'hedef_deger', 'max_deger']], 
-                    use_container_width=True, 
-                    hide_index=True
-                )
-            else:
-                st.caption("Gösterilecek kayıt bulunamadı.")
-        except:
-            st.caption("Tablo yüklenirken hata oluştu.")
+        st.info("👆 Lütfen düzenlemek veya oluşturmak için bir un cinsi seçin.")
+        if not df_spek.empty:
+            st.divider()
+            st.caption("📋 Sistemde Kayıtlı Spekler")
+            # Önizleme tablosu
+            st.dataframe(
+                df_spek[['un_cinsi', 'parametre', 'hedef_deger']].head(10), 
+                use_container_width=True,
+                hide_index=True
+            )
         return
 
     # --- 4. DÜZENLEME FORMU ---
@@ -232,6 +237,7 @@ def show_spec_yonetimi():
                     
                     c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
                     with c1: st.markdown(f"**{p_label}**")
+                    # Config'den gelen hassasiyet kullanılabilir veya standart 2 hane
                     with c2: st.number_input("Min", value=val_min, key=f"min_{p_key}", step=0.1, format="%.2f", label_visibility="collapsed")
                     with c3: st.number_input("Hedef", value=val_tgt, key=f"tgt_{p_key}", step=0.1, format="%.2f", label_visibility="collapsed")
                     with c4: st.number_input("Max", value=val_max, key=f"max_{p_key}", step=0.1, format="%.2f", label_visibility="collapsed")
@@ -240,31 +246,40 @@ def show_spec_yonetimi():
         st.divider()
         if st.form_submit_button("💾 Kaydet / Güncelle", type="primary", use_container_width=True):
             saved_count = 0
-            for p_key in input_keys:
+            # Progress bar ile kullanıcıya geri bildirim
+            prog_bar = st.progress(0)
+            
+            for i, p_key in enumerate(input_keys):
                 s_min = st.session_state.get(f"min_{p_key}", 0.0)
                 s_tgt = st.session_state.get(f"tgt_{p_key}", 0.0)
                 s_max = st.session_state.get(f"max_{p_key}", 0.0)
                 
-                # Sadece değer girilmişse kaydet (0,0,0 olanları pas geç)
+                # Sadece değer girilmişse kaydet (0,0,0 olanları pas geçerek veritabanını şişirme)
                 if s_min > 0 or s_tgt > 0 or s_max > 0:
                     if save_spec(secilen_urun, p_key, s_min, s_max, s_tgt, 0):
                         saved_count += 1
+                
+                # İlerleme çubuğunu güncelle
+                prog_bar.progress((i + 1) / len(input_keys))
+            
+            prog_bar.empty()
             
             if saved_count > 0:
-                st.success(f"✅ {saved_count} parametre başarıyla güncellendi.")
+                st.success(f"✅ **{secilen_urun}** için {saved_count} parametre başarıyla güncellendi.")
                 time.sleep(1)
                 st.rerun()
             else:
-                st.warning("⚠️ Değişiklik algılanmadı veya değerler 0 girildi.")
+                st.warning("⚠️ Değişiklik algılanmadı veya tüm değerler 0 girildi.")
 
     # Silme Butonu (Sadece Admin)
     if st.session_state.get("user_role") == "admin":
         st.divider()
-        if st.button("🗑️ Bu Ürün Tanımını Sil", key="del_spec_main", type="secondary"):
-            if delete_spec_group(secilen_urun):
-                st.success("Tanım Silindi!")
-                time.sleep(1)
-                st.rerun()
+        with st.expander("🗑️ Tehlikeli Bölge"):
+            if st.button("Bu Ürün Tanımını ve Tüm Speklerini Sil", key="del_spec_main", type="primary"):
+                if delete_spec_group(secilen_urun):
+                    st.success("Tanım Silindi!")
+                    time.sleep(1)
+                    st.rerun()
 
 def export_un_analiz_ozel_excel(df):
     """
@@ -1249,6 +1264,7 @@ def show_flour_yonetimi():
                 st.error("⚠️ Enzim modülü (calculations.py) bulunamadı.")
             except Exception as e:
                 st.error(f"⚠️ Modül yüklenirken hata oluştu: {e}")
+
 
 
 
