@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 import time
+import uuid
 
 from app.core.database import fetch_data, add_data
 
@@ -12,11 +13,21 @@ except ImportError:
 
 def save_uretim_kaydi(uretim_tarihi, uretim_hatti, uretim_adi, vardiya, sorumlu, **uretim_degerleri):
     """Üretim kaydını Google Sheets'e kaydet"""
+    
+    # 1. Zorunlu Alan Kontrolü
     if not uretim_hatti or not vardiya:
         return False, "Üretim Hattı ve Vardiya zorunludur!"
         
     try:
         tarih_str = uretim_tarihi.strftime('%Y-%m-%d %H:%M:%S')
+        
+        # --- YENİ EKLENEN: PARTİ NO GÜVENLİĞİ (UUID) ---
+        # Aynı dakikada birden fazla kayıt girilirse çakışmayı önlemek için rastgele 4 karakter ekliyoruz
+        unique_suffix = str(uuid.uuid4())[:4].upper()
+        
+        # Eğer kullanıcı özel bir isim girdiyse onu kullan, yoksa otomatik oluştur
+        # Örnek Çıktı: PRD-20260207-A1B2
+        parti_kodu = uretim_adi if uretim_adi else f"PRD-{datetime.now().strftime('%Y%m%d')}-{unique_suffix}"
         
         db_data = {
             'tarih': tarih_str,
@@ -36,17 +47,25 @@ def save_uretim_kaydi(uretim_tarihi, uretim_hatti, uretim_adi, vardiya, sorumlu,
             'randiman_1': float(uretim_degerleri.get('randiman_1', 0)),
             'toplam_randiman': float(uretim_degerleri.get('toplam_randiman', 0)),
             'kayip': float(uretim_degerleri.get('kayip', 0)),
-            'parti_no': uretim_adi if uretim_adi else f"PRD-{datetime.now().strftime('%Y%m%d%H%M')}"
+            'parti_no': parti_kodu  # <-- Güncellenmiş Parti No
         }
         
+        # Veritabanına Ekleme
         if add_data("uretim_kaydi", db_data):
-            return True, "Üretim kaydı başarıyla eklendi!"
+            # --- YENİ EKLENEN: CACHE TEMİZLEME ---
+            # Yeni kayıt eklendiği için eski hafızayı siliyoruz, böylece tablo hemen güncellenir.
+            st.cache_data.clear()
+            
+            return True, f"Üretim kaydı başarıyla eklendi! (Parti: {parti_kodu})"
         else:
-            return False, "Kayıt sırasında bir hata oluştu."
+            return False, "Kayıt sırasında veritabanı hatası oluştu."
             
     except Exception as e:
         return False, f"Sistem hatası: {str(e)}"
-
+# --- CACHING MEKANİZMASI ---
+@st.cache_data(ttl=300) # 5 dakika hafızada tut
+def get_uretim_kayitlari_cached():
+    return fetch_data("uretim_kaydi")
 def get_uretim_kayitlari():
     """Üretim kayıtlarını getir"""
     try:
@@ -121,7 +140,7 @@ def show_uretim_kaydi():
     m1.metric("Un 2 Randıman", f"%{rand_un2:.2f}")
     m2.metric("Kepek Randıman", f"%{rand_kepek:.2f}")
     m2.metric("Razmol Randıman", f"%{rand_razmol:.2f}")
-    m3.metric("Bongalite Randoman", f"%{rand_bongalite:.2f}")
+    m3.metric("Bongalite Randıman", f"%{rand_bongalite:.2f}")
     m3.metric("Toplam Un (1+2)", f"%{rand_toplam_un:.2f}")
     m4.metric("Toplam Kayıp", f"%{kayip_yuzde:.2f}", delta_color="inverse")
     
@@ -505,7 +524,7 @@ def show_uretim_arsivi():
     
     st.subheader("🔍 Filtreleme")
     
-    col_f1, col_f2, col_f3 = st.columns(3)
+    col_f1, col_f2, col_f3, col_f4 = st.columns(4)
     
     with col_f1:
         today = datetime.now().date()
@@ -535,6 +554,25 @@ def show_uretim_arsivi():
             vardiya_filter = st.selectbox("Vardiya", vardiya_list)
         else:
             vardiya_filter = "Tümü"
+    with col_f4:
+        st.write("🔍 Detaylı Arama") # Hizalama için boş etiket
+        arama_terimi = st.text_input("Arama", placeholder="Parti No, Sorumlu, Ürün...", label_visibility="collapsed")
+    
+    # FİLTRELEME MANTIĞI BAŞLANGICI
+    filtered_df = df.copy()
+
+    # 1. ARAMA KUTUSU FİLTRESİ (En başta uygula)
+    if arama_terimi:
+        term = arama_terimi.lower()
+        # Parti No, Sorumlu veya Üretim Adı içinde arama yapar
+        mask = pd.Series(False, index=filtered_df.index)
+        
+        cols_to_search = ['parti_no', 'sorumlu', 'degirmen_uretim_adi']
+        for col in cols_to_search:
+            if col in filtered_df.columns:
+                mask |= filtered_df[col].astype(str).str.lower().str.contains(term, na=False)
+        
+        filtered_df = filtered_df[mask]
     
     filtered_df = df.copy()
     
@@ -682,6 +720,7 @@ def show_production_yonetimi():
     elif secim == "📊 Üretim Performans Analizi":
         with st.container(border=True):
             show_yonetim_dashboard()
+
 
 
 
