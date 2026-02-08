@@ -1,4 +1,4 @@
-	import streamlit as st
+import streamlit as st
 from datetime import datetime, date
 from app.core.languages import t
 
@@ -131,4 +131,5 @@ def show_license_lock_screen():
         st.empty()
     
     # Kodun akışını burada kes!
+
     st.stop()
