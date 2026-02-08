@@ -83,6 +83,30 @@ DICTIONARY = {
     "tab_logs": {"TR": "📜 Sistem Logları", "EN": "📜 System Logs", "FR": "📜 Logs Système", "RU": "📜 Системные логи"},
     "tab_debug": {"TR": "🛠️ Debug", "EN": "🛠️ Debug", "FR": "🛠️ Débogage", "RU": "🛠️ Отладка"},
 
+    # --- DASHBOARD (YENİ EKLENENLER) ---
+    "dash_header": {"TR": "Fabrika Kontrol Merkezi", "EN": "Factory Control Center", "FR": "Centre de Contrôle de l'Usine", "RU": "Центр управления заводом"},
+    "btn_refresh": {"TR": "Yenile", "EN": "Refresh", "FR": "Actualiser", "RU": "Обновить"},
+    "dash_alert_title": {"TR": "Akıllı Uyarı Sistemi", "EN": "Smart Alert System", "FR": "Système d'Alerte Intelligent", "RU": "Интеллектуальная система оповещения"},
+    "btn_download_pdf": {"TR": "PDF Rapor İndir", "EN": "Download PDF Report", "FR": "Télécharger le Rapport PDF", "RU": "Скачать отчет в PDF"},
+    "dash_finance_title": {"TR": "Finans", "EN": "Finance", "FR": "Finance", "RU": "Финансы"},
+    "dash_stock_value": {"TR": "Stok Değeri", "EN": "Stock Value", "FR": "Valeur du Stock", "RU": "Стоимость запасов"},
+    "dash_avg_cost": {"TR": "Ort. Maliyet", "EN": "Avg. Cost", "FR": "Coût Moyen", "RU": "Ср. Себестоимость"},
+    "dash_unit_cost": {"TR": "Birim Maliyet", "EN": "Unit Cost", "FR": "Coût Unitaire", "RU": "Себестоимость единицы"},
+    "lbl_currency": {"TR": "TL/Kg", "EN": "TRY/kg", "FR": "TRY/kg", "RU": "TRY/кг"},
+    "dash_stock_life": {"TR": "Stok Ömrü", "EN": "Stock Life", "FR": "Durée de Stockage", "RU": "Срок хранения запасов"},
+    "dash_daily_milling": {"TR": "Günlük Kırma (Ton)", "EN": "Daily Milling (Tons)", "FR": "Mouture Quotidienne (Tonnes)", "RU": "Суточный размол (Тонн)"},
+    "dash_remaining_time": {"TR": "Kalan Süre", "EN": "Remaining Time", "FR": "Temps Restant", "RU": "Оставшееся время"},
+    "dash_last_24h": {"TR": "Son 24 Saat", "EN": "Last 24 Hours", "FR": "Dernières 24 Heures", "RU": "Последние 24 часа"},
+    "dash_input": {"TR": "Giriş", "EN": "Intake", "FR": "Réception", "RU": "Прием"},
+    "dash_output": {"TR": "Çıkış", "EN": "Output", "FR": "Expédition", "RU": "Отпуск"},
+    "dash_stock_move_7d": {"TR": "Son 7 Günlük Stok Hareketi", "EN": "Last 7 Days Stock Movement", "FR": "Mouvement des Stocks (7 jours)", "RU": "Движение запасов (последние 7 дней)"},
+    "dash_live_status": {"TR": "Anlık Silo Durumu", "EN": "Live Silo Status", "FR": "État des Silos en Temps Réel", "RU": "Текущее состояние силосов"},
+    "lbl_steel_silo": {"TR": "Çelik Silo", "EN": "Steel Silo", "FR": "Silo en Acier", "RU": "Стальной силос"},
+    "lbl_variety": {"TR": "Cins", "EN": "Variety", "FR": "Variété", "RU": "Сорт"},
+    "btn_edit_variety": {"TR": "Cins Düzenle", "EN": "Edit Variety", "FR": "Modifier la Variété", "RU": "Редактировать сорт"},
+    "lbl_tempered_stock": {"TR": "Tavlı Buğday Stok", "EN": "Tempered Wheat Stock", "FR": "Stock de Blé Conditionné", "RU": "Запас отволоженного зерна"},
+    "msg_stock_low": {"TR": "Stok azalıyor", "EN": "Stock Decreasing", "FR": "Stock Faible", "RU": "Запас уменьшается"},
+
     # --- MAL KABUL & ANALİZ PARAMETRELERİ ---
     "header_goods_receipt": {"TR": "Ham Madde Giriş", "EN": "Raw Material Intake", "FR": "Réception Matières", "RU": "Прием сырья"},
     "subheader_basic_info": {"TR": "Temel Bilgiler", "EN": "General Information", "FR": "Informations Générales", "RU": "Общая информация"},
@@ -124,3 +148,4 @@ def t(key):
             return f"[{key}]"
     except Exception:
         return key
+
