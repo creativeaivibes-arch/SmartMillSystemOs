@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from app.core.database import fetch_data, get_conn
 from app.core.styles import card_metric
 from app.core.error_handling import error_handler, log_warning
-from app.core.languages import get_text
+
 
 # PDF Rapor Fonksiyonları (Senin Orijinal Raporlama Sistemin)
 try:
@@ -478,6 +478,7 @@ def show_dashboard():
                         show_silo_card(df_silo.iloc[i + j])
     else:
         st.info("📭 Gösterilecek aktif silo verisi bulunamadı.")
+
 
 
 
