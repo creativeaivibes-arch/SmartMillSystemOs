@@ -389,34 +389,44 @@ elif selected_page == "PROFILE":
     st.markdown("### 👤 Profil ve Kullanıcı Ayarları")
     show_profile_settings() # auth.py içindeki genel profil fonksiyonu
 
-# --- SIDEBAR LİSANS BİLGİSİ (DOSYANIN EN SONUNA EKLE) ---
+# --- SIDEBAR LİSANS BİLGİSİ ---
 with st.sidebar:
     st.divider() # Ayırıcı çizgi
     
-    # Başlık ve Lisans Anahtarı
-    st.caption(f"🔑 {t('license_id')}: {LICENSE_CONFIG.get('LICENSE_KEY', 'DEMO')}")
+    # Not: Lisans ID satırını kaldırdık (Senin isteğin üzerine)
     
-    # Duruma göre Renkli Bilgi Kutusu
+    # Duruma göre Görselleştirme
     if status == 'warning':
-        st.error(f"⏳ {t('days_left')}: {days_left}")
-        st.caption(f"⚠️ {msg}")
-    else:
-        # Yeşil kutu
-        st.success(f"✅ {t('license_active')}")
+        # --- KRİTİK DÖNEM (Son 15 Gün) ---
+        st.error(f"⚠️ {t('license_warning')}")
+        st.markdown(f"**{t('days_left')}: {days_left}**")
         
-        # İlerleme Çubuğu (Bar)
-        # Barın doluluk oranını hesapla (Maks 365 gün üzerinden görselleştirme)
+        # Kırmızı Bar (Standart st.progress kırmızı/turuncu tonlarındadır veya theme rengini alır)
         progress_bar = min(1.0, max(0.0, days_left / 365))
         st.progress(progress_bar)
+        
+    else:
+        # --- NORMAL DÖNEM (Yeşil Bar) ---
+        st.success(f"✅ {t('license_active')}")
+        
+        # Özel Yeşil Progress Bar (HTML ile)
+        # Standart st.progress rengi değiştirilemediği için HTML kullanıyoruz.
+        percent = min(100, max(0, int((days_left / 365) * 100)))
+        st.markdown(f"""
+        <div style="background-color:#e6e6e6; border-radius:5px; height:10px; width:100%; margin-bottom:10px;">
+            <div style="background-color:#28a745; width:{percent}%; height:10px; border-radius:5px;"></div>
+        </div>
+        """, unsafe_allow_html=True)
         
         # Kalan Gün Yazısı
         c1, c2 = st.columns([2, 1])
         c1.caption(f"{t('days_left')}:")
         c2.write(f"**{days_left}**")
     
-    # En Alt Footer (Marka Bilgisi)
+    # En Alt Footer
     st.caption(f"🏢 {LICENSE_CONFIG.get('CLIENT_NAME', 'Client')}")
-    st.caption("v2.0 Enterprise Edition")
+    st.caption("v2.0 Enterprise")
+
 
 
 
