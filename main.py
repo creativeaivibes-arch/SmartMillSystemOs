@@ -16,6 +16,7 @@ from app.core.styles import load_css
 from app.core.database import init_db
 from app.core.auth import check_password, do_logout, ROLES, show_profile_settings
 from app.core.config import SESSION_TIMEOUT_SECONDS
+from app.core.license_manager import check_license, show_license_lock_screen
 
 # Modül İmportları
 import app.modules.dashboard as dashboard
@@ -26,6 +27,16 @@ import app.modules.flour as flour
 import app.modules.admin as admin
 import app.modules.calculations as calculations
 from app.core.languages import t, LANGUAGES # <--- YENİ EKLENEN
+
+# --- 1. LİSANS KONTROLÜ (EN BAŞTA YAPILMALI) ---
+is_valid, msg, status, days_left = check_license()
+
+if not is_valid:
+    show_license_lock_screen()  # Eğer süre bittiyse burada kod durur.
+
+# Eğer süre bitmediyse ama az kaldıysa Sidebar'da uyarı gösterelim
+if status == 'warning':
+    st.sidebar.warning(f"⚠️ {msg}")
 
 # --- APP BAŞLANGIÇ ---
 
@@ -378,6 +389,7 @@ elif selected_page == "ADMIN":
 elif selected_page == "PROFILE":
     st.markdown("### 👤 Profil ve Kullanıcı Ayarları")
     show_profile_settings() # auth.py içindeki genel profil fonksiyonu
+
 
 
 
