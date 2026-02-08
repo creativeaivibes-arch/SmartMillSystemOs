@@ -11,7 +11,7 @@ from app.core.languages import t
 LICENSE_CONFIG = {
     "CLIENT_NAME": "KONYA OVM UN FABRİKASI",  # Müşteri Adı
     "LICENSE_KEY": "SMART-2026-PRO-X8Y2",     # Lisans Anahtarı (Görünürlük için)
-    "EXPIRATION_DATE": "2026-12-31",          # YYYY-AA-GG Formatında Bitiş Tarihi
+    "EXPIRATION_DATE": "2026-02-07",          # YYYY-AA-GG Formatında Bitiş Tarihi
     "IS_DEMO": False,                         # Demo mu Full sürüm mü?
     "MAX_USERS": 5                            # (Opsiyonel) Maksimum kullanıcı sayısı
 }
@@ -133,3 +133,4 @@ def show_license_lock_screen():
     # Kodun akışını burada kes!
 
     st.stop()
+
