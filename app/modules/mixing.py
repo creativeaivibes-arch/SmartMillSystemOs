@@ -287,6 +287,7 @@ def show_pacal_hesaplayici():
                             c1.metric("Protein", f"{analiz_sonuclari['protein']:.1f}%")
                             c1.metric("Rutubet", f"{analiz_sonuclari['rutubet']:.1f}%")
                             c1.metric("Gluten", f"{analiz_sonuclari['gluten']:.1f}%")
+                            c1.metric("Amilograph", f"{analiz_sonuclari.get('amilograph', 0):.0f} AU")
                             
                             c2.metric("Gluten Index", f"{analiz_sonuclari['gluten_index']:.0f}")
                             c2.metric("Sedim", f"{analiz_sonuclari['sedim']:.1f} ml")
@@ -645,6 +646,7 @@ def show_pacal_gecmisi():
                 <h3>Lütfen detaylarını görmek için<br>soldaki listeden bir paçal seçiniz.</h3>
             </div>
             """, unsafe_allow_html=True)
+
 
 
 
