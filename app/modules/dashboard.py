@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from app.core.database import fetch_data, get_conn
 from app.core.styles import card_metric
 from app.core.error_handling import error_handler, log_warning
-from app.core.languages import t  # ✅ DEĞIŞIKLIK: get_text yerine t kullanacağız
+from app.core.languages import get_text
 
 # PDF Rapor Fonksiyonları (Senin Orijinal Raporlama Sistemin)
 try:
@@ -15,7 +15,6 @@ try:
 except ImportError:
     def create_silo_pdf_report(*args): return None
     def turkce_karakter_duzelt_pdf(x): return x
-
 # --- AYARLAR (CONFIG) - MAGIC NUMBERS ---
 DASHBOARD_CONFIG = {
     'REFRESH_INTERVAL': 300,       # 5 dakika (Cache süresi)
@@ -111,9 +110,8 @@ def get_dashboard_data(force_refresh=False):
             return st.session_state['dashboard_data']
             
     return fetch_all_dashboard_data()
-
 # --------------------------------------------------------------------------
-# SİLO KARTI (ÇOK DİLLİ HALE GETİRİLDİ) ✅
+# SİLO KARTI (Senin "Aynı Kalsın" Dediğin Orijinal Kart Yapısı)
 # --------------------------------------------------------------------------
 def show_silo_card(silo_data):
     with st.container(border=True):
@@ -124,31 +122,26 @@ def show_silo_card(silo_data):
         
         st.markdown(f"#### {silo_data.get('isim', 'Silo')}")
         
-        # ✅ ÇEVİRİ: Birim Maliyet
+        # Maliyet ve Cins Bilgisi
         maliyet = float(silo_data.get('maliyet', 0))
-        st.markdown(f"**{t('dash_unit_cost')}:** {maliyet:.2f} {t('lbl_currency')}")
+        st.markdown(f"**Birim Maliyet:** {maliyet:.2f} TL/KG")
         
-        # ✅ ÇEVİRİ: Cins
         bugday_cinsi = str(silo_data.get('bugday_cinsi', '-'))
-        st.caption(f"**{t('lbl_variety')}:** {bugday_cinsi}")
+        st.caption(f"**Cins:** {bugday_cinsi}")
         
-        # ✅ ÇEVİRİ: Tavlı Buğday Stok
+        # Tavlı Stok Bilgisi
         tavli_stok = float(silo_data.get('tavli_bugday_stok', 0))
-        st.caption(f"**{t('lbl_tempered_stock')}:** {tavli_stok:.1f} Ton")
+        st.caption(f"**Tavlı Buğday Stok:** {tavli_stok:.1f} Ton")
         
         # Orijinal Silo Görseli
         st.markdown(draw_silo(doluluk, ""), unsafe_allow_html=True)
         st.markdown(f"**{mevcut:.1f} / {kapasite:.0f} Ton**")
         
-        # ✅ ÇEVİRİ: Yönetici Cins Düzenleme
+        # Yönetici Cins Düzenleme
         if st.session_state.get('user_role') == "admin":
-            with st.popover(f"✏️ {t('btn_edit_variety')}", use_container_width=True):
-                yeni_cins = st.text_input(
-                    t('label_variety'), 
-                    value=bugday_cinsi if bugday_cinsi != "-" else "", 
-                    key=f"c_{silo_data['isim']}"
-                )
-                if st.button(t('btn_submit'), key=f"s_{silo_data['isim']}"):
+            with st.popover("✏️ Cins Düzenle", use_container_width=True):
+                yeni_cins = st.text_input("Buğday Cinsi", value=bugday_cinsi if bugday_cinsi != "-" else "", key=f"c_{silo_data['isim']}")
+                if st.button("Kaydet", key=f"s_{silo_data['isim']}"):
                     # Güncelleme mantığı (fetch_data -> update)
                     conn = get_conn()
                     df_all = fetch_data("silolar")
@@ -156,28 +149,23 @@ def show_silo_card(silo_data):
                     conn.update(worksheet="silolar", data=df_all)
                     st.rerun()
 
-        # ✅ ÇEVİRİ: PDF RAPOR BUTONU
+        # SENİN İSTEDİĞİN ORİJİNAL PDF RAPOR BUTONU
         st.divider()
         safe_name = str(silo_data.get('isim', 'silo')).replace(" ", "_")
-        if st.button(
-            t('btn_download_pdf'), 
-            key=f"pdf_{safe_name}", 
-            use_container_width=True, 
-            type="primary"
-        ):
+        if st.button("📥 PDF Rapor İndir", key=f"pdf_{safe_name}", use_container_width=True, type="primary"):
             with st.spinner("Rapor hazırlanıyor..."):
                 try:
                     from app.modules.mixing import get_tavli_analiz_agirlikli_ortalama
-                    from app.modules.wheat import get_kuru_bugday_agirlikli_ortalama
+                    from app.modules.wheat import get_kuru_bugday_agirlikli_ortalama  # YENİ!
                     
                     tavli_ort = get_tavli_analiz_agirlikli_ortalama(silo_data['isim'])
-                    kuru_ort = get_kuru_bugday_agirlikli_ortalama(silo_data['isim'])
+                    kuru_ort = get_kuru_bugday_agirlikli_ortalama(silo_data['isim'])  # YENİ!
                     
                     pdf_bytes = create_silo_pdf_report(
                         silo_data['isim'], 
                         silo_data, 
                         tavli_ort, 
-                        kuru_ort
+                        kuru_ort  # YENİ PARAMETRE!
                     )
                     
                     if pdf_bytes:
@@ -189,113 +177,134 @@ def show_silo_card(silo_data):
                             key=f"dl_{safe_name}"
                         )
                 except Exception as e:
-                    st.error(f"Rapor oluşturma hatası: {e}")
+                    st.error(f"Rapor hatası: {e}")
 
 # --------------------------------------------------------------------------
-# ANA DASHBOARD EKRANI (ÇOK DİLLİ HALE GETİRİLDİ) ✅
+# ANA DASHBOARD
 # --------------------------------------------------------------------------
-def show():
-    """Ana Dashboard Görünümü - Modern ve Temiz Tasarım"""
+def show_dashboard():
+    """
+    OPTIMAL DASHBOARD - PROFESYONEL VERSİYON (REVİZE EDİLMİŞ)
+    - Finansal özet
+    - Akıllı uyarı sistemi
+    - Trend grafiği
+    - Kalite skorkart
+    - Silo kartları
+    """
     
-    # ===== HEADER VE YENİLEME BUTONU =====
-    col_h1, col_h2 = st.columns([3, 1])
+    # 1. ÜST KONTROL PANELİ (YENİLE BUTONU VE BAŞLIK)
+    col_title, col_refresh, col_info = st.columns([6, 1, 2])
     
-    with col_h1:
-        # ✅ ÇEVİRİ: Başlık
-        st.title(t('dash_header'))
+    with col_title:
+        st.markdown("<h2 style='color:#0B4F6C; margin:0;'>🏭 Fabrika Kontrol Merkezi</h2>", unsafe_allow_html=True)
     
-    with col_h2:
-        # ✅ ÇEVİRİ: Yenile Butonu
-        if st.button(f"🔄 {t('btn_refresh')}", use_container_width=True):
-            get_dashboard_data(force_refresh=True)
+    with col_refresh:
+        # Manuel Yenileme Butonu
+        if st.button("🔄 Yenile", use_container_width=True):
+            st.cache_data.clear() # Streamlit cache temizle
+            get_dashboard_data(force_refresh=True) # Session cache yenile
+            st.success("Güncellendi!")
+            time.sleep(0.5)
             st.rerun()
+            
+    with col_info:
+        # Son güncelleme bilgisini göster
+        if 'dashboard_last_update' in st.session_state:
+            last_up = st.session_state['dashboard_last_update'].strftime('%H:%M:%S')
+            st.caption(f"🕒 Son Güncelleme: {last_up}")
     
-    # Veri çekme
+    st.divider()
+
+    # 2. VERİLERİ GETİR (YENİ SÖZLÜK YAPISINDAN AYIKLA)
     data = get_dashboard_data()
     
-    if not data:
-        st.error("⚠️ Veri yüklenemedi. Lütfen bağlantıyı kontrol edin.")
-        return
-    
+    # Yeni sistemden gelen veriyi eski değişken isimlerine ata
+    # Böylece alt satırlardaki kodlar bozulmaz.
     df_silo = data.get('silolar', pd.DataFrame())
     df_hareket = data.get('hareketler', pd.DataFrame())
     
+    # Veri Kontrolü
     if df_silo.empty:
-        st.warning("📭 Gösterilecek silo verisi bulunamadı.")
+        st.warning("⚠️ Henüz silo tanımlanmamış veya veri çekilemedi. Yönetim Paneli'nden silo ekleyin.")
         return
-    
-    # ===== 1. ÖZET METRİKLER (KPI KARTLARI) =====
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
+
+    # ===== 3. ÜST YÖNETİCİ ŞERİDİ (FİNANS + STOK ÖMRÜ + 24 SAAT) =====
+    with st.container(border=True):
+        col_fin, col_sim, col_24h = st.columns([1, 1.5, 1])
+        
         toplam_stok = df_silo['mevcut_miktar'].sum()
-        st.metric(
-            label="📦 Toplam Stok", 
-            value=f"{toplam_stok:,.0f} Ton"
-        )
-    
-    with col2:
-        # ✅ ÇEVİRİ: Stok Değeri
-        stok_degeri = (df_silo['mevcut_miktar'] * df_silo['maliyet']).sum()
-        st.metric(
-            label=f"💰 {t('dash_stock_value')}", 
-            value=f"{stok_degeri:,.0f} {t('lbl_currency').split('/')[0]}"
-        )
-    
-    with col3:
-        # ✅ ÇEVİRİ: Ortalama Maliyet
-        if toplam_stok > 0:
-            ort_maliyet = stok_degeri / toplam_stok
-            st.metric(
-                label=f"💵 {t('dash_avg_cost')}", 
-                value=f"{ort_maliyet:.2f} {t('lbl_currency')}"
-            )
-        else:
-            st.metric(label=f"💵 {t('dash_avg_cost')}", value="0.00")
-    
-    with col4:
-        # ✅ ÇEVİRİ: Stok Ömrü (Kalan Süre)
-        gunluk_kirma = 150  # Config'den alınabilir
-        kalan_gun = int(toplam_stok / gunluk_kirma) if gunluk_kirma > 0 else 0
-        st.metric(
-            label=f"⏳ {t('dash_stock_life')}", 
-            value=f"{kalan_gun} Gün"
-        )
-    
+        toplam_deger = (df_silo['mevcut_miktar'] * df_silo['maliyet'] * 1000).sum()
+        
+        with col_fin:
+            st.markdown("### 💰 Finans")
+            st.metric("Stok Değeri", f"{toplam_deger/1_000_000:.2f}M ₺")
+            avg_maliyet = (toplam_deger / (toplam_stok * 1000)) if toplam_stok > 0 else 0
+            st.metric("Ort. Maliyet", f"{avg_maliyet:.2f} TL/Kg")
+            
+        with col_sim:
+            st.markdown("### ⏳ Stok Ömrü")
+            gunluk = st.number_input("Günlük Kırma (Ton)", value=80, step=10, key="dashboard_gunluk_kirma")
+            if gunluk > 0:
+                omur = toplam_stok / gunluk
+                st.metric("Kalan Süre", f"{omur:.1f} Gün")
+                st.progress(min(1.0, omur/30))
+            else:
+                st.metric("Kalan Süre", "N/A")
+                
+        with col_24h:
+            st.markdown("### 🚛 Son 24 Saat")
+            # Son 24 saatteki hareketler
+            if not df_hareket.empty and 'tarih' in df_hareket.columns:
+                try:
+                    df_hareket['tarih'] = pd.to_datetime(df_hareket['tarih'], errors='coerce')
+                    son_24h = df_hareket[df_hareket['tarih'] >= (datetime.now() - timedelta(hours=24))]
+                    
+                    giris_24h = son_24h[son_24h['hareket_tipi'] == 'Giriş']['miktar'].sum()
+                    cikis_24h = son_24h[son_24h['hareket_tipi'] == 'Çıkış']['miktar'].sum()
+                    
+                    st.metric("Giriş", f"{giris_24h:.1f} T", delta=f"+{giris_24h:.1f}")
+                    st.metric("Çıkış", f"{cikis_24h:.1f} T", delta=f"-{cikis_24h:.1f}")
+                except:
+                     st.metric("Veri Hatası", "-")
+            else:
+                st.metric("Hareket Yok", "-")
+
     st.divider()
-    
-    # ===== 2. AKILLI UYARI SİSTEMİ =====
-    # ✅ ÇEVİRİ: Uyarı Sistemi Başlığı
-    st.subheader(t('dash_alert_title'))
+
+    # ===== 2. AKILLI UYARI SİSTEMİ (ÜST KISIM) =====
+    st.subheader("⚠️ Akıllı Uyarı Sistemi")
     
     uyarilar = []
     
-    for idx, silo in df_silo.iterrows():
+    for _, silo in df_silo.iterrows():
         kapasite = float(silo.get('kapasite', 1))
         mevcut = float(silo.get('mevcut_miktar', 0))
-        doluluk_oran = mevcut / kapasite if kapasite > 0 else 0
+        
+        if kapasite > 0:
+            doluluk = mevcut / kapasite
+            
+            # Taşma riski
+            if doluluk > 0.95:
+                uyarilar.append({
+                    'tip': 'critical',
+                    'mesaj': f"🔴 **{silo['isim']}**: Kapasite %{doluluk*100:.0f} - TAŞMA RİSKİ!"
+                })
+            elif doluluk > 0.85:
+                uyarilar.append({
+                    'tip': 'warning',
+                    'mesaj': f"🟡 **{silo['isim']}**: Kapasite %{doluluk*100:.0f} - Yakında dolacak"
+                })
+            
+            # Düşük stok uyarısı
+            if doluluk < 0.15 and mevcut > 0:
+                uyarilar.append({
+                    'tip': 'info',
+                    'mesaj': f"🔵 **{silo['isim']}**: Stok azalıyor (%{doluluk*100:.0f})"
+                })
+        
+        # Kalite uyarıları
         protein = float(silo.get('protein', 0))
-        
-        # Kapasite Uyarıları
-        if doluluk_oran >= DASHBOARD_CONFIG['CRITICAL_CAPACITY']:
-            uyarilar.append({
-                'tip': 'critical',
-                'mesaj': f"🔴 **{silo['isim']}**: Kapasite doldu! (%{doluluk_oran*100:.0f})"
-            })
-        elif doluluk_oran >= DASHBOARD_CONFIG['WARNING_CAPACITY']:
-            uyarilar.append({
-                'tip': 'warning',
-                'mesaj': f"🟡 **{silo['isim']}**: Kapasite yüksek (%{doluluk_oran*100:.0f})"
-            })
-        elif doluluk_oran <= DASHBOARD_CONFIG['LOW_STOCK_CAPACITY']:
-            # ✅ ÇEVİRİ: Düşük Stok Uyarısı
-            uyarilar.append({
-                'tip': 'info',
-                'mesaj': f"🔵 **{silo['isim']}**: {t('msg_stock_low')} (%{doluluk_oran*100:.0f})"
-            })
-        
-        # Protein Uyarısı
-        if protein > 0 and protein < DASHBOARD_CONFIG['TARGET_PROTEIN']:
+        if protein > 0 and protein < 11.5:
             uyarilar.append({
                 'tip': 'warning',
                 'mesaj': f"🟡 **{silo['isim']}**: Düşük protein ({protein:.1f}%)"
@@ -332,12 +341,11 @@ def show():
     col_trend, col_quality = st.columns([2, 1])
     
     with col_trend:
-        # ✅ ÇEVİRİ: Stok Hareketi Başlığı
-        st.subheader(t('dash_stock_move_7d'))
+        st.subheader("📈 Son 7 Günlük Stok Hareketi")
         
         if not df_hareket.empty and 'tarih' in df_hareket.columns:
             # Son 7 günü filtrele
-            son_7gun = df_hareket[df_hareket['tarih'] >= (datetime.now() - timedelta(days=DASHBOARD_CONFIG['RECENT_DAYS']))].copy()
+            son_7gun = df_hareket[df_hareket['tarih'] >= (datetime.now() - timedelta(days=7))].copy()
             
             if not son_7gun.empty:
                 # Günlük toplam giriş/çıkış
@@ -363,18 +371,17 @@ def show():
                     
                     fig = go.Figure()
                     
-                    # ✅ ÇEVİRİ: Grafik Legend
                     fig.add_trace(go.Bar(
                         x=gunluk['Tarih_Formatli'],
                         y=gunluk['Giriş'],
-                        name=t('dash_input'),
+                        name='Giriş',
                         marker_color='#4CAF50'
                     ))
                     
                     fig.add_trace(go.Bar(
                         x=gunluk['Tarih_Formatli'],
                         y=gunluk['Çıkış'],
-                        name=t('dash_output'),
+                        name='Çıkış',
                         marker_color='#F44336'
                     ))
                     
@@ -454,9 +461,8 @@ def show():
 
     st.divider()
 
-    # ===== 5. ANLIK SİLO DURUMU =====
-    # ✅ ÇEVİRİ: Anlık Silo Durumu Başlığı
-    st.subheader(t('dash_live_status'))
+    # ===== 5. ANLIK SİLO DURUMU (YENİ VERİ YAPISI İLE) =====
+    st.subheader("🏭 Anlık Silo Durumu")
     
     # Veri setindeki silo sayısını al
     num_silos = len(df_silo)
@@ -473,4 +479,7 @@ def show():
     else:
         st.info("📭 Gösterilecek aktif silo verisi bulunamadı.")
 
-show_dashboard = show
+
+
+
+
