@@ -19,6 +19,14 @@ DICTIONARY = {
     "login_error": {"TR": "❌ Hatalı kullanıcı adı veya şifre!", "EN": "❌ Invalid username or password!", "FR": "❌ Nom d'utilisateur ou mot de passe incorrect !", "RU": "❌ Неверное имя пользователя или пароль!"},
     "login_welcome": {"TR": "Hoşgeldiniz", "EN": "Welcome", "FR": "Bienvenue", "RU": "Добро пожаловать"},
 
+    # --- LİSANS SİSTEMİ ÇEVİRİLERİ ---
+    "license_active": {"TR": "LİSANS AKTİF", "EN": "LICENSE ACTIVE", "FR": "LICENCE ACTIVE", "RU": "ЛИЦЕНЗИЯ АКТИВНА"},
+    "license_expired": {"TR": "LİSANS SÜRESİ DOLDU!", "EN": "LICENSE EXPIRED!", "FR": "LICENCE EXPIRÉE!", "RU": "СРОК ЛИЦЕНЗИИ ИСТЕК!"},
+    "license_warning": {"TR": "Lisans Süreniz Dolmak Üzere!", "EN": "License Expiring Soon!", "FR": "La licence expire bientôt!", "RU": "Срок лицензии истекает!"},
+    "days_left": {"TR": "Kalan Gün", "EN": "Days Left", "FR": "Jours Restants", "RU": "Осталось дней"},
+    "contact_support": {"TR": "Lütfen sistem yöneticisi ile iletişime geçin.", "EN": "Please contact system administrator.", "FR": "Contactez l'administrateur.", "RU": "Свяжитесь с администратором."},
+    "license_id": {"TR": "Lisans ID", "EN": "License ID", "FR": "ID Licence", "RU": "ID Лицензии"},
+
     # --- GENEL ---
     "logout": {"TR": "Çıkış Yap", "EN": "Logout", "FR": "Déconnexion", "RU": "Выйти"},
     "select": {"TR": "Seçiniz", "EN": "Select", "FR": "Sélectionner", "RU": "Выбрать"},
@@ -148,4 +156,5 @@ def t(key):
             return f"[{key}]"
     except Exception:
         return key
+
 
