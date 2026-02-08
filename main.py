@@ -150,40 +150,6 @@ if not st.session_state.logged_in:
                         st.error(err_txt)
     st.stop()
 # --- ANA UYGULAMA ---
-# --- MAIN.PY İÇİNE EKLENECEK KOD ---
-
-# Sidebar'ın en altına lisans bilgisini sabitleyelim
-with st.sidebar:
-    st.divider() # Çizgi çekip ayırır
-    
-    # Lisans Durumu Başlığı
-    st.caption("🔑 LİSANS DURUMU")
-    
-    # Duruma göre renkli gösterim
-    if status == 'warning':
-        # Süre azaldıysa Kırmızı/Turuncu uyarı kutusu
-        st.error(f"⏳ {t('days_left')}: {days_left} Gün")
-        st.caption(f"⚠️ {msg}")
-    else:
-        # Sorun yoksa Yeşil bilgi kutusu
-        st.success(f"✅ {t('license_active')}")
-        
-        # Kalan gün sayısı (İlerleme çubuğu ile görselleştirme)
-        # 365 günlük bir lisans varsayımıyla bar doluluğunu ayarlayalım
-        total_days = 365 
-        progress = min(1.0, days_left / total_days)
-        st.progress(progress)
-        
-        col_l1, col_l2 = st.columns(2)
-        with col_l1:
-            st.caption(t('days_left'))
-        with col_l2:
-            st.markdown(f"**{days_left}**")
-
-    # Müşteri Bilgisi (Footer gibi)
-    st.caption(f"🏢 {LICENSE_CONFIG['CLIENT_NAME']}")
-    st.caption("v1.0.0 Enterprise")
-
 with st.sidebar:
     # 0. Marka
     col_brand1, col_brand2 = st.columns([1, 4])
@@ -422,6 +388,7 @@ elif selected_page == "ADMIN":
 elif selected_page == "PROFILE":
     st.markdown("### 👤 Profil ve Kullanıcı Ayarları")
     show_profile_settings() # auth.py içindeki genel profil fonksiyonu
+
 
 
 
