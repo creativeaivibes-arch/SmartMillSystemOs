@@ -472,3 +472,5 @@ def show():
                         show_silo_card(df_silo.iloc[i + j])
     else:
         st.info("📭 Gösterilecek aktif silo verisi bulunamadı.")
+
+show_dashboard = show
