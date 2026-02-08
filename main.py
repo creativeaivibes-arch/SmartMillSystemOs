@@ -16,7 +16,7 @@ from app.core.styles import load_css
 from app.core.database import init_db
 from app.core.auth import check_password, do_logout, ROLES, show_profile_settings
 from app.core.config import SESSION_TIMEOUT_SECONDS
-from app.core.license_manager import check_license, show_license_lock_screen
+from app.core.license_manager import check_license, show_license_lock_screen, LICENSE_CONFIG
 
 # Modül İmportları
 import app.modules.dashboard as dashboard
@@ -388,6 +388,36 @@ elif selected_page == "ADMIN":
 elif selected_page == "PROFILE":
     st.markdown("### 👤 Profil ve Kullanıcı Ayarları")
     show_profile_settings() # auth.py içindeki genel profil fonksiyonu
+
+# --- SIDEBAR LİSANS BİLGİSİ (DOSYANIN EN SONUNA EKLE) ---
+with st.sidebar:
+    st.divider() # Ayırıcı çizgi
+    
+    # Başlık ve Lisans Anahtarı
+    st.caption(f"🔑 {t('license_id')}: {LICENSE_CONFIG.get('LICENSE_KEY', 'DEMO')}")
+    
+    # Duruma göre Renkli Bilgi Kutusu
+    if status == 'warning':
+        st.error(f"⏳ {t('days_left')}: {days_left}")
+        st.caption(f"⚠️ {msg}")
+    else:
+        # Yeşil kutu
+        st.success(f"✅ {t('license_active')}")
+        
+        # İlerleme Çubuğu (Bar)
+        # Barın doluluk oranını hesapla (Maks 365 gün üzerinden görselleştirme)
+        progress_bar = min(1.0, max(0.0, days_left / 365))
+        st.progress(progress_bar)
+        
+        # Kalan Gün Yazısı
+        c1, c2 = st.columns([2, 1])
+        c1.caption(f"{t('days_left')}:")
+        c2.write(f"**{days_left}**")
+    
+    # En Alt Footer (Marka Bilgisi)
+    st.caption(f"🏢 {LICENSE_CONFIG.get('CLIENT_NAME', 'Client')}")
+    st.caption("v2.0 Enterprise Edition")
+
 
 
 
