@@ -45,22 +45,22 @@ def get_silo_data():
 
 @st.cache_data(ttl=60)
 def get_pacal_history():
-    
     try:
-        df = fetch_data("pacal_kayitlari")
+        # Traceability için yeni tabloya geçtik
+        df = fetch_data("mixing_batches") 
         
         if df.empty:
             return pd.DataFrame()
             
-        # Tarihe göre sırala
         if 'tarih' in df.columns:
             df['tarih'] = pd.to_datetime(df['tarih'])
             df = df.sort_values('tarih', ascending=False)
             
         return df
     except Exception as e:
-        st.error(f"⚠️ Paçal geçmişi yüklenirken hata: {str(e)}") # <--- HATA GÖSTERİMİ EKLENDİ
+        st.error(f"⚠️ Geçmiş yüklenirken hata: {str(e)}")
         return pd.DataFrame()
+        
 def get_tavli_analiz_agirlikli_ortalama(silo_isim):
     """Silo için tüm tavlı analizlerin tonaj ağırlıklı ortalamasını hesapla - GOOGLE SHEETS UYUMLU"""
     try:
@@ -646,6 +646,7 @@ def show_pacal_gecmisi():
                 <h3>Lütfen detaylarını görmek için<br>soldaki listeden bir paçal seçiniz.</h3>
             </div>
             """, unsafe_allow_html=True)
+
 
 
 
