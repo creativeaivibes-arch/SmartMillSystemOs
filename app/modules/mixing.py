@@ -364,7 +364,7 @@ def show_pacal_hesaplayici():
                                         st.rerun()
                                     else:
                                         st.error("Veritabanı hatası oluştu.")
-                                except Exception as e
+                                except Exception as e:
                                     st.error(f"Kayıt Hatası: {e}")
                 else:
                     st.info("ℹ️ Toplam oranı %100 yapınca sonuçlar görünecek")
@@ -422,6 +422,7 @@ def show_pacal_gecmisi():
                     m3.metric("Maliyet", f"{row.get('maliyet',0):.2f} TL")
                 except:
                     st.write("-")
+
 
 
 
