@@ -11,6 +11,36 @@ try:
 except ImportError:
     pass
 
+def get_active_mixing_batches():
+    """Paçal (Reçete) listesini dropdown için hazırlar"""
+    try:
+        # mixing_batches tablosundan veriyi çek
+        df = fetch_data("mixing_batches")
+        if df.empty:
+            return []
+        
+        # Tarihe göre sırala (En yeni en üstte)
+        if 'tarih' in df.columns:
+            df['tarih'] = pd.to_datetime(df['tarih'])
+            df = df.sort_values('tarih', ascending=False)
+        
+        # Dropdown listesi hazırla
+        batch_list = []
+        for _, row in df.iterrows():
+            # Tarihi kısa formata çevir
+            if isinstance(row['tarih'], pd.Timestamp):
+                tarih_kisa = row['tarih'].strftime('%d.%m %H:%M')
+            else:
+                tarih_kisa = str(row['tarih'])[:16]
+                
+            # Görünen Format: "Lüks Ekmeklik | 09.02 14:30 | ID: MIX-..."
+            label = f"{row.get('urun_adi', 'Paçal')} | {tarih_kisa} | {row.get('batch_id')}"
+            batch_list.append(label)
+            
+        return batch_list
+    except Exception as e:
+        return []
+
 def save_uretim_kaydi(uretim_tarihi, uretim_hatti, uretim_adi, vardiya, sorumlu, **uretim_degerleri):
     """Üretim kaydını Google Sheets'e kaydet"""
     
@@ -730,6 +760,7 @@ def show_production_yonetimi():
     elif secim == "📊 Üretim Performans Analizi":
         with st.container(border=True):
             show_yonetim_dashboard()
+
 
 
 
