@@ -15,6 +15,13 @@ CACHE_DURATIONS = {
     'bugday_spekleri': 300,  # Spesifikasyonlar 5 dakika cache (az değişir)
     'kullanicilar': 600,     # Kullanıcılar 10 dakika cache (çok az değişir)
     'default': 30            # Diğer tüm tablolar için varsayılan
+
+    # --- KARA KUTU İÇİN YENİ EKLENENLER ---
+    'mixing_batches': 60,    # Paçalın "Dondurulmuş" fotoğrafı (Snapshot)
+    'production_lots': 60,   # Üretim -> Paçal bağlantısı
+    'shipments': 60,         # Sevkiyat -> Lot bağlantısı
+    
+    'default': 30    
 }
 
 def get_conn():
@@ -253,4 +260,5 @@ def delete_rows_by_filter(worksheet_name, filter_dict):
         
     except Exception as e:
         return False, f"Hata: {str(e)}", 0
+
 
