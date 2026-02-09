@@ -25,7 +25,31 @@ FLOUR_CONFIG = {
     'DATE_FORMAT_DB': '%Y-%m-%d %H:%M:%S',
     'DATE_FORMAT_DISPLAY': '%d.%m.%Y %H:%M'
 }
-    
+
+
+# --- YENİ EKLENEN HELPER ---
+def get_active_production_lots():
+    """Üretim modülünden (uretim_kaydi) parti numaralarını çeker"""
+    try:
+        df = fetch_data("uretim_kaydi")
+        if df.empty: 
+            return []
+        
+        # Tarihe göre sırala (En yeni en üstte)
+        if 'tarih' in df.columns:
+            df['tarih'] = pd.to_datetime(df['tarih'])
+            df = df.sort_values('tarih', ascending=False)
+            
+        lot_list = []
+        for _, row in df.iterrows():
+            # Görünüm: PRD-2026... | Ekmeklik | 10.02 14:00
+            tarih_str = row['tarih'].strftime('%d.%m %H:%M') if pd.notnull(row['tarih']) else "-"
+            label = f"{row.get('parti_no', '?')} | {row.get('degirmen_uretim_adi', '-')} | {tarih_str}"
+            lot_list.append(label)
+            
+        return lot_list
+    except Exception as e:
+        return []
 
 def get_un_maliyet_gecmisi():
     """Maliyet geçmişini döndür"""
@@ -1264,6 +1288,7 @@ def show_flour_yonetimi():
                 st.error("⚠️ Enzim modülü (calculations.py) bulunamadı.")
             except Exception as e:
                 st.error(f"⚠️ Modül yüklenirken hata oluştu: {e}")
+
 
 
 
