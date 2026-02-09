@@ -12,16 +12,15 @@ CACHE_DURATIONS = {
     'hareketler': 60,        # Hareketler 60 saniye cache
     'tavli_analiz': 60,      # Tavlı analizler 60 saniye cache
     'bugday_giris_arsivi': 60,  # Arşiv 60 saniye cache
-    'bugday_spekleri': 300,  # Spesifikasyonlar 5 dakika cache (az değişir)
-    'kullanicilar': 600,     # Kullanıcılar 10 dakika cache (çok az değişir)
-    'default': 30            # Diğer tüm tablolar için varsayılan
-
+    'bugday_spekleri': 300,  # Spesifikasyonlar 5 dakika cache
+    'kullanicilar': 600,     # Kullanıcılar 10 dakika cache
+    
     # --- KARA KUTU İÇİN YENİ EKLENENLER ---
     'mixing_batches': 60,    # Paçalın "Dondurulmuş" fotoğrafı (Snapshot)
     'production_lots': 60,   # Üretim -> Paçal bağlantısı
     'shipments': 60,         # Sevkiyat -> Lot bağlantısı
     
-    'default': 30    
+    'default': 30            # Diğer tüm tablolar için varsayılan
 }
 
 def get_conn():
@@ -260,5 +259,6 @@ def delete_rows_by_filter(worksheet_name, filter_dict):
         
     except Exception as e:
         return False, f"Hata: {str(e)}", 0
+
 
 
