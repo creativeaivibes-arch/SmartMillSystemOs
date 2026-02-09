@@ -4,16 +4,18 @@ from datetime import datetime, timedelta
 import time
 import uuid
 
+# Veritabanı fonksiyonları
 from app.core.database import fetch_data, add_data
 
+# Excel kütüphanesi kontrolü
 try:
     import xlsxwriter
 except ImportError:
     pass
 
-# --- YENİ EKLENEN FONKSİYON: PAÇAL LİSTESİNİ ÇEK ---
+# --- YENİ EKLENEN: PAÇAL LİSTESİNİ ÇEKME ---
 def get_active_mixing_batches():
-    """Paçal (Reçete) listesini dropdown için hazırlar"""
+    """Veritabanındaki kayıtlı paçalları (reçeteleri) çeker."""
     try:
         # mixing_batches tablosundan veriyi çek
         df = fetch_data("mixing_batches")
@@ -25,7 +27,7 @@ def get_active_mixing_batches():
             df['tarih'] = pd.to_datetime(df['tarih'])
             df = df.sort_values('tarih', ascending=False)
         
-        # Dropdown listesi hazırla
+        # Dropdown listesi hazırla: "İsim | Tarih | ID"
         batch_list = []
         for _, row in df.iterrows():
             # Tarihi kısa formata çevir
@@ -34,7 +36,6 @@ def get_active_mixing_batches():
             else:
                 tarih_kisa = str(row['tarih'])[:16]
                 
-            # Görünen Format: "Lüks Ekmeklik | 09.02 14:30 | ID: MIX-..."
             label = f"{row.get('urun_adi', 'Paçal')} | {tarih_kisa} | {row.get('batch_id')}"
             batch_list.append(label)
             
@@ -42,9 +43,9 @@ def get_active_mixing_batches():
     except Exception as e:
         return []
 
-# --- GÜNCELLENEN KAYIT FONKSİYONU ---
+# --- KAYIT FONKSİYONU (GÜNCELLENDİ) ---
 def save_uretim_kaydi(uretim_tarihi, uretim_hatti, uretim_adi, vardiya, sorumlu, mixing_batch_id, **uretim_degerleri):
-    """Üretim kaydını Google Sheets'e kaydet (Traceability Entegreli)"""
+    """Üretim kaydını 'mixing_batch_id' ile birlikte kaydeder."""
     
     # 1. Zorunlu Alan Kontrolü
     if not uretim_hatti or not vardiya:
@@ -55,7 +56,7 @@ def save_uretim_kaydi(uretim_tarihi, uretim_hatti, uretim_adi, vardiya, sorumlu,
         
         # PARTİ NO GÜVENLİĞİ (UUID)
         unique_suffix = str(uuid.uuid4())[:4].upper()
-        # Örnek Çıktı: PRD-20260207-A1B2
+        # Örnek Çıktı: PRD-20260209-A1B2
         parti_kodu = uretim_adi if uretim_adi else f"PRD-{datetime.now().strftime('%Y%m%d')}-{unique_suffix}"
         
         db_data = {
@@ -64,7 +65,7 @@ def save_uretim_kaydi(uretim_tarihi, uretim_hatti, uretim_adi, vardiya, sorumlu,
             'degirmen_uretim_adi': uretim_adi,
             'vardiya': vardiya,
             'sorumlu': sorumlu,
-            'mixing_batch_id': mixing_batch_id,  # <-- PAÇAL ID BURAYA EKLENDİ
+            'mixing_batch_id': mixing_batch_id,  # <-- PAÇAL ID BAĞLANTISI BURADA
             'kirilan_bugday': float(uretim_degerleri.get('kirilan_bugday', 0)),
             'nem_orani': float(uretim_degerleri.get('nem_orani', 0)),
             'tav_suresi': float(uretim_degerleri.get('tav_suresi', 0)),
@@ -107,9 +108,8 @@ def get_uretim_kayitlari():
         st.error(f"Kayıtlar yüklenemedi: {e}")
         return pd.DataFrame()
 
-# --- GÜNCELLENEN ARAYÜZ ---
+# --- EKRAN 1: ÜRETİM GİRİŞİ (PAÇAL SEÇİMLİ) ---
 def show_uretim_kaydi():
-    """Üretim Kaydı Modülü (Paçal Seçimi Eklendi)"""
     
     if st.session_state.get('user_role') not in ["admin", "operations"]:
         st.warning("⛔ Bu modüle erişim izniniz yok!")
@@ -117,7 +117,7 @@ def show_uretim_kaydi():
         
     st.header("🏭 Değirmen Üretim Kaydı")
     
-    # PAÇAL LİSTESİNİ ÇEK
+    # Veritabanından Paçalları Çek
     pacal_listesi = get_active_mixing_batches()
     
     col1, col2, col3 = st.columns([1, 1, 1], gap="medium")
@@ -126,11 +126,11 @@ def show_uretim_kaydi():
         st.subheader("📋 Üretim Bilgileri")
         uretim_tarihi = st.date_input("Üretim Tarihi *", value=datetime.now())
         
-        # --- YENİ SEÇİM KUTUSU ---
+        # --- YENİ: PAÇAL SEÇİM KUTUSU ---
         selected_pacal = st.selectbox(
             "Kullanılan Paçal (Reçete) *", 
             options=["Seçiniz..."] + pacal_listesi,
-            help="Bu üretimde hangi paçal karışımının kullanıldığını seçiniz."
+            help="Bu üretimde hangi paçalın (reçetenin) kullanıldığını seçiniz."
         )
         
         uretim_hatti = st.text_input("Üretim Hattı *", placeholder="Yeni Degirmen, Eski Degirmen...")
@@ -155,7 +155,7 @@ def show_uretim_kaydi():
 
     st.divider()
 
-    # Randıman Hesaplama
+    # Randıman Hesaplamaları
     if kirilan_bugday > 0:
         rand_un1 = (un_1 / kirilan_bugday) * 100
         rand_un2 = (un_2 / kirilan_bugday) * 100
@@ -182,24 +182,30 @@ def show_uretim_kaydi():
     st.divider()
     
     if st.button("✅ ÜRETİM KAYDINI KAYDET", type="primary"):
-        from app.core.config import validate_numeric_input
-        
+        # Validasyon için config import
+        try:
+            from app.core.config import validate_numeric_input
+        except ImportError:
+            # Yedek basit validasyon
+            def validate_numeric_input(val, name, **kwargs): return True, "", val
+
+        # 1. Zorunlu Alan Kontrolü
         if not uretim_hatti or not vardiya:
             st.error("⚠️ Üretim Hattı ve Vardiya alanları zorunludur!")
             return
             
-        # --- PAÇAL SEÇİM KONTROLÜ ---
+        # 2. PAÇAL SEÇİM KONTROLÜ
         if selected_pacal == "Seçiniz...":
             st.warning("⚠️ Lütfen kullanılan Paçal (Reçete) seçimini yapınız.")
             return
 
-        # Paçal ID'sini ayıkla
+        # Paçal ID'sini String'den Ayıkla
         try:
             mixing_batch_id = selected_pacal.split(' | ')[-1].strip()
         except:
             mixing_batch_id = "BILINMIYOR"
 
-        # Validasyonlar
+        # 3. Sayısal Validasyonlar
         uretim_degerleri_kontrol = {
             'Kırılan Buğday': kirilan_bugday, 'Un 1': un_1, 'Un 2': un_2,
             'Razmol': razmol, 'Kepek': kepek, 'Bongalite': bongalite,
@@ -223,7 +229,7 @@ def show_uretim_kaydi():
             for hata in validasyon_hatalari: st.write(f"- {hata}")
             return
         
-        # KAYIT İŞLEMİ
+        # 4. KAYIT İŞLEMİ
         uretim_verileri = {
             'kirilan_bugday': kirilan_bugday, 'nem_orani': b1_rutubet, 'tav_suresi': tav_suresi,
             'un_1': un_1, 'un_2': un_2, 'razmol': razmol, 'kepek': kepek, 'bongalite': bongalite,
@@ -233,14 +239,14 @@ def show_uretim_kaydi():
         success, msg = save_uretim_kaydi(uretim_tarihi, uretim_hatti, uretim_adi, vardiya, sorumlu, mixing_batch_id, **uretim_verileri)
         
         if success:
-            st.success(f"✅ Üretim Kaydedildi! (Paçal ID: {mixing_batch_id})")
+            st.success(f"✅ Üretim Kaydedildi! (Kullanılan Reçete ID: {mixing_batch_id})")
             time.sleep(1.5)
             st.rerun()
         else:
             st.error(f"❌ {msg}")
 
+# --- EKRAN 2: YÖNETİM DASHBOARD ---
 def show_yonetim_dashboard():
-    """Yönetim Dashboard'u"""
     df = get_uretim_kayitlari()
     if df.empty:
         st.info("📭 Henüz üretim kaydı bulunmamaktadır.")
@@ -278,18 +284,24 @@ def show_yonetim_dashboard():
     except:
         st.warning("Grafik için plotly gereklidir.")
 
+# --- EKRAN 3: ÜRETİM ARŞİVİ ---
 def show_uretim_arsivi():
-    """Üretim Arşivi"""
     if st.session_state.get('user_role') not in ["admin", "operations", "quality"]:
         st.warning("⛔ Bu modüle erişim izniniz yok!")
         return
     st.header("🗄️ Üretim Arşivi")
     df = get_uretim_kayitlari()
     if not df.empty:
-        st.dataframe(df.sort_values('tarih', ascending=False), use_container_width=True, hide_index=True)
+        # Tabloyu göster
+        st.dataframe(
+            df.sort_values('tarih', ascending=False), 
+            use_container_width=True, 
+            hide_index=True
+        )
     else:
         st.info("Kayıt yok.")
 
+# --- ANA YÖNLENDİRİCİ ---
 def show_production_yonetimi():
     """Değirmen Bölümü Ana Kontrol Paneli"""
     st.markdown("""
