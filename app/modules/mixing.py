@@ -327,36 +327,45 @@ def show_pacal_hesaplayici():
                         
                         urun_adi = st.text_input("Üretim Adı / Kod")
                         
-                        if st.button("✅ Paçalı Kaydet", type="primary"):
-                            if urun_adi.strip():
+                        st.success("✅ Reçete Kayda Hazır")
+                        urun_adi = st.text_input("Reçete Adı (Örn: Lüks Ekmeklik)", placeholder="Üretilecek Un Cinsini Yazınız")
+                        if st.button("💾 PAÇALI KAYDET (TRACEABILITY)", type="primary"):
+                            if not urun_adi:
+                                st.error("Lütfen bir isim giriniz.")
+                            else:
                                 try:
-                                    # --- GÜNCELLEME: UUID İLE GÜVENLİ ID ---
-                                    # PCL-20260207-A1B2 formatında okunabilir ve benzersiz ID
+                                    # 1. Benzersiz Traceability ID Oluştur (MIX-2026...)
+                                    date_str = datetime.now().strftime('%Y%m%d')
                                     unique_suffix = str(uuid.uuid4())[:4].upper()
-                                    unique_id_str = f"PCL-{datetime.now().strftime('%Y%m%d')}-{unique_suffix}"
-                                    
-                                    kayit_verisi = {'maliyet': paçal_maliyeti, **analiz_sonuclari}
-                                    
-                                    data_to_save = {
-                                        'id': unique_id_str, 
-                                        'tarih': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                                        'urun_adi': urun_adi.strip(),
-                                        'silo_oranlari_json': json.dumps(oranlar, ensure_ascii=False),
-                                        'sonuc_analizleri_json': json.dumps(kayit_verisi, ensure_ascii=False)
+                                    batch_id = f"MIX-{date_str}-{unique_suffix}"
+                                    # 2. SNAPSHOT AL (Silonun O Anki Durumunu Dondur)
+                                    silo_snapshot = {}
+                                    for s_isim, s_oran in oranlar.items():
+                                        if s_oran > 0:
+                                            silo_snapshot[s_isim] = {
+                                                "oran": s_oran,
+                                                "analiz_degerleri": tavli_analizler.get(s_isim, {})
+                                            } 
+                                    # 3. Veritabanı Formatı
+                                    kayit_verisi = {
+                                        "batch_id": batch_id,
+                                        "tarih": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                        "operator": st.session_state.get('username', 'Unknown'),
+                                        "urun_adi": urun_adi.strip(),
+                                        "silo_snapshot_json": json.dumps(silo_snapshot, ensure_ascii=False),
+                                        "analiz_snapshot_json": json.dumps(analiz_sonuclari, ensure_ascii=False),
+                                        "maliyet": paçal_maliyeti
                                     }
-                                    
-                                    if add_data("pacal_kayitlari", data_to_save):
+                                    # 4. Yeni Tabloya Kaydet
+                                    if add_data("mixing_batches", kayit_verisi):
                                         st.cache_data.clear()
-                                        st.success("✅ Paçal kaydedildi!")
-                                        time.sleep(1)
+                                        st.success(f"✅ Paçal İzlenebilirlik Sistemine Kaydedildi! ID: {batch_id}")
+                                        time.sleep(1.5)
                                         st.rerun()
                                     else:
-                                        st.error("Kaydedilirken hata oluştu.")
-                                        
-                                except Exception as e:
-                                    st.error(f"Hata: {e}")
-                            else:
-                                st.error("Ürün adı giriniz.")
+                                        st.error("Veritabanı hatası oluştu.")
+                                except Exception as e
+                                    st.error(f"Kayıt Hatası: {e}")
                 else:
                     st.info("ℹ️ Toplam oranı %100 yapınca sonuçlar görünecek")
             else:
@@ -646,6 +655,7 @@ def show_pacal_gecmisi():
                 <h3>Lütfen detaylarını görmek için<br>soldaki listeden bir paçal seçiniz.</h3>
             </div>
             """, unsafe_allow_html=True)
+
 
 
 
