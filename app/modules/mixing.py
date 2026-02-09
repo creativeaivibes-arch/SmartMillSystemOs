@@ -374,66 +374,54 @@ def show_pacal_hesaplayici():
         st.error(f"Hata: {e}")
 
 def show_pacal_gecmisi():
-    """Paçal Geçmişi (Traceability Uyumlu Yeni Versiyon)"""
+    """Paçal Geçmişi - Traceability Uyumlu Yeni Versiyon"""
     st.header("📜 Paçal Arşivi (Traceability)")
     
-    # Yeni tablodan veriyi çek
     df = get_pacal_history()
     
     if df.empty:
-        st.info("📭 Henüz kayıtlı paçal bulunmamaktadır (mixing_batches tablosu boş).")
+        st.info("📭 Henüz kayıtlı paçal bulunmamaktadır (mixing_batches boş).")
         return
 
-    # Listeleme
+    # Tablo Gösterimi
     for idx, row in df.iterrows():
-        # Başlık: Ürün Adı | Tarih | ID
-        baslik = f"📦 {row.get('urun_adi','-')} | 📅 {row.get('tarih','-')} | ID: {row.get('batch_id','?')}"
-        
-        with st.expander(baslik):
+        # Başlıkta ID ve İsim Göster
+        with st.expander(f"📦 {row.get('urun_adi','-')} | {row.get('tarih','-')} | ID: {row.get('batch_id','?')}"):
             c1, c2 = st.columns(2)
             
-            # --- SOL: SİLO SNAPSHOT DETAYI ---
+            # Sol: Silo Detayları (Snapshot Çözümleme)
             with c1:
-                st.markdown("**🏗️ Paçal Anındaki Silo Durumu**")
+                st.caption("🏗️ Paçalın Yapıldığı Anki Silo Değerleri")
                 try:
-                    # Yeni JSON yapısını (Snapshot) çözümlüyoruz
                     snapshot = json.loads(row.get('silo_snapshot_json', '{}'))
                     temiz_veri = []
                     
                     for silo, data in snapshot.items():
-                        # Yeni format kontrolü: {'oran': 40, 'analiz_degerleri': {...}}
+                        # Yeni format kontrolü
                         if isinstance(data, dict):
                             oran = data.get('oran', 0)
-                            # O anki protein değerini çekiyoruz
                             prot = data.get('analiz_degerleri', {}).get('protein', '-')
-                            temiz_veri.append({
-                                "Silo": silo, 
-                                "Oran": f"%{oran}", 
-                                "Protein (O An)": prot
-                            })
+                            temiz_veri.append({"Silo": silo, "Oran": f"%{oran}", "Protein (O An)": prot})
                         else:
-                            # Eski kayıtlar varsa patlamasın diye önlem
+                            # Eski kayıtlar patlamasın diye
                             temiz_veri.append({"Silo": silo, "Oran": f"%{data}", "Protein": "?"})
                             
                     st.dataframe(pd.DataFrame(temiz_veri), hide_index=True)
-                except Exception as e:
-                    st.error(f"Veri okunamadı: {e}")
+                except:
+                    st.error("Veri okunamadı.")
             
-            # --- SAĞ: HEDEFLENEN ANALİZ ---
+            # Sağ: Sonuç Analizleri
             with c2:
-                st.markdown("**🧪 Hedeflenen Değerler**")
+                st.caption("🧪 Hedeflenen Paçal Sonucu")
                 try:
                     analiz = json.loads(row.get('analiz_snapshot_json', '{}'))
-                    
+                    # Hızlıca 3 kritik değeri gösterelim
                     m1, m2, m3 = st.columns(3)
                     m1.metric("Protein", f"{analiz.get('protein',0):.1f}")
                     m1.metric("Gluten", f"{analiz.get('gluten',0):.1f}")
-                    m3.metric("Maliyet", f"{float(row.get('maliyet',0)):.2f} TL")
-                    
-                    st.caption(f"Operator: {row.get('operator', '-')}")
+                    m3.metric("Maliyet", f"{row.get('maliyet',0):.2f} TL")
                 except:
                     st.write("-")
-
 
 
 
