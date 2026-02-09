@@ -88,7 +88,7 @@ def save_uretim_kaydi(uretim_tarihi, uretim_hatti, uretim_adi, vardiya, sorumlu,
     except Exception as e:
         return False, f"Sistem hatası: {str(e)}"
 def show_uretim_kaydi():
-    """Üretim Kaydı Modülü"""
+    """Üretim Kaydı Modülü (Traceability Updated)"""
     
     if st.session_state.get('user_role') not in ["admin", "operations"]:
         st.warning("⛔ Bu modüle erişim izniniz yok!")
@@ -96,13 +96,24 @@ def show_uretim_kaydi():
         
     st.header("🏭 Değirmen Üretim Kaydı")
     
+    # Paçal listesini veritabanından çek
+    pacal_listesi = get_active_mixing_batches()
+    
     col1, col2, col3 = st.columns([1, 1, 1], gap="medium")
     
     with col1:
         st.subheader("📋 Üretim Bilgileri")
         uretim_tarihi = st.date_input("Üretim Tarihi *", value=datetime.now())
+        
+        # --- YENİ: PAÇAL SEÇİMİ ---
+        selected_pacal = st.selectbox(
+            "Kullanılan Paçal (Reçete) *", 
+            options=["Seçiniz..."] + pacal_listesi,
+            help="Bu üretimde hangi paçal karışımının kullanıldığını seçiniz."
+        )
+        
         uretim_hatti = st.text_input("Üretim Hattı *", placeholder="Yeni Degirmen, Eski Degirmen...")
-        uretim_adi = st.text_input("Üretim Adı", placeholder="Ekmeklik, Pidelik...")
+        uretim_adi = st.text_input("Üretim Adı", placeholder="Lüks Ekmeklik (Otomatik Parti No için boş bırakın)")
         vardiya = st.text_input("Vardiya *", placeholder="08:00 - 18:00")
         sorumlu = st.text_input("Vardiya Sorumlusu")
         
@@ -125,6 +136,7 @@ def show_uretim_kaydi():
 
     st.subheader("📊 Randıman Hesaplamaları")
     
+    # Randıman hesaplama mantığı (Aynı kaldı)
     if kirilan_bugday > 0:
         rand_un1 = (un_1 / kirilan_bugday) * 100
         rand_un2 = (un_2 / kirilan_bugday) * 100
@@ -151,78 +163,60 @@ def show_uretim_kaydi():
     st.divider()
     
     if st.button("✅ ÜRETİM KAYDINI KAYDET", type="primary"):
-        # ===== VALİDASYON =====
         from app.core.config import validate_numeric_input
         
-        # Zorunlu alan kontrolü
+        # 1. Validasyonlar
         if not uretim_hatti or not vardiya:
             st.error("⚠️ Üretim Hattı ve Vardiya alanları zorunludur!")
             return
-        
-        # Üretim değerleri için validasyon
+            
+        # PAÇAL SEÇİM KONTROLÜ
+        if selected_pacal == "Seçiniz...":
+            st.warning("⚠️ Lütfen kullanılan Paçal (Reçete) seçimini yapınız.")
+            return
+
+        # Paçal ID'sini ayıkla (String parse işlemi)
+        # Format: "İsim | Tarih | ID" -> Son parçayı alıyoruz
+        try:
+            mixing_batch_id = selected_pacal.split(' | ')[-1].strip()
+        except:
+            mixing_batch_id = "BILINMIYOR"
+
+        # Üretim değerleri validasyonu
         uretim_degerleri_kontrol = {
-            'Kırılan Buğday': kirilan_bugday,
-            'Un 1': un_1,
-            'Un 2': un_2,
-            'Razmol': razmol,
-            'Kepek': kepek,
-            'Bongalite': bongalite,
-            'Kırık': kirik,
-            'Tav Süresi': tav_suresi
+            'Kırılan Buğday': kirilan_bugday, 'Un 1': un_1, 'Un 2': un_2,
+            'Razmol': razmol, 'Kepek': kepek, 'Bongalite': bongalite,
+            'Kırık': kirik, 'Tav Süresi': tav_suresi
         }
         
         validasyon_hatalari = []
-        
         for alan_adi, deger in uretim_degerleri_kontrol.items():
-            valid, msg, _ = validate_numeric_input(
-                deger, 
-                alan_adi.lower().replace(' ', '_'),
-                allow_zero=True,  # Sıfır kabul edilebilir (üretilmemiş olabilir)
-                allow_negative=False  # Negatif kabul edilmez
-            )
-            if not valid:
-                validasyon_hatalari.append(f"{alan_adi}: {msg}")
+            valid, msg, _ = validate_numeric_input(deger, alan_adi.lower().replace(' ', '_'), allow_zero=True, allow_negative=False)
+            if not valid: validasyon_hatalari.append(f"{alan_adi}: {msg}")
         
-        # Rutubet özel validasyonu (0-20 arası)
-        if b1_rutubet < 0 or b1_rutubet > 20:
-            validasyon_hatalari.append("B1 Buğday Rutubeti: %0-%20 arasında olmalıdır!")
+        if b1_rutubet < 0 or b1_rutubet > 20: validasyon_hatalari.append("B1 Buğday Rutubeti: %0-%20 arasında olmalıdır!")
         
-        # Mantıksal kontrol: Çıkan toplam ürün, girilen buğdaydan fazla olamaz
         if kirilan_bugday > 0:
             toplam_cikan = un_1 + un_2 + razmol + kepek + bongalite + kirik
-            if toplam_cikan > kirilan_bugday * 1.05:  # %5 tolerans
-                validasyon_hatalari.append(
-                    f"Toplam çıktı ({toplam_cikan:.0f} kg), "
-                    f"giren buğdaydan ({kirilan_bugday:.0f} kg) fazla olamaz!"
-                )
+            if toplam_cikan > kirilan_bugday * 1.05:
+                validasyon_hatalari.append(f"Toplam çıktı giren buğdaydan fazla olamaz! (Max %5 tolerans)")
         
-        # Hata varsa göster ve çık
         if validasyon_hatalari:
-            st.error("🚫 Lütfen aşağıdaki hataları düzeltin:")
-            for hata in validasyon_hatalari:
-                st.write(f"- {hata}")
+            st.error("🚫 Hatalar var:")
+            for hata in validasyon_hatalari: st.write(f"- {hata}")
             return
         
-        # ===== VALİDASYON BAŞARILI - KAYIT YAP =====
+        # 2. Kayıt İşlemi
         uretim_verileri = {
-            'kirilan_bugday': kirilan_bugday,
-            'nem_orani': b1_rutubet,
-            'tav_suresi': tav_suresi,
-            'un_1': un_1,
-            'un_2': un_2,
-            'razmol': razmol,
-            'kepek': kepek,
-            'bongalite': bongalite,
-            'kirik_bugday': kirik,
-            'randiman_1': rand_un1,
-            'toplam_randiman': rand_toplam_un,
-            'kayip': kayip_yuzde
+            'kirilan_bugday': kirilan_bugday, 'nem_orani': b1_rutubet, 'tav_suresi': tav_suresi,
+            'un_1': un_1, 'un_2': un_2, 'razmol': razmol, 'kepek': kepek, 'bongalite': bongalite,
+            'kirik_bugday': kirik, 'randiman_1': rand_un1, 'toplam_randiman': rand_toplam_un, 'kayip': kayip_yuzde
         }
         
-        success, msg = save_uretim_kaydi(uretim_tarihi, uretim_hatti, uretim_adi, vardiya, sorumlu, **uretim_verileri)
+        success, msg = save_uretim_kaydi(uretim_tarihi, uretim_hatti, uretim_adi, vardiya, sorumlu, mixing_batch_id, **uretim_verileri)
         
         if success:
-            st.success("✅ Üretim Kaydı Başarıyla Sisteme İşlendi!")
+            st.success(f"✅ Üretim Kaydedildi! (Paçal ID: {mixing_batch_id})")
             time.sleep(1.5)
             st.rerun()
         else:
@@ -733,6 +727,7 @@ def show_production_yonetimi():
     elif secim == "📊 Üretim Performans Analizi":
         with st.container(border=True):
             show_yonetim_dashboard()
+
 
 
 
