@@ -41,8 +41,8 @@ def get_active_mixing_batches():
     except Exception as e:
         return []
 
-def save_uretim_kaydi(uretim_tarihi, uretim_hatti, uretim_adi, vardiya, sorumlu, **uretim_degerleri):
-    """Üretim kaydını Google Sheets'e kaydet"""
+def save_uretim_kaydi(uretim_tarihi, uretim_hatti, uretim_adi, vardiya, sorumlu, mixing_batch_id, **uretim_degerleri):
+    """Üretim kaydını Google Sheets'e kaydet (Traceability Updated)"""
     
     # 1. Zorunlu Alan Kontrolü
     if not uretim_hatti or not vardiya:
@@ -51,11 +51,8 @@ def save_uretim_kaydi(uretim_tarihi, uretim_hatti, uretim_adi, vardiya, sorumlu,
     try:
         tarih_str = uretim_tarihi.strftime('%Y-%m-%d %H:%M:%S')
         
-        # --- YENİ EKLENEN: PARTİ NO GÜVENLİĞİ (UUID) ---
-        # Aynı dakikada birden fazla kayıt girilirse çakışmayı önlemek için rastgele 4 karakter ekliyoruz
+        # PARTİ NO GÜVENLİĞİ (UUID)
         unique_suffix = str(uuid.uuid4())[:4].upper()
-        
-        # Eğer kullanıcı özel bir isim girdiyse onu kullan, yoksa otomatik oluştur
         # Örnek Çıktı: PRD-20260207-A1B2
         parti_kodu = uretim_adi if uretim_adi else f"PRD-{datetime.now().strftime('%Y%m%d')}-{unique_suffix}"
         
@@ -65,6 +62,7 @@ def save_uretim_kaydi(uretim_tarihi, uretim_hatti, uretim_adi, vardiya, sorumlu,
             'degirmen_uretim_adi': uretim_adi,
             'vardiya': vardiya,
             'sorumlu': sorumlu,
+            'mixing_batch_id': mixing_batch_id,  # <-- YENİ EKLENEN BAĞLANTI (Traceability Key)
             'kirilan_bugday': float(uretim_degerleri.get('kirilan_bugday', 0)),
             'nem_orani': float(uretim_degerleri.get('nem_orani', 0)),
             'tav_suresi': float(uretim_degerleri.get('tav_suresi', 0)),
@@ -77,43 +75,18 @@ def save_uretim_kaydi(uretim_tarihi, uretim_hatti, uretim_adi, vardiya, sorumlu,
             'randiman_1': float(uretim_degerleri.get('randiman_1', 0)),
             'toplam_randiman': float(uretim_degerleri.get('toplam_randiman', 0)),
             'kayip': float(uretim_degerleri.get('kayip', 0)),
-            'parti_no': parti_kodu  # <-- Güncellenmiş Parti No
+            'parti_no': parti_kodu 
         }
         
         # Veritabanına Ekleme
         if add_data("uretim_kaydi", db_data):
-            # --- YENİ EKLENEN: CACHE TEMİZLEME ---
-            # Yeni kayıt eklendiği için eski hafızayı siliyoruz, böylece tablo hemen güncellenir.
             st.cache_data.clear()
-            
             return True, f"Üretim kaydı başarıyla eklendi! (Parti: {parti_kodu})"
         else:
             return False, "Kayıt sırasında veritabanı hatası oluştu."
             
     except Exception as e:
         return False, f"Sistem hatası: {str(e)}"
-# --- CACHING MEKANİZMASI ---
-
-@st.cache_data(ttl=300) # 5 dakika hafızada tut
-def get_uretim_kayitlari_cached():
-    return fetch_data("uretim_kaydi")
-def get_uretim_kayitlari():
-    """Üretim kayıtlarını getir (Cache'li - HIZLI VERSİYON)"""
-    try:
-        # 👇 İŞTE BU SATIR DEĞİŞTİ. ARTIK HIZLI FONKSİYONU ÇAĞIRIYORUZ.
-        df = get_uretim_kayitlari_cached() 
-        
-        if df.empty:
-            return pd.DataFrame()
-            
-        if 'tarih' in df.columns:
-            df['tarih'] = pd.to_datetime(df['tarih'])
-            df = df.sort_values('tarih', ascending=False)
-            
-        return df
-    except Exception as e:
-        st.error(f"Kayıtlar yüklenemedi: {e}")
-        return pd.DataFrame()
 def show_uretim_kaydi():
     """Üretim Kaydı Modülü"""
     
@@ -760,6 +733,7 @@ def show_production_yonetimi():
     elif secim == "📊 Üretim Performans Analizi":
         with st.container(border=True):
             show_yonetim_dashboard()
+
 
 
 
