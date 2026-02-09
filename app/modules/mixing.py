@@ -323,29 +323,32 @@ def show_pacal_hesaplayici():
                                 st.write(f"Direnç: {analiz_sonuclari['direnc135']:.0f}")
                                 st.write(f"Uzama: {analiz_sonuclari['taban135']:.0f}")
                         
+                        
                         st.divider()
                         
-                        urun_adi = st.text_input("Üretim Adı / Kod")
                         
                         st.success("✅ Reçete Kayda Hazır")
                         urun_adi = st.text_input("Reçete Adı (Örn: Lüks Ekmeklik)", placeholder="Üretilecek Un Cinsini Yazınız")
+                        
                         if st.button("💾 PAÇALI KAYDET (TRACEABILITY)", type="primary"):
                             if not urun_adi:
                                 st.error("Lütfen bir isim giriniz.")
                             else:
                                 try:
-                                    # 1. Benzersiz Traceability ID Oluştur (MIX-2026...)
+                                    # 1. Benzersiz Traceability ID Oluştur
                                     date_str = datetime.now().strftime('%Y%m%d')
                                     unique_suffix = str(uuid.uuid4())[:4].upper()
                                     batch_id = f"MIX-{date_str}-{unique_suffix}"
-                                    # 2. SNAPSHOT AL (Silonun O Anki Durumunu Dondur)
+                                    
+                                    # 2. SNAPSHOT AL
                                     silo_snapshot = {}
                                     for s_isim, s_oran in oranlar.items():
                                         if s_oran > 0:
                                             silo_snapshot[s_isim] = {
                                                 "oran": s_oran,
                                                 "analiz_degerleri": tavli_analizler.get(s_isim, {})
-                                            } 
+                                            }
+                                    
                                     # 3. Veritabanı Formatı
                                     kayit_verisi = {
                                         "batch_id": batch_id,
@@ -356,15 +359,17 @@ def show_pacal_hesaplayici():
                                         "analiz_snapshot_json": json.dumps(analiz_sonuclari, ensure_ascii=False),
                                         "maliyet": paçal_maliyeti
                                     }
+                                    
                                     # 4. Yeni Tabloya Kaydet
                                     if add_data("mixing_batches", kayit_verisi):
                                         st.cache_data.clear()
-                                        st.success(f"✅ Paçal İzlenebilirlik Sistemine Kaydedildi! ID: {batch_id}")
+                                        st.success(f"✅ Paçal Kaydedildi! ID: {batch_id}")
                                         time.sleep(1.5)
                                         st.rerun()
                                     else:
                                         st.error("Veritabanı hatası oluştu.")
-                                except Exception as e:
+                                        
+                                except Exception as e:  # <--- HATA BURADAYDI (: EKLENDİ)
                                     st.error(f"Kayıt Hatası: {e}")
                 else:
                     st.info("ℹ️ Toplam oranı %100 yapınca sonuçlar görünecek")
@@ -422,6 +427,7 @@ def show_pacal_gecmisi():
                     m3.metric("Maliyet", f"{row.get('maliyet',0):.2f} TL")
                 except:
                     st.write("-")
+
 
 
 
