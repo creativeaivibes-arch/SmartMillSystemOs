@@ -514,38 +514,93 @@ def show_un_analiz_kaydi():
         st.warning("⛔ Yetkisiz Erişim")
         return
     st.header("📝 Un Analiz Kaydı")
+    
     col1, col2 = st.columns([1, 1], gap="large")
+    
+    # --- SOL KOLON (GÜNCELLENDİ: TRACEABILITY) ---
     with col1:
-        st.subheader("📋 Numune Bilgileri")
+        st.subheader("📋 Numune & İzlenebilirlik")
+        
+        # Otomatik Lot
         auto_lot = f"UN-{datetime.now().strftime('%y%m%d%H%M%S')}"
         st.info(f"**Otomatik Lot:** `{auto_lot}`")
         lot_no = st.text_input("Lot Numarası *", value=auto_lot)
         analiz_tarihi = st.date_input("Analiz Tarihi", datetime.now())
+        
+        # İşlem Tipi
         islem_tipi = st.selectbox("İşlem Tipi *", ["ÜRETİM", "SEVKİYAT", "NUMUNE", "ŞİKAYET", "İADE"])
+        
+        # --- DİNAMİK ALANLAR (YENİ) ---
+        kaynak_parti = None
+        musteri_adi = None
+        plaka_no = None
+        
+        # A) EĞER ÜRETİM İSE -> HANGİ PARTİDEN GELDİ?
+        if islem_tipi == "ÜRETİM":
+            st.markdown("🔗 **Bağlı Olduğu Üretim**")
+            prod_lots = get_active_production_lots()
+            secilen_parti = st.selectbox(
+                "Kaynak Üretim Partisi (PRD) *", 
+                ["(Bağımsız / Stoktan)"] + prod_lots,
+                help="Bu unun hangi değirmen üretiminden geldiğini seçiniz."
+            )
+            # ID'yi ayıkla
+            if secilen_parti != "(Bağımsız / Stoktan)":
+                try: kaynak_parti = secilen_parti.split(' | ')[0].strip()
+                except: kaynak_parti = secilen_parti
+
+            # Silo seçimi (Mevcut koddan)
+            df_silo = fetch_data("uretim_silolari") 
+            if not df_silo.empty:
+                silo_list = ["(Belirtilmemiş)"] + df_silo['silo_adi'].tolist()
+                uretim_silosu = st.selectbox("Üretim Silosu *", silo_list)
+            else:
+                uretim_silosu = st.text_input("Üretim Silosu (Manuel)", placeholder="Silo No Giriniz")
+
+        # B) EĞER SEVKİYAT İSE -> KİME GİDİYOR?
+        elif islem_tipi == "SEVKİYAT":
+            st.markdown("🚚 **Sevkiyat Detayları**")
+            musteri_adi = st.text_input("Müşteri / Firma Adı *")
+            plaka_no = st.text_input("Araç Plakası / Şoför *")
+            
+            # Sevkiyatta da hangi üretimden yollandığını seçebiliriz
+            st.caption("Kaynak Lot (Opsiyonel)")
+            prod_lots = get_active_production_lots()
+            secilen_kaynak = st.selectbox("Kaynak Lot Seçimi", ["(Karışık / Stoktan)"] + prod_lots)
+            if secilen_kaynak != "(Karışık / Stoktan)":
+                try: kaynak_parti = secilen_kaynak.split(' | ')[0].strip()
+                except: kaynak_parti = secilen_kaynak
+            
+            uretim_silosu = None # Sevkiyatta silo olmaz
+        else:
+            # Diğer durumlar (Numune, İade vb.)
+            uretim_silosu = None
+
+        st.divider()
+        
+        # Un Markası ve Spec Seçimi (Mevcut koddan korundu)
         un_markasi = st.text_input("Un Markası (Ticari)", placeholder="Örn: Pırlanta")
+        
         df_spek = fetch_data("un_spekleri")
         if not df_spek.empty:
             type_list = sorted(df_spek['un_cinsi'].unique().tolist())
         else:
             type_list = []
+            
         c_sel, c_new = st.columns([2, 1])
         with c_sel:
             selected_type = st.selectbox("Un Cinsi (Spec) *", ["(Seçiniz)"] + type_list + ["(Yeni)"])
+        
         if selected_type == "(Yeni)":
             un_cinsi_marka = c_new.text_input("Yeni Cins").strip()
         elif selected_type != "(Seçiniz)":
             un_cinsi_marka = selected_type
         else:
             un_cinsi_marka = ""
-        uretim_silosu = None
-        if islem_tipi == "ÜRETİM":
-            df_silo = fetch_data("uretim_silolari")
-            if not df_silo.empty:
-                silo_list = ["(Belirtilmemiş)"] + df_silo['silo_adi'].tolist()
-                uretim_silosu = st.selectbox("Üretim Silosu *", silo_list)
-            else:
-                st.warning("Tanımlı üretim silosu yok.")
+            
         notlar = st.text_area("Notlar")
+
+    # --- SAĞ KOLON (MEVCUT KOD AYNEN KORUNDU) ---
     with col2:
         st.subheader("🧪 Analiz Değerleri")
         current_specs = {}
@@ -553,6 +608,7 @@ def show_un_analiz_kaydi():
             df_s = df_spek[df_spek['un_cinsi'] == un_cinsi_marka]
             for _, row in df_s.iterrows():
                 current_specs[row['parametre']] = row
+        
         def validate_input(key, label, val):
             if key in current_specs:
                 spec = current_specs[key]
@@ -561,6 +617,7 @@ def show_un_analiz_kaydi():
                 if val < s_min or (s_max > 0 and val > s_max):
                     st.error(f"❌ Limit Dışı!")
             return val
+            
         with st.expander("🧪 KİMYASAL ANALİZLER (Zorunlu)", expanded=True):
             k1, k2 = st.columns(2)
             with k1:
@@ -573,6 +630,7 @@ def show_un_analiz_kaydi():
                 g_sedim = validate_input("gecikmeli_sedim", "G.Sedim", st.number_input("Gecikmeli Sedim", 0.0, 100.0, 50.0, 1.0))
                 fn = validate_input("fn", "FN", st.number_input("Düşme Sayısı (FN)", 0.0, 999.0, 350.0, 1.0))
                 ffn = st.number_input("F.F.N", 0.0, 999.0, 380.0, 1.0)
+                
         with st.expander("🔬 DİĞER KİMYASAL ANALİZLER", expanded=False):
             k3, k4 = st.columns(2)
             with k3:
@@ -580,6 +638,7 @@ def show_un_analiz_kaydi():
                 nisasta = st.number_input("Nişasta Zedelenmesi", 0.0, value=15.0)
             with k4:
                 kul = validate_input("kul", "Kül", st.number_input("Kül (%)", 0.0, value=0.720, step=0.001, format="%.3f"))
+                
         with st.expander("📈 FARINOGRAPH ANALİZLERİ", expanded=False):
             f1, f2 = st.columns(2)
             with f1:
@@ -588,6 +647,7 @@ def show_un_analiz_kaydi():
             with f2:
                 f_stab = st.number_input("Stabilite (dk)", 0.0, value=2.3)
                 f_yumus = st.number_input("Yumuşama (FU)", 0.0, value=100.0)
+                
         with st.expander("📊 EXTENSOGRAPH ANALİZLERİ (Detaylı)", expanded=False):
             st.write("**45. Dakika:**")
             e1, e2, e3 = st.columns(3)
@@ -605,13 +665,14 @@ def show_un_analiz_kaydi():
             e135_t = e2.number_input("Taban (135)", value=120.0)
             e135_e = e3.number_input("Enerji (135)", value=126.0)
             su_e = st.number_input("Su Kaldırma (Extenso) (%)", value=54.3)
+            
     st.divider()
     
+    # --- KAYIT BUTONU (TRACEABILITY EKLENDİ) ---
     if st.button("✅ Un Analizini Kaydet", type="primary", use_container_width=True):
-        # ===== VALİDASYON =====
+        # ===== VALİDASYON KISMI (AYNEN KORUNDU) =====
         from app.core.config import validate_numeric_input
         
-        # Zorunlu alan kontrolü
         if not lot_no or not un_cinsi_marka:
             st.error("⚠️ Lot No ve Un Cinsi zorunludur!")
             return
@@ -629,18 +690,11 @@ def show_un_analiz_kaydi():
         ]
         
         validasyon_hatalari = []
-        
         for deger, key, label in zorunlu_analizler:
-            valid, msg, _ = validate_numeric_input(
-                deger, 
-                key,
-                allow_zero=False,  # Analiz değerleri sıfır olamaz
-                allow_negative=False  # Negatif kabul edilmez
-            )
-            if not valid:
-                validasyon_hatalari.append(f"{label}: {msg}")
+            valid, msg, _ = validate_numeric_input(deger, key, allow_zero=False, allow_negative=False)
+            if not valid: validasyon_hatalari.append(f"{label}: {msg}")
         
-        # Opsiyonel alanlar için sadece negatif kontrolü (eğer girilmişse)
+        # Opsiyonel alanlar
         opsiyonel_analizler = [
             (amilo, 'amilograph', 'Amilograph'),
             (nisasta, 'nisasta_zedelenmesi', 'Nişasta Zedelenmesi'),
@@ -650,38 +704,32 @@ def show_un_analiz_kaydi():
             (f_stab, 'stabilite', 'Stabilite'),
             (f_yumus, 'yumusama', 'Yumuşama'),
             (su_e, 'su_kaldirma_e', 'Su Kaldırma (Extensograph)'),
-            (e45_d, 'direnc45', 'Direnç (45)'),
-            (e45_t, 'taban45', 'Taban (45)'),
-            (e45_e, 'enerji45', 'Enerji (45)'),
-            (e90_d, 'direnc90', 'Direnç (90)'),
-            (e90_t, 'taban90', 'Taban (90)'),
-            (e90_e, 'enerji90', 'Enerji (90)'),
-            (e135_d, 'direnc135', 'Direnç (135)'),
-            (e135_t, 'taban135', 'Taban (135)'),
-            (e135_e, 'enerji135', 'Enerji (135)')
+            (e45_d, 'direnc45', 'Direnç (45)'), (e45_t, 'taban45', 'Taban (45)'), (e45_e, 'enerji45', 'Enerji (45)'),
+            (e90_d, 'direnc90', 'Direnç (90)'), (e90_t, 'taban90', 'Taban (90)'), (e90_e, 'enerji90', 'Enerji (90)'),
+            (e135_d, 'direnc135', 'Direnç (135)'), (e135_t, 'taban135', 'Taban (135)'), (e135_e, 'enerji135', 'Enerji (135)')
         ]
         
         for deger, key, label in opsiyonel_analizler:
-            if deger is not None and deger != 0:  # Eğer değer girilmişse
-                valid, msg, _ = validate_numeric_input(
-                    deger,
-                    key,
-                    allow_zero=True,  # Sıfır kabul edilebilir
-                    allow_negative=False  # Negatif kabul edilmez
-                )
-                if not valid:
-                    validasyon_hatalari.append(f"{label}: {msg}")
+            if deger is not None and deger != 0:
+                valid, msg, _ = validate_numeric_input(deger, key, allow_zero=True, allow_negative=False)
+                if not valid: validasyon_hatalari.append(f"{label}: {msg}")
         
-        # Hata varsa göster ve çık
         if validasyon_hatalari:
             st.error("🚫 Lütfen aşağıdaki hataları düzeltin:")
-            for hata in validasyon_hatalari:
-                st.write(f"- {hata}")
+            for hata in validasyon_hatalari: st.write(f"- {hata}")
             return
         
-        # ===== VALİDASYON BAŞARILI - KAYIT YAP =====
+        # ===== KAYIT VERİSİ HAZIRLAMA (GÜNCELLENDİ) =====
         analiz_data = {
-            'un_cinsi_marka': un_cinsi_marka, 'un_markasi': un_markasi, 'uretim_silosu': uretim_silosu,
+            'un_cinsi_marka': un_cinsi_marka, 
+            'un_markasi': un_markasi, 
+            'uretim_silosu': uretim_silosu,
+            
+            # [YENİ] Traceability Alanları
+            'kaynak_parti_no': kaynak_parti,
+            'musteri_adi': musteri_adi,
+            'plaka_no': plaka_no,
+            
             'protein': protein, 'rutubet': rutubet, 'gluten': gluten, 'gluten_index': gluten_index,
             'sedim': sedim, 'gecikmeli_sedim': g_sedim, 'fn': fn, 'ffn': ffn,
             'amilograph': amilo, 'nisasta_zedelenmesi': nisasta, 'kul': kul,
@@ -692,9 +740,10 @@ def show_un_analiz_kaydi():
             'direnc135': e135_d, 'taban135': e135_t, 'enerji135': e135_e,
             'notlar': notlar
         }
+        
         ok, msg = save_un_analiz(lot_no, islem_tipi, **analiz_data)
         if ok:
-            st.success("✅ Kayıt Başarılı!")
+            st.success(f"✅ Kayıt Başarılı! (Ref: {kaynak_parti if kaynak_parti else 'Yok'})")
             time.sleep(1)
             st.rerun()
         else:
@@ -1288,6 +1337,7 @@ def show_flour_yonetimi():
                 st.error("⚠️ Enzim modülü (calculations.py) bulunamadı.")
             except Exception as e:
                 st.error(f"⚠️ Modül yüklenirken hata oluştu: {e}")
+
 
 
 
