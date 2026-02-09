@@ -308,7 +308,7 @@ def show_spec_yonetimi():
 def export_un_analiz_ozel_excel(df):
     """
     Un Analiz Arşivi için özel gruplandırılmış Excel üretir.
-    Yapı: [NUMUNE BİLGİLERİ] + [KİMYASAL] + [FARINO] + [EXTENSO]
+    Yapı: [SEVKİYAT/TAKİP] + [NUMUNE BİLGİLERİ] + [KİMYASAL] + [FARINO] + [EXTENSO]
     """
     try:
         from io import BytesIO
@@ -318,19 +318,30 @@ def export_un_analiz_ozel_excel(df):
 
         wb = Workbook()
         ws = wb.active
-        ws.title = "Un Analiz Raporu"
+        ws.title = "Un Analiz ve Sevkiyat"
 
         # --- TASARIM TANIMLARI ---
         structure = [
             {
-                "group": "NUMUNE BİLGİLERİ",
-                "color": "4472C4", # Mavi
+                "group": "İZLENEBİLİRLİK & SEVKİYAT",  # <-- YENİ GRUP
+                "color": "7030A0", # Mor
                 "cols": [
                     ("ID NO", "id_counter"),
                     ("TARİH", "tarih"),
+                    ("İŞLEM", "islem_tipi"),
+                    ("MÜŞTERİ", "musteri_adi"),
+                    ("PLAKA/ŞOFÖR", "plaka_no"),
+                    ("KAYNAK PARTİ", "kaynak_parti_no")
+                ]
+            },
+            {
+                "group": "NUMUNE DETAYLARI",
+                "color": "4472C4", # Mavi
+                "cols": [
                     ("LOT NO", "lot_no"),
-                    ("İŞLEM TİPİ", "islem_tipi"),
-                    ("UN SİLOSU", "uretim_silosu"),
+                    ("UN CİNSİ", "un_cinsi_marka"),
+                    ("MARKA", "un_markasi"),
+                    ("SİLO", "uretim_silosu"),
                     ("NOTLAR", "notlar")
                 ]
             },
@@ -352,25 +363,23 @@ def export_un_analiz_ozel_excel(df):
                 ]
             },
             {
-                "group": "FARINOGRAPH ANALİZLERİ",
+                "group": "FARINOGRAPH",
                 "color": "70AD47", # Yeşil
                 "cols": [
                     ("Su Kaldırma", "su_kaldirma_f"),
                     ("Gelişme Süresi", "gelisme_suresi"),
                     ("Stabilite", "stabilite"),
-                    ("Yumuşama Derecesi", "yumusama")
+                    ("Yumuşama", "yumusama")
                 ]
             },
-            {
-                "group": "EXTENSOGRAPH ANALİZLERİ",
+            # Extenso aynı kalıyor...
+             {
+                "group": "EXTENSOGRAPH",
                 "color": "A5A5A5", # Gri
                 "cols": [
-                    ("Su Kaldırma", "su_kaldirma_e"),
-                    # 45
+                    ("Su Kaldırma (E)", "su_kaldirma_e"),
                     ("Direnç (45)", "direnc45"), ("Taban (45)", "taban45"), ("Enerji (45)", "enerji45"),
-                    # 90
                     ("Direnç (90)", "direnc90"), ("Taban (90)", "taban90"), ("Enerji (90)", "enerji90"),
-                    # 135
                     ("Direnç (135)", "direnc135"), ("Taban (135)", "taban135"), ("Enerji (135)", "enerji135")
                 ]
             }
@@ -423,12 +432,14 @@ def export_un_analiz_ozel_excel(df):
                         try: val = pd.to_datetime(val).strftime('%d.%m.%Y %H:%M')
                         except: pass
                     
-                    # Sayısal yuvarlama
+                    # Sayısal yuvarlama (Müşteri adı gibi text alanlarını bozmadan)
                     try:
                         if isinstance(val, (int, float)):
                             val = round(float(val), 2)
-                        elif val and db_key not in ["tarih", "lot_no", "islem_tipi", "uretim_silosu", "notlar"]:
-                            val = round(float(val), 2)
+                        elif val and db_key not in ["tarih", "lot_no", "islem_tipi", "uretim_silosu", "notlar", "musteri_adi", "plaka_no", "kaynak_parti_no", "un_cinsi_marka", "un_markasi"]:
+                            # Sadece analiz değerlerini yuvarlamaya çalış
+                            try: val = round(float(val), 2)
+                            except: pass
                     except: pass
 
                     cell = ws.cell(row=r_idx, column=current_col, value=val)
@@ -436,7 +447,6 @@ def export_un_analiz_ozel_excel(df):
                     cell.alignment = Alignment(horizontal="center")
                     current_col += 1
 
-        # --- SÜTUN GENİŞLİKLERİ ---
         for i, col in enumerate(ws.columns, 1):
             column_letter = get_column_letter(i)
             ws.column_dimensions[column_letter].width = 15
@@ -1337,6 +1347,7 @@ def show_flour_yonetimi():
                 st.error("⚠️ Enzim modülü (calculations.py) bulunamadı.")
             except Exception as e:
                 st.error(f"⚠️ Modül yüklenirken hata oluştu: {e}")
+
 
 
 
