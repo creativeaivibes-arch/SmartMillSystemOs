@@ -45,7 +45,6 @@ def get_trace_chain(search_query):
                     chain["SHIP"] = record
                     
                     # Bağlantı Noktası: Kaynak Parti No (Üretime Gidiş)
-                    # Sütun adı 'kaynak_parti_no' veya 'uretim_lot_no' olabilir
                     kaynak_prd = str(record.get('kaynak_parti_no', ''))
                     if not kaynak_prd or kaynak_prd == 'nan':
                         kaynak_prd = str(record.get('uretim_lot_no', ''))
@@ -171,7 +170,7 @@ def show_traceability_dashboard():
         st.success(f"✅ Kayıt Bulundu: {query}")
         
         # ======================================================================
-        # 0. HALKA: SEVKİYAT BİLGİSİ (SHIP) - GÜNCELLENDİ (MÜŞTERİ/PLAKA + DETAYLI ANALİZ)
+        # 0. HALKA: SEVKİYAT BİLGİSİ (SHIP) - GÜNCELLENDİ (FULL PARAMETRELER)
         # ======================================================================
         if chain["SHIP"] is not None:
             ship = chain["SHIP"]
@@ -200,26 +199,31 @@ def show_traceability_dashboard():
 
                 st.divider()
                 
-                # --- B. DETAYLI ANALİZ (3 TAB) ---
-                st.markdown("##### 🧪 Çıkış Analiz Değerleri")
+                # --- B. DETAYLI ANALİZ (3 TAB - FULL SPEKTRUM) ---
+                st.markdown("##### 🧪 Çıkış Analiz Değerleri (Full)")
                 
                 t1, t2, t3 = st.tabs(["⚗️ Kimyasal", "📈 Farinograph", "📊 Extensograph"])
                 
                 with t1:
-                    k1, k2, k3 = st.columns(3)
+                    # Satır 1
+                    k1, k2, k3, k4 = st.columns(4)
                     k1.metric("Protein", fmt(ship.get('protein')))
                     k2.metric("Kül", fmt(ship.get('kul'), 3))
                     k3.metric("Rutubet", fmt(ship.get('rutubet')))
-                    
-                    k4, k5, k6 = st.columns(3)
                     k4.metric("Gluten", fmt(ship.get('gluten')))
+                    
+                    # Satır 2
+                    k5, k6, k7, k8 = st.columns(4)
                     k5.metric("G. İndeks", fmt(ship.get('gluten_index'), 0))
                     k6.metric("Sedim", fmt(ship.get('sedim'), 0))
+                    k7.metric("G. Sedim", fmt(ship.get('gecikmeli_sedim') or ship.get('g_sedim'), 0))
+                    k8.metric("FN", fmt(ship.get('fn'), 0))
                     
-                    k7, k8, k9 = st.columns(3)
-                    k7.metric("FN", fmt(ship.get('fn'), 0))
-                    k8.metric("Renk", ship.get('renk', '-'))
-                    k9.metric("Benek", ship.get('benek', '-'))
+                    # Satır 3 (Opsiyonel)
+                    k9, k10, k11, k12 = st.columns(4)
+                    k9.metric("FFN", fmt(ship.get('ffn'), 0))
+                    k10.metric("Renk", ship.get('renk', '-'))
+                    k11.metric("Benek", ship.get('benek', '-'))
 
                 with t2:
                     f1, f2 = st.columns(2)
@@ -229,10 +233,31 @@ def show_traceability_dashboard():
                     f2.metric("Yumuşama", fmt(ship.get('yumusama'), 0))
 
                 with t3:
-                    e1, e2, e3 = st.columns(3)
-                    e1.metric("Enerji", fmt(ship.get('enerji135') or ship.get('enerji'), 0))
-                    e2.metric("Direnç", fmt(ship.get('direnc135') or ship.get('direnc'), 0))
-                    e3.metric("Uzama", fmt(ship.get('uzama135') or ship.get('uzama'), 0))
+                    # 45 DK
+                    st.markdown("**45. Dakika**")
+                    ex1, ex2, ex3 = st.columns(3)
+                    ex1.metric("Enerji (45)", fmt(ship.get('enerji45'), 0))
+                    ex2.metric("Direnç (45)", fmt(ship.get('direnc45'), 0))
+                    ex3.metric("Uzama (45)", fmt(ship.get('uzama45'), 0))
+                    
+                    # 90 DK
+                    st.markdown("**90. Dakika**")
+                    ex4, ex5, ex6 = st.columns(3)
+                    ex4.metric("Enerji (90)", fmt(ship.get('enerji90'), 0))
+                    ex5.metric("Direnç (90)", fmt(ship.get('direnc90'), 0))
+                    ex6.metric("Uzama (90)", fmt(ship.get('uzama90'), 0))
+                    
+                    # 135 DK
+                    st.markdown("**135. Dakika**")
+                    ex7, ex8, ex9 = st.columns(3)
+                    # Eğer 135 verisi yoksa, genel 'enerji' sütununa bak (yedek)
+                    e135 = ship.get('enerji135') or ship.get('enerji')
+                    d135 = ship.get('direnc135') or ship.get('direnc')
+                    u135 = ship.get('uzama135') or ship.get('uzama')
+                    
+                    ex7.metric("Enerji (135)", fmt(e135, 0))
+                    ex8.metric("Direnç (135)", fmt(d135, 0))
+                    ex9.metric("Uzama (135)", fmt(u135, 0))
 
         # ======================================================================
         # 1. HALKA: ÜRETİM (Mill Data)
@@ -263,15 +288,14 @@ def show_traceability_dashboard():
                     render_kvkk_row("Kayıp Oranı", f"{kayip:.2f}", "%", "red" if kayip > 2 else "black")
 
         # ======================================================================
-        # 3. HALKA: LABORATUVAR (Üretim Analizi)
+        # 3. HALKA: LABORATUVAR (Üretim Kontrolü)
         # ======================================================================
-        # Eğer Sevkiyat kaydı varsa ve Lab kaydı ile aynı lot ise tekrar gösterme (Zaten SHIP içinde gösterdik)
-        # Ancak Lab kaydı üretim kontrolüyse (farklıysa) veya detaylar farklıysa göster.
+        # Eğer Sevkiyat ile Lab lotları farklıysa göster (Yani bu bir üretim kontrol analizi ise)
         if chain["LAB"] is not None:
-            # Sevkiyat ve Lab lotları farklıysa (Biri SHIP-.., Diğeri PRD-..) göster
             ship_lot = chain.get("SHIP", {}).get('lot_no') if chain.get("SHIP") is not None else ""
             lab_lot = chain["LAB"].get('lot_no')
             
+            # Sadece farklıysa göster, çünkü aynıysa zaten yukarıda SHIP içinde gösterdik
             if ship_lot != lab_lot:
                 lab = chain["LAB"]
                 with st.expander("🔬 3. ÜRETİM KONTROL ANALİZİ (LAB)", expanded=True):
