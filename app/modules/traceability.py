@@ -24,17 +24,19 @@ def get_trace_chain(search_query):
     
     search_query = str(search_query).strip()
     
-    # 1. ADIM: ARAMA (Hangi tablodan başlıyoruz?)
-    # Önce Üretim Kayıtlarında Ara (En olası senaryo)
-    df_uretim = fetch_data("uretim_kaydi")
-    if not df_uretim.empty:
-        # Parti No veya ID eşleşmesi
-        match = df_uretim[df_uretim.astype(str).apply(lambda x: x.str.contains(search_query, case=False)).any(axis=1)]
-        if not match.empty:
-            chain["found"] = True
-            chain["PRD"] = match.iloc[0]
-            
-    # Eğer Üretimde bulunamadıysa Paçal'da ara
+    # --- ADIM 1: ARAMA MOTORU (Tüm Tabloları Tara) ---
+    
+    # A) Üretim Kayıtlarında Ara (PRD-...)
+    if not chain["found"]:
+        df_uretim = fetch_data("uretim_kaydi")
+        if not df_uretim.empty:
+            # Parti No içinde ara
+            match = df_uretim[df_uretim.astype(str).apply(lambda x: x.str.contains(search_query, case=False)).any(axis=1)]
+            if not match.empty:
+                chain["found"] = True
+                chain["PRD"] = match.iloc[0]
+
+    # B) Paçal Kayıtlarında Ara (MIX-...)
     if not chain["found"]:
         df_mix = fetch_data("mixing_batches")
         if not df_mix.empty:
@@ -43,27 +45,55 @@ def get_trace_chain(search_query):
                 chain["found"] = True
                 chain["MIX"] = match.iloc[0]
 
-    # Eğer Üretimde bulunamadıysa Sevkiyatta ara (Varsayılan tablo adı: sevkiyat_listesi)
+    # C) Sevkiyat Listesinde Ara (SHIP/IRSALIYE)
     if not chain["found"]:
-        df_ship = fetch_data("sevkiyat_listesi")
+        # Hata önleyici: Tablo yoksa boş dataframe dön
+        try:
+            df_ship = fetch_data("sevkiyat_listesi")
+        except:
+            df_ship = pd.DataFrame()
+            
         if not df_ship.empty:
-            # Lot No veya İrsaliye eşleşmesi
             match = df_ship[df_ship.astype(str).apply(lambda x: x.str.contains(search_query, case=False)).any(axis=1)]
             if not match.empty:
                 chain["found"] = True
                 chain["SHIP"] = match.iloc[0]
-                # Sevkiyattan Üretime Geçiş (Lot No üzerinden)
-                lot_ref = str(chain["SHIP"].get('uretim_lot_no', ''))
-                if lot_ref:
-                    # Tekrar üretimde ara
-                    u_match = df_uretim[df_uretim['parti_no'] == lot_ref]
+                # Sevkiyattan Üretime Köprü (uretim_lot_no varsa)
+                if 'uretim_lot_no' in chain["SHIP"]:
+                    lot_ref = str(chain["SHIP"]['uretim_lot_no'])
+                    if lot_ref:
+                        # Üretimi bul ve bağla
+                        df_uretim = fetch_data("uretim_kaydi")
+                        if not df_uretim.empty:
+                            u_match = df_uretim[df_uretim['parti_no'] == lot_ref]
+                            if not u_match.empty: chain["PRD"] = u_match.iloc[0]
+
+    # D) Un Analizlerinde Ara (LAB-...)
+    # (Bazen sevkiyat yerine doğrudan analiz lotu aranır)
+    if not chain["found"]:
+        try:
+            df_lab_search = fetch_data("un_analizleri")
+        except:
+            df_lab_search = pd.DataFrame()
+            
+        if not df_lab_search.empty and 'lot_no' in df_lab_search.columns:
+            match = df_lab_search[df_lab_search['lot_no'].astype(str) == search_query]
+            if not match.empty:
+                chain["found"] = True
+                chain["LAB"] = match.iloc[0]
+                # Lab analizinden üretime geçiş (Eğer analizde parti no varsa)
+                # Genelde lab analizleri 'lot_no' ile 'parti_no'yu eşleştirir
+                uretim_ref = str(chain["LAB"].get('lot_no', ''))
+                df_uretim = fetch_data("uretim_kaydi")
+                if not df_uretim.empty:
+                    u_match = df_uretim[df_uretim['parti_no'] == uretim_ref]
                     if not u_match.empty: chain["PRD"] = u_match.iloc[0]
 
-    # 2. ADIM: ZİNCİRİ TAMAMLA (Eksik halkaları doldur)
+    # --- ADIM 2: ZİNCİRİ TAMAMLA (Eksik halkaları doldur) ---
     
     # Eğer elimizde PRD (Üretim) varsa -> MIX (Paçal) ve LAB (Analiz) bul
     if chain["PRD"] is not None:
-        # Paçalı Bul
+        # 1. Paçalı Bul
         mix_id = str(chain["PRD"].get('mixing_batch_id', '')) # mill.py'de bu isimle kaydetmiştik
         if mix_id and mix_id != "BILINMIYOR":
             df_mix = fetch_data("mixing_batches")
@@ -71,12 +101,16 @@ def get_trace_chain(search_query):
                 m_match = df_mix[df_mix['batch_id'] == mix_id]
                 if not m_match.empty: chain["MIX"] = m_match.iloc[0]
         
-        # Lab Analizini Bul (Un Analizleri tablosunda Parti No ile)
-        df_lab = fetch_data("un_analizleri")
-        if not df_lab.empty:
-            parti_no = str(chain["PRD"].get('parti_no', ''))
-            l_match = df_lab[df_lab['lot_no'] == parti_no]
-            if not l_match.empty: chain["LAB"] = l_match.iloc[0]
+        # 2. Lab Analizini Bul (Un Analizleri tablosunda Parti No ile)
+        # Eğer zaten LAB bulunmadıysa ara
+        if chain["LAB"] is None:
+            try:
+                df_lab = fetch_data("un_analizleri")
+                if not df_lab.empty:
+                    parti_no = str(chain["PRD"].get('parti_no', ''))
+                    l_match = df_lab[df_lab['lot_no'] == parti_no]
+                    if not l_match.empty: chain["LAB"] = l_match.iloc[0]
+            except: pass
 
     return chain
 
@@ -104,7 +138,7 @@ def show_traceability_dashboard():
     # --- ARAMA MOTORU ---
     col_search, col_btn = st.columns([3, 1])
     with col_search:
-        query = st.text_input("🔍 Takip Kodu Giriniz", placeholder="Parti No (PRD-...), Paçal ID (MIX-...) veya İrsaliye No")
+        query = st.text_input("🔍 Takip Kodu Giriniz", placeholder="Parti No (PRD-...), Paçal ID (MIX-...) veya Lot No")
     with col_btn:
         st.write("")
         st.write("")
@@ -115,19 +149,30 @@ def show_traceability_dashboard():
             chain = get_trace_chain(query)
         
         if not chain["found"]:
-            st.error("❌ Kayıt bulunamadı veya zincir kurulamadı. Lütfen kodu kontrol edin.")
+            st.error("❌ Kayıt bulunamadı. Lütfen kodu kontrol edin veya ilgili tablonun (ör. sevkiyat_listesi) oluşturulduğundan emin olun.")
             return
 
         st.success("✅ Zincir Başarıyla Kuruldu!")
         
-        # ======================================================================
+        # 0. HALKA: SEVKİYAT BİLGİSİ (Varsa)
+        if chain["SHIP"] is not None:
+            ship = chain["SHIP"]
+            with st.expander("🚚 0. SEVKİYAT BİLGİSİ (ÇIKIŞ)", expanded=True):
+                c1, c2 = st.columns(2)
+                with c1:
+                    render_kvkk_row("Lot No", ship.get('lot_no'))
+                    render_kvkk_row("Müşteri", ship.get('musteri_adi'))
+                    render_kvkk_row("Plaka", ship.get('plaka'))
+                with c2:
+                    render_kvkk_row("Tarih", str(ship.get('tarih'))[:10])
+                    render_kvkk_row("Miktar", ship.get('miktar'), "Kg")
+                    render_kvkk_row("Ürün", ship.get('urun_adi'))
+
         # 1. HALKA: ÜRETİM & DEĞİRMEN (Mill Data)
-        # ======================================================================
         if chain["PRD"] is not None:
             prd = chain["PRD"]
             with st.expander("🏭 1. ÜRETİM VE DEĞİRMEN VERİLERİ (PRD)", expanded=True):
                 c1, c2 = st.columns(2)
-                
                 with c1:
                     st.markdown("##### ⚙️ Operasyonel Bilgiler")
                     render_kvkk_row("Parti No", prd.get('parti_no'))
@@ -135,7 +180,7 @@ def show_traceability_dashboard():
                     render_kvkk_row("Vardiya", f"{prd.get('vardiya')} ({prd.get('sorumlu')})")
                     render_kvkk_row("Hat", prd.get('uretim_hatti'))
                     st.divider()
-                    render_kvkk_row("Kırılan Buğday", f"{prd.get('kirilan_bugday',0):,.0f}", "Kg")
+                    render_kvkk_row("Kırılan Buğday", f"{float(prd.get('kirilan_bugday',0)):,.0f}", "Kg")
                     render_kvkk_row("Tav Süresi", prd.get('tav_suresi'), "Saat")
                     render_kvkk_row("B1 Rutubet", prd.get('nem_orani'), "%")
 
@@ -146,17 +191,15 @@ def show_traceability_dashboard():
                     
                     render_kvkk_row("TOPLAM RANDIMAN", f"{r_toplam:.2f}", "%", color_r)
                     st.divider()
-                    render_kvkk_row("Un-1 Çıkan", f"{prd.get('un_1',0):,.0f}", "Kg")
-                    render_kvkk_row("Un-2 Çıkan", f"{prd.get('un_2',0):,.0f}", "Kg")
-                    render_kvkk_row("Kepek", f"{prd.get('kepek',0):,.0f}", "Kg")
-                    render_kvkk_row("Bongalite", f"{prd.get('bongalite',0):,.0f}", "Kg")
+                    render_kvkk_row("Un-1 Çıkan", f"{float(prd.get('un_1',0)):,.0f}", "Kg")
+                    render_kvkk_row("Un-2 Çıkan", f"{float(prd.get('un_2',0)):,.0f}", "Kg")
+                    render_kvkk_row("Kepek", f"{float(prd.get('kepek',0)):,.0f}", "Kg")
+                    render_kvkk_row("Bongalite", f"{float(prd.get('bongalite',0)):,.0f}", "Kg")
                     
                     kayip = float(prd.get('kayip', 0))
                     render_kvkk_row("Kayıp Oranı", f"{kayip:.2f}", "%", "red" if kayip > 2 else "black")
 
-        # ======================================================================
-        # 2. HALKA: PAÇAL VE BUĞDAY (Mix & Wheat Data) - EN ÖNEMLİ KISIM
-        # ======================================================================
+        # 2. HALKA: PAÇAL VE BUĞDAY (Mix & Wheat Data)
         if chain["MIX"] is not None:
             mix = chain["MIX"]
             with st.expander("🌾 2. PAÇAL VE HAMMADDE İÇERİĞİ (MIX)", expanded=True):
@@ -166,25 +209,21 @@ def show_traceability_dashboard():
                     snapshot = json.loads(mix.get('silo_snapshot_json', '{}'))
                     analiz = json.loads(mix.get('analiz_snapshot_json', '{}'))
                     
-                    # --- A. PAÇAL HEDEF DEĞERLERİ ---
+                    # A. PAÇAL HEDEF DEĞERLERİ
                     st.markdown("##### 🧪 Paçalın Teorik Analiz Değerleri (Hesaplanan)")
                     k1, k2, k3, k4 = st.columns(4)
                     
-                    # Kuru Protein
                     k_prot = analiz.get('kuru_protein_ort', analiz.get('teorik_kuru_protein', 0))
-                    k1.metric("Kuru Protein", f"{k_prot:.1f}")
-                    
-                    # Tavlı Değerler
-                    k2.metric("Tavlı Protein", f"{analiz.get('protein', 0):.1f}")
-                    k3.metric("Tavlı Enerji", f"{analiz.get('enerji135', 0):.0f}")
-                    k4.metric("Maliyet", f"{mix.get('maliyet', 0):.2f} TL")
+                    k1.metric("Kuru Protein", f"{float(k_prot):.1f}")
+                    k2.metric("Tavlı Protein", f"{float(analiz.get('protein', 0)):.1f}")
+                    k3.metric("Tavlı Enerji", f"{float(analiz.get('enerji135', 0)):.0f}")
+                    k4.metric("Maliyet", f"{float(mix.get('maliyet', 0)):.2f} TL")
                     
                     st.divider()
                     
-                    # --- B. SİLO DETAYLARI (Snapshot Çözümleme) ---
+                    # B. SİLO DETAYLARI
                     st.markdown("##### 🏗️ Kullanılan Silolar ve O Anki Analizleri")
                     
-                    # Veriyi Tabloya Dönüştür
                     rows = []
                     for silo, data in snapshot.items():
                         if isinstance(data, dict):
@@ -198,10 +237,10 @@ def show_traceability_dashboard():
                                 "Silo": silo,
                                 "Oran": f"%{data.get('oran', 0)}",
                                 "Cins": cins,
-                                "Kuru Prot.": f"{kuru.get('protein', 0):.1f}",
-                                "Süne": f"{kuru.get('sune', 0):.1f}",
-                                "Hektolitre": f"{kuru.get('hektolitre', 0):.1f}",
-                                "Tavlı Enerji": f"{tavli.get('enerji135', 0):.0f}"
+                                "Kuru Prot.": f"{float(kuru.get('protein', 0) or 0):.1f}",
+                                "Süne": f"{float(kuru.get('sune', 0) or 0):.1f}",
+                                "Hektolitre": f"{float(kuru.get('hektolitre', 0) or 0):.1f}",
+                                "Tavlı Enerji": f"{float(tavli.get('enerji135', 0) or 0):.0f}"
                             })
                         else:
                             rows.append({"Silo": silo, "Oran": f"%{data}"})
@@ -211,12 +250,10 @@ def show_traceability_dashboard():
                 except Exception as e:
                     st.error(f"Paçal verisi okunurken hata: {e}")
 
-        else:
+        elif chain["PRD"] is not None:
             st.warning("⚠️ Bu üretime bağlı Paçal (MIX) kaydı bulunamadı. (Manuel paçal veya eski kayıt olabilir)")
 
-        # ======================================================================
         # 3. HALKA: LABORATUVAR (Final Ürün Analizi)
-        # ======================================================================
         if chain["LAB"] is not None:
             lab = chain["LAB"]
             with st.expander("🔬 3. FİNAL ÜRÜN ANALİZİ (LAB)", expanded=True):
@@ -233,8 +270,9 @@ def show_traceability_dashboard():
                     lc4.metric("Enerji", lab.get('enerji'))
                     lc5.metric("Direnç", lab.get('direnc'))
                     lc6.metric("Stabilite", lab.get('stabilite'))
+        
         elif chain["found"]:
-            st.info("ℹ️ Bu partiye ait laboratuvar sonucu henüz girilmemiş.")
+            st.info("ℹ️ Bu partiye ait laboratuvar sonucu henüz girilmemiş veya eşleşmemiş.")
 
     elif ara_btn:
         st.warning("Lütfen bir arama kodu giriniz.")
