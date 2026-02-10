@@ -17,6 +17,7 @@ from app.core.database import init_db
 from app.core.auth import check_password, do_logout, ROLES, show_profile_settings
 from app.core.config import SESSION_TIMEOUT_SECONDS
 from app.core.license_manager import check_license, show_license_lock_screen, LICENSE_CONFIG
+from app.modules.traceability import show_traceability_dashboard
 
 # Modül İmportları
 import app.modules.dashboard as dashboard
@@ -426,6 +427,7 @@ with st.sidebar:
     # En Alt Footer
     st.caption(f"🏢 {LICENSE_CONFIG.get('CLIENT_NAME', 'Client')}")
     st.caption("v2.0 Enterprise")
+
 
 
 
