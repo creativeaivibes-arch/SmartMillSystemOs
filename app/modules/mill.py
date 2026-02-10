@@ -101,7 +101,24 @@ def save_uretim_kaydi(uretim_tarihi, uretim_hatti, uretim_adi, vardiya, sorumlu,
     except Exception as e:
         return False, f"Sistem hatası: {str(e)}"
         
+# --- CACHING VE VERİ ÇEKME (BU KISIM EKSİK OLDUĞU İÇİN HATA ALIYORSUN) ---
+@st.cache_data(ttl=300)
+def get_uretim_kayitlari_cached():
+    return fetch_data("uretim_kaydi")
 
+def get_uretim_kayitlari():
+    try:
+        df = get_uretim_kayitlari_cached() 
+        if df.empty: return pd.DataFrame()
+        
+        # Tarih formatını düzelt ve sırala
+        if 'tarih' in df.columns:
+            df['tarih'] = pd.to_datetime(df['tarih'], errors='coerce')
+            df = df.sort_values('tarih', ascending=False)
+            
+        return df
+    except Exception as e:
+        return pd.DataFrame()
 # --- EKRAN 1: ÜRETİM GİRİŞİ (PAÇAL SEÇİMLİ) ---
 def show_uretim_kaydi():
     
@@ -314,4 +331,5 @@ def show_production_yonetimi():
         with st.container(border=True): show_uretim_arsivi()
     elif secim == "📊 Üretim Performans Analizi":
         with st.container(border=True): show_yonetim_dashboard()
+
 
