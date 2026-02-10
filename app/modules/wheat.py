@@ -643,7 +643,7 @@ def delete_bugday_spec_group(cins):
 # --------------------------------------------------------------------------
 
 def show_mal_kabul():
-    """Mal Kabul Ekranı - Dinamik Lot ve Profesyonel Terminoloji"""
+    """Mal Kabul Ekranı - WHT Standart Lot Numarası"""
     if st.session_state.get('user_role') not in ["admin", "operations", "quality"]:
         st.warning("Yetkisiz Erişim")
         return
@@ -651,10 +651,11 @@ def show_mal_kabul():
     st.header(f"🚜 {t('header_goods_receipt')}")
     
     # --- DİNAMİK LOT NUMARASI ---
-    lang_code = st.session_state.get('language_code', 'TR')
-    prefix_map = {'TR': 'BUGDAY', 'EN': 'WHEAT', 'FR': 'BLE', 'RU': 'PSHN'}
-    lot_prefix = prefix_map.get(lang_code, 'BUGDAY')
+    # İSTEK: Lot numarası her zaman 'WHT' ile başlasın
+    lot_prefix = "WHT"
     timestamp = datetime.now().strftime('%y%m%d%H%M%S')
+    
+    # Örn: WHT-260210143005
     lot_no = f"{lot_prefix}-{timestamp}"
     
     col1, col2 = st.columns([1, 1.5], gap="large")
@@ -698,7 +699,7 @@ def show_mal_kabul():
         yore = st.text_input(f"{t('label_origin')} *")
         plaka = st.text_input(f"{t('label_plate')} *")
         
-        # HATA KAYNAĞI BURASIYDI: Değişken adı 'notlar'
+        # Değişken adı 'notlar' olarak tanımlandı
         notlar = st.text_area(t("label_notes"), key="mal_kabul_notlar")
         
         miktar = st.number_input(f"{t('label_weight')} *", min_value=0.0, format="%.1f")
@@ -744,7 +745,7 @@ def show_mal_kabul():
     if st.button(f"💾 {t('btn_submit')}", type="primary", use_container_width=True):
         with st.spinner("Veritabanına kaydediliyor, lütfen bekleyiniz..."):
             
-            # 1. Stok Hareketi Logla (DÜZELTİLDİ: note_final -> notlar)
+            # 1. Stok Hareketi Logla
             ok_log = log_stok_hareketi(
                 secilen_silo, "Giriş", miktar,
                 protein=g_prot, gluten=g_glut, rutubet=g_rut, hektolitre=g_hl,
@@ -753,7 +754,7 @@ def show_mal_kabul():
             )
             
             if ok_log:
-                # 2. Arşive Ekle (DÜZELTİLDİ: note_final -> notlar)
+                # 2. Arşive Ekle
                 ok_arc = add_to_bugday_giris_arsivi(
                     lot_no, tarih=str(tarih), bugday_cinsi=bugday_cinsi,
                     tedarikci=tedarikci, yore=yore, plaka=plaka,
@@ -765,7 +766,7 @@ def show_mal_kabul():
                 )
                 
                 if ok_arc:
-                    st.success("✅ Kayıt Başarılı!")
+                    st.success(f"✅ Kayıt Başarılı! Lot: {lot_no}")
                     recalculate_silos_from_logs()
                     time.sleep(1)
                     st.rerun()
@@ -2126,6 +2127,7 @@ def show_tavli_analiz_arsivi():
                 if st.button("❌ İPTAL", use_container_width=True):
                     st.session_state.silme_onayi_aktif = False
                     st.rerun()
+
 
 
 
