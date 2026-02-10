@@ -66,7 +66,7 @@ def show_user_management():
 # 2. SILO YÖNETİMİ
 # ----------------------------------------------------------------
 def show_silo_management():
-    """Silo Konfigürasyonu - TİP SEÇİMİ VE GÜNCELLEME AKTİF"""
+    """Silo Konfigürasyonu - TİP SEÇİMİ VE GÜNCELLEME AKTİF (HATA DÜZELTİLDİ)"""
     st.markdown("### 🏭 Silo Konfigürasyonu ve Tanımları")
     st.info("Buradan silo isimlerini, kapasitelerini ve kullanım amaçlarını (Buğday/Un) ayarlayabilirsiniz.")
     
@@ -79,18 +79,26 @@ def show_silo_management():
             # Boş şablon oluştur
             df = pd.DataFrame(columns=['isim', 'kapasite', 'silo_tipi', 'mevcut_miktar', 'aciklama'])
         
-        # Eğer 'silo_tipi' sütunu yoksa oluştur (Eski veritabanı uyumluluğu)
+        # --- 1. DATA TİPİ DÜZELTME (FLOAT HATASI ÇÖZÜMÜ) ---
+        # Açıklama sütunu boşsa NaN (float) gelir, bunu String'e çeviriyoruz.
+        if 'aciklama' not in df.columns:
+            df['aciklama'] = ""
+        df['aciklama'] = df['aciklama'].fillna("").astype(str)
+
+        # Eğer 'silo_tipi' sütunu yoksa oluştur
         if 'silo_tipi' not in df.columns:
             df['silo_tipi'] = "BUĞDAY"
+        df['silo_tipi'] = df['silo_tipi'].fillna("BUĞDAY").astype(str)
             
-        # Sütunları düzenle (Analiz detaylarını gizle, sadece konfigürasyon)
+        # Sütunları düzenle 
         config_cols = ['isim', 'kapasite', 'silo_tipi', 'mevcut_miktar', 'aciklama']
-        # Mevcut olmayan sütunları ekle
+        
+        # Eksik sütunları tamamla
         for col in config_cols:
             if col not in df.columns:
                 df[col] = "" if col == 'aciklama' else 0
                 
-        # Sadece konfigürasyon sütunlarını al, diğerlerini (protein, gluten vb) arka planda korumak için sakla
+        # Sadece konfigürasyon sütunlarını al
         df_display = df[config_cols].copy()
         
         # --- EDİTÖR ---
@@ -98,7 +106,7 @@ def show_silo_management():
             df_display,
             num_rows="dynamic",
             use_container_width=True,
-            key="silo_config_editor",
+            key="silo_config_editor_v2",
             column_config={
                 "isim": st.column_config.TextColumn("Silo Adı", required=True),
                 "kapasite": st.column_config.NumberColumn("Kapasite (Ton)", min_value=0, required=True, format="%.0f"),
@@ -108,58 +116,45 @@ def show_silo_management():
                     required=True,
                     default="BUĞDAY"
                 ),
-                "mevcut_miktar": st.column_config.NumberColumn("Mevcut (Ton)", disabled=True, help="Stok hareketlerinden otomatik hesaplanır"),
-                "aciklama": st.column_config.TextColumn("Açıklama / Konum")
+                "mevcut_miktar": st.column_config.NumberColumn("Mevcut (Ton)", disabled=True),
+                "aciklama": st.column_config.TextColumn("Açıklama / Konum") # Artık hata vermeyecek
             }
         )
         
-        st.caption("ℹ️ Not: Yeni satır eklemek için tablonun en altına tıklayın. Silmek için satırı seçip 'Del' tuşuna basın.")
+        st.caption("ℹ️ Not: Yeni satır eklemek için tablonun en altına tıklayın.")
         
         if st.button("💾 Silo Değişikliklerini Kaydet", type="primary"):
             try:
                 conn = get_conn()
                 
                 # --- BİRLEŞTİRME MANTIĞI ---
-                # Kullanıcı sadece konfigürasyon sütunlarını değiştirdi.
-                # Veritabanındaki diğer sütunları (protein, gluten vs.) kaybetmemek için merge işlemi yapmalıyız.
-                
-                # 1. Mevcut veriyi tekrar çek
                 original_df = fetch_data("silolar", force_refresh=True)
-                
-                # 2. Yeni eklenen siloları tespit et
                 final_rows = []
                 
                 for _, new_row in edited_df.iterrows():
                     silo_name = new_row['isim']
                     
-                    # Bu silo eski listede var mı?
+                    # Eski veriyi bul (Analiz değerlerini korumak için)
                     match = original_df[original_df['isim'] == silo_name] if not original_df.empty else pd.DataFrame()
                     
                     if not match.empty:
-                        # Varsa: Eski verileri al, üzerine yeni konfigürasyonu yaz
+                        # Varsa üzerine yaz
                         existing_data = match.iloc[0].to_dict()
-                        existing_data.update(new_row.to_dict()) # Yeni isim, kapasite, tipi güncelle
+                        existing_data.update(new_row.to_dict())
                         final_rows.append(existing_data)
                     else:
-                        # Yoksa (Yeni Silo): Sadece yeni veriyi ekle, analizleri 0 yap
+                        # Yoksa yeni ekle
                         new_data = new_row.to_dict()
-                        # Varsayılan analiz değerleri
                         defaults = {'protein':0, 'gluten':0, 'rutubet':0, 'sedim':0, 'maliyet':0}
                         for k, v in defaults.items():
                             if k not in new_data: new_data[k] = v
                         final_rows.append(new_data)
                 
-                # 3. DataFrame oluştur ve kaydet
+                # Kaydet
                 df_to_save = pd.DataFrame(final_rows)
-                
-                # Google Sheets Update
                 conn.update(worksheet="silolar", data=df_to_save)
                 
-                # Cache Temizle
                 st.cache_data.clear()
-                if 'db_cache' in st.session_state:
-                    del st.session_state.db_cache
-                
                 st.success("✅ Silo konfigürasyonu başarıyla güncellendi!")
                 time.sleep(1.5)
                 st.rerun()
@@ -285,4 +280,5 @@ def show_debug_tools():
         st.write(f"**Backend:** Google Sheets API")
         st.write(f"**Aktif Kullanıcı:** {st.session_state.get('username', 'Bilinmiyor')}")
         st.write(f"**Rol:** {st.session_state.get('user_role', 'Bilinmiyor')}")
+
 
