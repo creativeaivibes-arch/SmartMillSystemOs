@@ -50,6 +50,31 @@ def get_active_production_lots():
         return lot_list
     except Exception as e:
         return []
+def get_active_mixing_batches():
+    """
+    Paçal (Mixing) kayıtlarını çeker.
+    Üretim analizi girerken 'Hangi Paçal Kullanıldı?' sorusu için.
+    """
+    try:
+        df = fetch_data("mixing_batches")
+        if df.empty: 
+            return []
+        
+        if 'tarih' in df.columns:
+            df['tarih'] = pd.to_datetime(df['tarih'])
+            df = df.sort_values('tarih', ascending=False)
+            
+        batch_list = []
+        for _, row in df.iterrows():
+            # Format: Reçete Adı | Tarih | MIX-ID
+            tarih_str = row['tarih'].strftime('%d.%m %H:%M') if pd.notnull(row['tarih']) else "-"
+            # Batch ID ve Ürün Adını birleştir
+            label = f"{row.get('urun_adi', 'Paçal')} | {tarih_str} | {row.get('batch_id', '?')}"
+            batch_list.append(label)
+            
+        return batch_list
+    except Exception as e:
+        return []
 
 def get_un_maliyet_gecmisi():
     """Maliyet geçmişini döndür"""
@@ -1257,6 +1282,7 @@ def show_flour_yonetimi():
                 st.error("⚠️ Enzim modülü (calculations.py) bulunamadı.")
             except Exception as e:
                 st.error(f"⚠️ Modül yüklenirken hata oluştu: {e}")
+
 
 
 
