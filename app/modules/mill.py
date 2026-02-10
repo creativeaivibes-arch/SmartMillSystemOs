@@ -45,7 +45,7 @@ def get_active_mixing_batches():
 
 # --- KAYIT FONKSİYONU (GÜNCELLENDİ) ---
 def save_uretim_kaydi(uretim_tarihi, uretim_hatti, uretim_adi, vardiya, sorumlu, mixing_batch_id, **uretim_degerleri):
-    """Üretim kaydını 'mixing_batch_id' ile birlikte kaydeder."""
+    """Üretim kaydını 'kullanilan_pacal' anahtarı ile kaydeder (Zincir Kurulumu)."""
     
     # 1. Zorunlu Alan Kontrolü
     if not uretim_hatti or not vardiya:
@@ -54,18 +54,28 @@ def save_uretim_kaydi(uretim_tarihi, uretim_hatti, uretim_adi, vardiya, sorumlu,
     try:
         tarih_str = uretim_tarihi.strftime('%Y-%m-%d %H:%M:%S')
         
-        # PARTİ NO GÜVENLİĞİ (UUID)
+        # PARTİ NO GÜVENLİĞİ (PRD-ID) - Otomatik Oluştur
         unique_suffix = str(uuid.uuid4())[:4].upper()
-        # Örnek Çıktı: PRD-20260209-A1B2
-        parti_kodu = uretim_adi if uretim_adi else f"PRD-{datetime.now().strftime('%Y%m%d')}-{unique_suffix}"
+        tarih_kisa = datetime.now().strftime('%y%m%d')
         
+        # Eğer üretim adı girilmişse onu görünür isim yap, ama arka planda PRD kodu şart
+        if uretim_adi:
+            parti_kodu = f"PRD-{tarih_kisa}-{unique_suffix}" 
+            kayit_adi = uretim_adi 
+        else:
+            parti_kodu = f"PRD-{tarih_kisa}-{unique_suffix}"
+            kayit_adi = parti_kodu
+
+        # Veritabanı Paketi
         db_data = {
             'tarih': tarih_str,
             'uretim_hatti': uretim_hatti,
-            'degirmen_uretim_adi': uretim_adi,
+            'degirmen_uretim_adi': kayit_adi,
             'vardiya': vardiya,
             'sorumlu': sorumlu,
-            'mixing_batch_id': mixing_batch_id,  # <-- PAÇAL ID BAĞLANTISI BURADA
+            # --- KRİTİK DÜZELTME BURASI ---
+            'kullanilan_pacal': mixing_batch_id,  # Traceability için anahtar kelime bu
+            # ------------------------------
             'kirilan_bugday': float(uretim_degerleri.get('kirilan_bugday', 0)),
             'nem_orani': float(uretim_degerleri.get('nem_orani', 0)),
             'tav_suresi': float(uretim_degerleri.get('tav_suresi', 0)),
@@ -78,35 +88,19 @@ def save_uretim_kaydi(uretim_tarihi, uretim_hatti, uretim_adi, vardiya, sorumlu,
             'randiman_1': float(uretim_degerleri.get('randiman_1', 0)),
             'toplam_randiman': float(uretim_degerleri.get('toplam_randiman', 0)),
             'kayip': float(uretim_degerleri.get('kayip', 0)),
-            'parti_no': parti_kodu 
+            'parti_no': parti_kodu  # Benzersiz Anahtar
         }
         
         # Veritabanına Ekleme
         if add_data("uretim_kaydi", db_data):
             st.cache_data.clear()
-            return True, f"Üretim kaydı başarıyla eklendi! (Parti: {parti_kodu})"
+            return True, f"✅ Üretim Başarılı! Parti No: **{parti_kodu}**"
         else:
             return False, "Kayıt sırasında veritabanı hatası oluştu."
             
     except Exception as e:
         return False, f"Sistem hatası: {str(e)}"
-
-# --- CACHING ---
-@st.cache_data(ttl=300)
-def get_uretim_kayitlari_cached():
-    return fetch_data("uretim_kaydi")
-
-def get_uretim_kayitlari():
-    try:
-        df = get_uretim_kayitlari_cached() 
-        if df.empty: return pd.DataFrame()
-        if 'tarih' in df.columns:
-            df['tarih'] = pd.to_datetime(df['tarih'])
-            df = df.sort_values('tarih', ascending=False)
-        return df
-    except Exception as e:
-        st.error(f"Kayıtlar yüklenemedi: {e}")
-        return pd.DataFrame()
+        
 
 # --- EKRAN 1: ÜRETİM GİRİŞİ (PAÇAL SEÇİMLİ) ---
 def show_uretim_kaydi():
@@ -320,3 +314,4 @@ def show_production_yonetimi():
         with st.container(border=True): show_uretim_arsivi()
     elif secim == "📊 Üretim Performans Analizi":
         with st.container(border=True): show_yonetim_dashboard()
+
