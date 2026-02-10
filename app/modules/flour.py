@@ -30,32 +30,46 @@ FLOUR_CONFIG = {
 # --- YENİ EKLENEN HELPER ---
 def get_active_production_lots():
     """
-    Değirmen Üretim (PRD) kayıtlarını çeker.
-    Sevkiyat girerken 'Hangi Üretimden Sevk Ediliyor?' sorusu için.
+    Sevkiyat için referans alınacak ÜRETİM (PRD) kayıtlarını çeker.
+    Kaynağı 'un_analiz' tablosudur (Laboratuvar Üretim Kayıtları).
     """
     try:
-        # force_refresh=True ekledik, böylece cache sorunu çözülür
-        df = fetch_data("uretim_kaydi", force_refresh=True)
+        # 1. un_analiz tablosunu çek (Force refresh ile en güncel hali)
+        df = fetch_data("un_analiz", force_refresh=True)
         if df.empty: 
             return []
         
+        # 2. Sadece 'ÜRETİM' tipindeki kayıtları filtrele
+        # (Çünkü Sevkiyat, daha önce üretilmiş ve analizi yapılmış mallardan yapılır)
+        if 'islem_tipi' in df.columns:
+            df = df[df['islem_tipi'] == "ÜRETİM"]
+        
+        if df.empty:
+            return []
+
+        # 3. Tarihe göre sırala (En yeni en üstte)
         if 'tarih' in df.columns:
-            df['tarih'] = pd.to_datetime(df['tarih'])
+            df['tarih'] = pd.to_datetime(df['tarih'], errors='coerce')
             df = df.sort_values('tarih', ascending=False)
             
         lot_list = []
         for _, row in df.iterrows():
             try:
-                # Parti No kontrolü (boş veya nan ise atla)
-                parti = str(row.get('parti_no', ''))
-                if not parti or parti.lower() == 'nan':
-                    continue
+                # Lot No (PRD-...)
+                lot = str(row.get('lot_no', ''))
+                if not lot or lot.lower() == 'nan': continue
+
+                # Ürün Adı / Marka
+                # Hem 'un_markasi' hem 'un_cinsi_marka' alanlarına bakıyoruz
+                marka = row.get('un_markasi', '')
+                if not marka: 
+                    marka = row.get('un_cinsi_marka', '-')
                 
+                # Tarih
                 tarih_str = row['tarih'].strftime('%d.%m %H:%M') if pd.notnull(row['tarih']) else "-"
-                urun = row.get('degirmen_uretim_adi', '-')
                 
-                # Format: PRD-LOT | Ürün Adı | Tarih
-                label = f"{parti} | {urun} | {tarih_str}"
+                # Format: PRD-260210... | Pırlanta | 10.02 14:30
+                label = f"{lot} | {marka} | {tarih_str}"
                 lot_list.append(label)
             except:
                 continue
@@ -1252,6 +1266,7 @@ def show_flour_yonetimi():
                 st.error("⚠️ Enzim modülü (calculations.py) bulunamadı.")
             except Exception as e:
                 st.error(f"⚠️ Modül yüklenirken hata oluştu: {e}")
+
 
 
 
