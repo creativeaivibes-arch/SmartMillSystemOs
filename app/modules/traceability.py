@@ -31,6 +31,7 @@ def get_trace_chain(search_query):
         try:
             df_uretim = fetch_data("uretim_kaydi")
             if not df_uretim.empty:
+                # Tam eşleşme veya içerir
                 match = df_uretim[df_uretim.astype(str).apply(lambda x: x.str.contains(search_query, case=False)).any(axis=1)]
                 if not match.empty:
                     chain["found"] = True
@@ -57,22 +58,21 @@ def get_trace_chain(search_query):
                 if not match.empty:
                     chain["found"] = True
                     chain["SHIP"] = match.iloc[0]
-                    # Sevkiyattan Üretime Köprü
+                    
+                    # --- KRİTİK NOKTA: Sevkiyattan Üretime Köprü ---
                     if 'uretim_lot_no' in chain["SHIP"]:
-                        lot_ref = str(chain["SHIP"]['uretim_lot_no'])
-                        if lot_ref:
+                        lot_ref = str(chain["SHIP"]['uretim_lot_no']).strip()
+                        if lot_ref and lot_ref.lower() != 'nan' and lot_ref != 'None':
                             df_uretim = fetch_data("uretim_kaydi")
                             if not df_uretim.empty:
                                 u_match = df_uretim[df_uretim['parti_no'] == lot_ref]
                                 if not u_match.empty: chain["PRD"] = u_match.iloc[0]
         except: pass
 
-    # D) Un Analizlerinde Ara (LAB-...) - DÜZELTİLEN KISIM
+    # D) Un Analizlerinde Ara (LAB-...)
     if not chain["found"]:
         try:
-            # HATA BURADAYDI: 'un_analizleri' -> 'un_analiz' OLARAK DÜZELTİLDİ
             df_lab_search = fetch_data("un_analiz") 
-            
             if not df_lab_search.empty and 'lot_no' in df_lab_search.columns:
                 match = df_lab_search[df_lab_search['lot_no'].astype(str) == search_query]
                 if not match.empty:
@@ -90,7 +90,7 @@ def get_trace_chain(search_query):
     
     if chain["PRD"] is not None:
         # 1. Paçalı Bul
-        mix_id = str(chain["PRD"].get('mixing_batch_id', ''))
+        mix_id = str(chain["PRD"].get('mixing_batch_id', '')) # mill.py'de bu isimle kaydetmiştik
         if mix_id and mix_id != "BILINMIYOR":
             try:
                 df_mix = fetch_data("mixing_batches")
@@ -99,14 +99,13 @@ def get_trace_chain(search_query):
                     if not m_match.empty: chain["MIX"] = m_match.iloc[0]
             except: pass
         
-        # 2. Lab Analizini Bul - DÜZELTİLEN KISIM
+        # 2. Lab Analizini Bul (Eğer hala yoksa)
         if chain["LAB"] is None:
             try:
-                # HATA BURADAYDI: 'un_analizleri' -> 'un_analiz' OLARAK DÜZELTİLDİ
                 df_lab = fetch_data("un_analiz")
-                
                 if not df_lab.empty:
                     parti_no = str(chain["PRD"].get('parti_no', ''))
+                    # Lot numarasına göre eşleştir
                     l_match = df_lab[df_lab['lot_no'] == parti_no]
                     if not l_match.empty: chain["LAB"] = l_match.iloc[0]
             except: pass
@@ -118,12 +117,23 @@ def get_trace_chain(search_query):
 # ==============================================================================
 def render_kvkk_row(label, value, unit="", color="black"):
     """Basit veri satırı"""
+    # Değer yoksa "-" bas
+    if pd.isna(value) or value == "" or str(value).lower() == "nan":
+        value = "-"
+        unit = ""
+    
     st.markdown(f"""
     <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f0f0f0; padding: 4px 0;">
         <span style="font-weight: 600; color: #555;">{label}</span>
         <span style="color: {color}; font-weight: 500;">{value} <span style="font-size:0.8em; color:#888;">{unit}</span></span>
     </div>
     """, unsafe_allow_html=True)
+
+def fmt(val, decimals=1):
+    try: 
+        if pd.isna(val) or val == "" or str(val).lower() == "nan": return "-"
+        return f"{float(val):.{decimals}f}"
+    except: return str(val)
 
 def show_traceability_dashboard():
     """KARA KUTU ANA EKRANI"""
@@ -148,7 +158,8 @@ def show_traceability_dashboard():
             chain = get_trace_chain(query)
         
         if not chain["found"]:
-            st.error("❌ Kayıt bulunamadı. Lütfen kodu kontrol edin veya ilgili tabloların (un_analiz, sevkiyat_listesi vb.) dolu olduğundan emin olun.")
+            st.error("❌ Kayıt bulunamadı. Lütfen kodu kontrol edin.")
+            st.info("💡 İpucu: 'sevkiyat_listesi' veya 'un_analiz' tablolarınızda bu lot numarasının olduğundan emin olun.")
             return
 
         st.success("✅ Zincir Başarıyla Kuruldu!")
@@ -162,11 +173,63 @@ def show_traceability_dashboard():
                     render_kvkk_row("Lot No", ship.get('lot_no'))
                     render_kvkk_row("Müşteri", ship.get('musteri_adi'))
                     render_kvkk_row("Plaka", ship.get('plaka'))
+                    
+                    # Bağlantı Kontrolü
+                    uretim_ref = str(ship.get('uretim_lot_no', ''))
+                    if not uretim_ref or uretim_ref.lower() == 'nan':
+                        st.error("⚠️ UYARI: Bu sevkiyatta 'Üretim Lot No' (PRD) tanımlanmamış! Zincir geriye gidemiyor.")
+                    else:
+                        st.caption(f"🔗 Bağlı Üretim Lotu: {uretim_ref}")
+
                 with c2:
                     tarih_val = str(ship.get('tarih'))[:16]
                     render_kvkk_row("Tarih", tarih_val)
                     render_kvkk_row("Miktar", ship.get('miktar'), "Kg")
                     render_kvkk_row("Ürün", ship.get('urun_adi'))
+
+        # 3. HALKA: LABORATUVAR (Final Ürün Analizi) - ARTIK FULL DETAYLI
+        if chain["LAB"] is not None:
+            lab = chain["LAB"]
+            with st.expander("🔬 3. FİNAL ÜRÜN ANALİZİ (LAB)", expanded=True):
+                # Numune Adı Bulma (Yedekli)
+                numune = lab.get('numune_adi') or lab.get('urun_adi') or lab.get('marka') or "-"
+                tarih_lab = lab.get('tarih') or "-"
+                
+                st.markdown(f"**Numune:** `{numune}` | **Tarih:** {tarih_lab}")
+                
+                t1, t2, t3 = st.tabs(["⚗️ Kimyasal", "📈 Farinograph", "📊 Extensograph"])
+                
+                with t1:
+                    k1, k2, k3 = st.columns(3)
+                    k1.metric("Protein", fmt(lab.get('protein')))
+                    k2.metric("Kül", fmt(lab.get('kul'), 3))
+                    k3.metric("Rutubet", fmt(lab.get('rutubet')))
+                    
+                    k4, k5, k6 = st.columns(3)
+                    k4.metric("Gluten", fmt(lab.get('gluten')))
+                    k5.metric("G. İndeks", fmt(lab.get('gluten_index'), 0))
+                    k6.metric("Sedim", fmt(lab.get('sedim'), 0))
+                    
+                    k7, k8, k9 = st.columns(3)
+                    k7.metric("FN", fmt(lab.get('fn'), 0))
+                    k8.metric("Renk", lab.get('renk', '-'))
+                    k9.metric("Benek", lab.get('benek', '-'))
+
+                with t2:
+                    f1, f2 = st.columns(2)
+                    f1.metric("Su Kal. (F)", fmt(lab.get('su_kaldirma_f')))
+                    f1.metric("Gelişme", fmt(lab.get('gelisme_suresi')))
+                    f2.metric("Stabilite", fmt(lab.get('stabilite')))
+                    f2.metric("Yumuşama", fmt(lab.get('yumusama'), 0))
+
+                with t3:
+                    e1, e2, e3 = st.columns(3)
+                    e1.metric("Enerji", fmt(lab.get('enerji135') or lab.get('enerji'), 0))
+                    e2.metric("Direnç", fmt(lab.get('direnc135') or lab.get('direnc'), 0))
+                    e3.metric("Uzama", fmt(lab.get('uzama135') or lab.get('uzama'), 0))
+        
+        elif chain["found"] and chain["SHIP"] is not None:
+            st.info("ℹ️ Bu partiye ait laboratuvar sonucu henüz girilmemiş veya eşleşmemiş.")
 
         # 1. HALKA: ÜRETİM & DEĞİRMEN (Mill Data)
         if chain["PRD"] is not None:
@@ -217,9 +280,9 @@ def show_traceability_dashboard():
                     k1, k2, k3, k4 = st.columns(4)
                     
                     k_prot = analiz.get('kuru_protein_ort', analiz.get('teorik_kuru_protein', 0))
-                    k1.metric("Kuru Protein", f"{float(k_prot):.1f}")
-                    k2.metric("Tavlı Protein", f"{float(analiz.get('protein', 0)):.1f}")
-                    k3.metric("Tavlı Enerji", f"{float(analiz.get('enerji135', 0)):.0f}")
+                    k1.metric("Kuru Protein", fmt(k_prot))
+                    k2.metric("Tavlı Protein", fmt(analiz.get('protein', 0)))
+                    k3.metric("Tavlı Enerji", fmt(analiz.get('enerji135', 0), 0))
                     k4.metric("Maliyet", f"{float(mix.get('maliyet', 0)):.2f} TL")
                     
                     st.divider()
@@ -240,10 +303,10 @@ def show_traceability_dashboard():
                                 "Silo": silo,
                                 "Oran": f"%{data.get('oran', 0)}",
                                 "Cins": cins,
-                                "Kuru Prot.": f"{float(kuru.get('protein', 0) or 0):.1f}",
-                                "Süne": f"{float(kuru.get('sune', 0) or 0):.1f}",
-                                "Hektolitre": f"{float(kuru.get('hektolitre', 0) or 0):.1f}",
-                                "Tavlı Enerji": f"{float(tavli.get('enerji135', 0) or 0):.0f}"
+                                "Kuru Prot.": fmt(kuru.get('protein', 0)),
+                                "Süne": fmt(kuru.get('sune', 0)),
+                                "Hektolitre": fmt(kuru.get('hektolitre', 0)),
+                                "Tavlı Enerji": fmt(tavli.get('enerji135', 0), 0)
                             })
                         else:
                             rows.append({"Silo": silo, "Oran": f"%{data}"})
@@ -255,30 +318,6 @@ def show_traceability_dashboard():
 
         elif chain["PRD"] is not None:
             st.warning("⚠️ Bu üretime bağlı Paçal (MIX) kaydı bulunamadı.")
-
-        # 3. HALKA: LABORATUVAR (Final Ürün Analizi)
-        if chain["LAB"] is not None:
-            lab = chain["LAB"]
-            with st.expander("🔬 3. FİNAL ÜRÜN ANALİZİ (LAB)", expanded=True):
-                st.markdown(f"**Numune:** {lab.get('numune_adi')} | **Tarih:** {lab.get('tarih')}")
-                
-                # Değerleri güvenli çekme
-                def safe_val(key): return lab.get(key, '-')
-
-                t1, t2 = st.tabs(["Kimyasal", "Reoloji"])
-                with t1:
-                    lc1, lc2, lc3 = st.columns(3)
-                    lc1.metric("Protein", safe_val('protein'))
-                    lc2.metric("Kül", safe_val('kul'))
-                    lc3.metric("Renk", safe_val('renk'))
-                with t2:
-                    lc4, lc5, lc6 = st.columns(3)
-                    lc4.metric("Enerji", safe_val('enerji135') if safe_val('enerji135') != '-' else safe_val('enerji'))
-                    lc5.metric("Direnç", safe_val('direnc135') if safe_val('direnc135') != '-' else safe_val('direnc'))
-                    lc6.metric("Stabilite", safe_val('stabilite'))
-        
-        elif chain["found"]:
-            st.info("ℹ️ Bu partiye ait laboratuvar sonucu henüz girilmemiş veya eşleşmemiş.")
 
     elif ara_btn:
         st.warning("Lütfen bir arama kodu giriniz.")
