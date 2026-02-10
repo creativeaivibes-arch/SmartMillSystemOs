@@ -29,23 +29,36 @@ FLOUR_CONFIG = {
 
 # --- YENİ EKLENEN HELPER ---
 def get_active_production_lots():
-    """Üretim modülünden (uretim_kaydi) parti numaralarını çeker"""
+    """
+    Değirmen Üretim (PRD) kayıtlarını çeker.
+    Sevkiyat girerken 'Hangi Üretimden Sevk Ediliyor?' sorusu için.
+    """
     try:
-        df = fetch_data("uretim_kaydi")
+        # force_refresh=True ekledik, böylece cache sorunu çözülür
+        df = fetch_data("uretim_kaydi", force_refresh=True)
         if df.empty: 
             return []
         
-        # Tarihe göre sırala (En yeni en üstte)
         if 'tarih' in df.columns:
             df['tarih'] = pd.to_datetime(df['tarih'])
             df = df.sort_values('tarih', ascending=False)
             
         lot_list = []
         for _, row in df.iterrows():
-            # Görünüm: PRD-2026... | Ekmeklik | 10.02 14:00
-            tarih_str = row['tarih'].strftime('%d.%m %H:%M') if pd.notnull(row['tarih']) else "-"
-            label = f"{row.get('parti_no', '?')} | {row.get('degirmen_uretim_adi', '-')} | {tarih_str}"
-            lot_list.append(label)
+            try:
+                # Parti No kontrolü (boş veya nan ise atla)
+                parti = str(row.get('parti_no', ''))
+                if not parti or parti.lower() == 'nan':
+                    continue
+                
+                tarih_str = row['tarih'].strftime('%d.%m %H:%M') if pd.notnull(row['tarih']) else "-"
+                urun = row.get('degirmen_uretim_adi', '-')
+                
+                # Format: PRD-LOT | Ürün Adı | Tarih
+                label = f"{parti} | {urun} | {tarih_str}"
+                lot_list.append(label)
+            except:
+                continue
             
         return lot_list
     except Exception as e:
@@ -1239,6 +1252,7 @@ def show_flour_yonetimi():
                 st.error("⚠️ Enzim modülü (calculations.py) bulunamadı.")
             except Exception as e:
                 st.error(f"⚠️ Modül yüklenirken hata oluştu: {e}")
+
 
 
 
