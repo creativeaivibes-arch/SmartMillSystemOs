@@ -66,28 +66,106 @@ def show_user_management():
 # 2. SILO YÖNETİMİ
 # ----------------------------------------------------------------
 def show_silo_management():
-    """Silo tanımları ve kapasite ayarları"""
-    st.markdown("### 🏭 Silo Konfigürasyonu")
-    st.info("Buradan silo kapasitelerini ve isimlerini düzenleyebilirsiniz.")
+    """Silo Konfigürasyonu - TİP SEÇİMİ VE GÜNCELLEME AKTİF"""
+    st.markdown("### 🏭 Silo Konfigürasyonu ve Tanımları")
+    st.info("Buradan silo isimlerini, kapasitelerini ve kullanım amaçlarını (Buğday/Un) ayarlayabilirsiniz.")
     
     try:
-        silos = fetch_data("silolar")
+        # Veriyi çek (Force refresh ile en güncel hali)
+        df = fetch_data("silolar", force_refresh=True)
         
-        if not silos.empty:
-            # Streamlit Data Editor ile interaktif düzenleme
-            edited_silos = st.data_editor(
-                silos,
-                num_rows="dynamic",
-                use_container_width=True,
-                key="silo_editor_admin"
-            )
+        if df.empty:
+            st.warning("Tanımlı silo bulunamadı. Yeni eklemek için aşağıdaki tabloyu kullanın.")
+            # Boş şablon oluştur
+            df = pd.DataFrame(columns=['isim', 'kapasite', 'silo_tipi', 'mevcut_miktar', 'aciklama'])
+        
+        # Eğer 'silo_tipi' sütunu yoksa oluştur (Eski veritabanı uyumluluğu)
+        if 'silo_tipi' not in df.columns:
+            df['silo_tipi'] = "BUĞDAY"
             
-            if st.button("💾 Silo Değişikliklerini Kaydet"):
-                # Güvenlik önlemi: Toplu güncelleme karmaşıktır, şimdilik uyarı veriyoruz.
-                # İleride buraya 'conn.update' ile toplu yazma eklenebilir.
-                st.warning("⚠️ Toplu güncelleme modu şu an 'salt okunur' güvenli moddadır. Lütfen veritabanı yöneticisi ile görüşün.")
-        else:
-            st.warning("Tanımlı silo bulunamadı.")
+        # Sütunları düzenle (Analiz detaylarını gizle, sadece konfigürasyon)
+        config_cols = ['isim', 'kapasite', 'silo_tipi', 'mevcut_miktar', 'aciklama']
+        # Mevcut olmayan sütunları ekle
+        for col in config_cols:
+            if col not in df.columns:
+                df[col] = "" if col == 'aciklama' else 0
+                
+        # Sadece konfigürasyon sütunlarını al, diğerlerini (protein, gluten vb) arka planda korumak için sakla
+        df_display = df[config_cols].copy()
+        
+        # --- EDİTÖR ---
+        edited_df = st.data_editor(
+            df_display,
+            num_rows="dynamic",
+            use_container_width=True,
+            key="silo_config_editor",
+            column_config={
+                "isim": st.column_config.TextColumn("Silo Adı", required=True),
+                "kapasite": st.column_config.NumberColumn("Kapasite (Ton)", min_value=0, required=True, format="%.0f"),
+                "silo_tipi": st.column_config.SelectboxColumn(
+                    "Kullanım Amacı", 
+                    options=["BUĞDAY", "UN", "DİNLENDİRME", "DİĞER"],
+                    required=True,
+                    default="BUĞDAY"
+                ),
+                "mevcut_miktar": st.column_config.NumberColumn("Mevcut (Ton)", disabled=True, help="Stok hareketlerinden otomatik hesaplanır"),
+                "aciklama": st.column_config.TextColumn("Açıklama / Konum")
+            }
+        )
+        
+        st.caption("ℹ️ Not: Yeni satır eklemek için tablonun en altına tıklayın. Silmek için satırı seçip 'Del' tuşuna basın.")
+        
+        if st.button("💾 Silo Değişikliklerini Kaydet", type="primary"):
+            try:
+                conn = get_conn()
+                
+                # --- BİRLEŞTİRME MANTIĞI ---
+                # Kullanıcı sadece konfigürasyon sütunlarını değiştirdi.
+                # Veritabanındaki diğer sütunları (protein, gluten vs.) kaybetmemek için merge işlemi yapmalıyız.
+                
+                # 1. Mevcut veriyi tekrar çek
+                original_df = fetch_data("silolar", force_refresh=True)
+                
+                # 2. Yeni eklenen siloları tespit et
+                final_rows = []
+                
+                for _, new_row in edited_df.iterrows():
+                    silo_name = new_row['isim']
+                    
+                    # Bu silo eski listede var mı?
+                    match = original_df[original_df['isim'] == silo_name] if not original_df.empty else pd.DataFrame()
+                    
+                    if not match.empty:
+                        # Varsa: Eski verileri al, üzerine yeni konfigürasyonu yaz
+                        existing_data = match.iloc[0].to_dict()
+                        existing_data.update(new_row.to_dict()) # Yeni isim, kapasite, tipi güncelle
+                        final_rows.append(existing_data)
+                    else:
+                        # Yoksa (Yeni Silo): Sadece yeni veriyi ekle, analizleri 0 yap
+                        new_data = new_row.to_dict()
+                        # Varsayılan analiz değerleri
+                        defaults = {'protein':0, 'gluten':0, 'rutubet':0, 'sedim':0, 'maliyet':0}
+                        for k, v in defaults.items():
+                            if k not in new_data: new_data[k] = v
+                        final_rows.append(new_data)
+                
+                # 3. DataFrame oluştur ve kaydet
+                df_to_save = pd.DataFrame(final_rows)
+                
+                # Google Sheets Update
+                conn.update(worksheet="silolar", data=df_to_save)
+                
+                # Cache Temizle
+                st.cache_data.clear()
+                if 'db_cache' in st.session_state:
+                    del st.session_state.db_cache
+                
+                st.success("✅ Silo konfigürasyonu başarıyla güncellendi!")
+                time.sleep(1.5)
+                st.rerun()
+                
+            except Exception as e:
+                st.error(f"Kayıt sırasında hata oluştu: {str(e)}")
             
     except Exception as e:
         st.error(f"Silo verileri yüklenemedi: {e}")
@@ -207,3 +285,4 @@ def show_debug_tools():
         st.write(f"**Backend:** Google Sheets API")
         st.write(f"**Aktif Kullanıcı:** {st.session_state.get('username', 'Bilinmiyor')}")
         st.write(f"**Rol:** {st.session_state.get('user_role', 'Bilinmiyor')}")
+
