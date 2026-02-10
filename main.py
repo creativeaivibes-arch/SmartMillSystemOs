@@ -197,16 +197,23 @@ with st.sidebar:
     opt_mill = t("menu_mill")
     opt_finance = t("menu_finance")
     opt_admin = t("menu_admin")
+    opt_trace = "🔍 İzlenebilirlik"
     
     # 2. Rol Bazlı Menü Listesi (Değişkenleri kullanıyoruz)
     if user_role == "admin":
-        menu_secenekleri = [opt_dashboard, opt_quality, opt_mill, opt_finance, opt_admin]
+        # opt_trace'i buraya ekledik
+        menu_secenekleri = [opt_dashboard, opt_quality, opt_mill, opt_finance, opt_trace, opt_admin]
+        
     elif user_role == "quality":
-        menu_secenekleri = [opt_dashboard, opt_quality, opt_mill]
+        # opt_trace'i buraya ekledik
+        menu_secenekleri = [opt_dashboard, opt_quality, opt_mill, opt_trace]
+        
     elif user_role == "operations":
-        menu_secenekleri = [opt_dashboard, opt_mill]
+        # opt_trace'i buraya ekledik
+        menu_secenekleri = [opt_dashboard, opt_mill, opt_trace]
+        
     elif user_role == "management":
-        menu_secenekleri = [opt_dashboard, opt_quality, opt_finance]
+        menu_secenekleri = [opt_dashboard, opt_quality, opt_finance, opt_trace]
     else:
         menu_secenekleri = [opt_dashboard]
 
@@ -427,6 +434,7 @@ with st.sidebar:
     # En Alt Footer
     st.caption(f"🏢 {LICENSE_CONFIG.get('CLIENT_NAME', 'Client')}")
     st.caption("v2.0 Enterprise")
+
 
 
 
