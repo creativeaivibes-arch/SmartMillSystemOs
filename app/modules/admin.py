@@ -4,8 +4,8 @@ import pandas as pd
 from datetime import datetime
 import time
 
-# Database importları
-from app.core.database import fetch_data, add_data, update_data, get_conn
+# Database importları - clear_cache EKLENDİ
+from app.core.database import fetch_data, add_data, update_data, get_conn, clear_cache
 
 # ----------------------------------------------------------------
 # 1. KULLANICI YÖNETİMİ
@@ -44,7 +44,6 @@ def show_user_management():
                 
                 if submitted:
                     if new_user and new_pass:
-                        # Not: Prodüksiyonda şifreler hashlenmelidir.
                         user_data = {
                             "username": new_user,
                             "password": new_pass,
@@ -52,10 +51,13 @@ def show_user_management():
                             "full_name": new_name,
                             "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         }
-                        add_data("users", user_data)
-                        st.success(f"✅ {new_user} kullanıcısı başarıyla eklendi!")
-                        time.sleep(1)
-                        st.rerun()
+                        if add_data("users", user_data):
+                            st.success(f"✅ {new_user} kullanıcısı başarıyla eklendi!")
+                            clear_cache("users") # Cache temizle
+                            time.sleep(1)
+                            st.rerun()
+                        else:
+                            st.error("Kayıt sırasında hata oluştu.")
                     else:
                         st.error("Kullanıcı adı ve şifre boş olamaz.")
 
@@ -63,10 +65,10 @@ def show_user_management():
         st.error(f"Kullanıcı verileri yüklenirken hata oluştu: {e}")
 
 # ----------------------------------------------------------------
-# 2. SILO YÖNETİMİ
+# 2. SILO YÖNETİMİ (DÜZELTİLDİ: CACHE TEMİZLEME EKLENDİ)
 # ----------------------------------------------------------------
 def show_silo_management():
-    """Silo Konfigürasyonu - TİP SEÇİMİ VE GÜNCELLEME AKTİF (HATA DÜZELTİLDİ)"""
+    """Silo Konfigürasyonu - TİP SEÇİMİ VE GÜNCELLEME AKTİF (CACHE FIX)"""
     st.markdown("### 🏭 Silo Konfigürasyonu ve Tanımları")
     st.info("Buradan silo isimlerini, kapasitelerini ve kullanım amaçlarını (Buğday/Un) ayarlayabilirsiniz.")
     
@@ -76,29 +78,21 @@ def show_silo_management():
         
         if df.empty:
             st.warning("Tanımlı silo bulunamadı. Yeni eklemek için aşağıdaki tabloyu kullanın.")
-            # Boş şablon oluştur
             df = pd.DataFrame(columns=['isim', 'kapasite', 'silo_tipi', 'mevcut_miktar', 'aciklama'])
         
-        # --- 1. DATA TİPİ DÜZELTME (FLOAT HATASI ÇÖZÜMÜ) ---
-        # Açıklama sütunu boşsa NaN (float) gelir, bunu String'e çeviriyoruz.
-        if 'aciklama' not in df.columns:
-            df['aciklama'] = ""
+        # --- 1. DATA TİPİ DÜZELTME ---
+        if 'aciklama' not in df.columns: df['aciklama'] = ""
         df['aciklama'] = df['aciklama'].fillna("").astype(str)
 
-        # Eğer 'silo_tipi' sütunu yoksa oluştur
-        if 'silo_tipi' not in df.columns:
-            df['silo_tipi'] = "BUĞDAY"
+        if 'silo_tipi' not in df.columns: df['silo_tipi'] = "BUĞDAY"
         df['silo_tipi'] = df['silo_tipi'].fillna("BUĞDAY").astype(str)
             
         # Sütunları düzenle 
         config_cols = ['isim', 'kapasite', 'silo_tipi', 'mevcut_miktar', 'aciklama']
-        
-        # Eksik sütunları tamamla
         for col in config_cols:
             if col not in df.columns:
                 df[col] = "" if col == 'aciklama' else 0
                 
-        # Sadece konfigürasyon sütunlarını al
         df_display = df[config_cols].copy()
         
         # --- EDİTÖR ---
@@ -117,7 +111,7 @@ def show_silo_management():
                     default="BUĞDAY"
                 ),
                 "mevcut_miktar": st.column_config.NumberColumn("Mevcut (Ton)", disabled=True),
-                "aciklama": st.column_config.TextColumn("Açıklama / Konum") # Artık hata vermeyecek
+                "aciklama": st.column_config.TextColumn("Açıklama / Konum")
             }
         )
         
@@ -133,17 +127,13 @@ def show_silo_management():
                 
                 for _, new_row in edited_df.iterrows():
                     silo_name = new_row['isim']
-                    
-                    # Eski veriyi bul (Analiz değerlerini korumak için)
                     match = original_df[original_df['isim'] == silo_name] if not original_df.empty else pd.DataFrame()
                     
                     if not match.empty:
-                        # Varsa üzerine yaz
                         existing_data = match.iloc[0].to_dict()
                         existing_data.update(new_row.to_dict())
                         final_rows.append(existing_data)
                     else:
-                        # Yoksa yeni ekle
                         new_data = new_row.to_dict()
                         defaults = {'protein':0, 'gluten':0, 'rutubet':0, 'sedim':0, 'maliyet':0}
                         for k, v in defaults.items():
@@ -154,7 +144,12 @@ def show_silo_management():
                 df_to_save = pd.DataFrame(final_rows)
                 conn.update(worksheet="silolar", data=df_to_save)
                 
+                # --- KRİTİK DÜZELTME: CACHE TEMİZLİĞİ ---
+                # Veritabanı güncellendiği an cache'i siliyoruz ki
+                # Dashboard ve Wheat.py taze veriyi çekebilsin.
+                clear_cache("silolar") 
                 st.cache_data.clear()
+                
                 st.success("✅ Silo konfigürasyonu başarıyla güncellendi!")
                 time.sleep(1.5)
                 st.rerun()
@@ -223,16 +218,13 @@ def show_system_logs():
     st.markdown("### 📜 Sistem Hareket Kayıtları")
     
     try:
-        # Hareketler tablosunu log olarak kullanıyoruz
         logs = fetch_data("hareketler")
         
         if not logs.empty:
-            # Tarihe göre en yeniden eskiye sırala
             if 'tarih' in logs.columns:
                 logs['tarih'] = pd.to_datetime(logs['tarih'])
                 logs = logs.sort_values('tarih', ascending=False)
             
-            # Filtreleme
             filter_text = st.text_input("Loglarda Ara (Silo, İşlem Tipi vb.)")
             if filter_text:
                 mask = logs.astype(str).apply(lambda x: x.str.contains(filter_text, case=False, na=False)).any(axis=1)
@@ -261,6 +253,7 @@ def show_debug_tools():
         with col_c1:
             if st.button("🧹 Cache (Önbellek) Temizle", type="primary"):
                 st.cache_data.clear()
+                clear_cache() # Tüm özel cache'leri de sil
                 st.success("Tüm veri önbelleği temizlendi! Veriler yeniden çekilecek.")
                 time.sleep(1)
                 st.rerun()
@@ -280,5 +273,3 @@ def show_debug_tools():
         st.write(f"**Backend:** Google Sheets API")
         st.write(f"**Aktif Kullanıcı:** {st.session_state.get('username', 'Bilinmiyor')}")
         st.write(f"**Rol:** {st.session_state.get('user_role', 'Bilinmiyor')}")
-
-
