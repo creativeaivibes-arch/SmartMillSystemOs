@@ -373,6 +373,14 @@ elif selected_page == "FINANCE_DASHBOARD":
     except Exception as e:
         st.error("🚨 Finans Modülü genel yükleme hatası.")
         st.caption(f"Teknik Hata: {str(e)}")
+        
+# 🔍 İZLENEBİLİRLİK (KARA KUTU)
+elif selected_page == "TRACEABILITY":
+    try:
+        show_traceability_dashboard()
+    except Exception as e:
+        st.error("🚨 İzlenebilirlik Modülü yüklenirken hata oluştu.")
+        st.caption(f"Teknik Hata: {str(e)}")
 
 # 🛠️ YÖNETİM PANELİ (ADMIN) - Sadece Adminler Görebilir
 elif selected_page == "ADMIN":
@@ -437,6 +445,7 @@ with st.sidebar:
     # En Alt Footer
     st.caption(f"🏢 {LICENSE_CONFIG.get('CLIENT_NAME', 'Client')}")
     st.caption("v2.0 Enterprise")
+
 
 
 
