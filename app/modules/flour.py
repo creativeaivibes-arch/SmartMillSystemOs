@@ -523,10 +523,11 @@ def show_un_analiz_kaydi():
     if st.session_state.get('user_role') not in ["admin", "operations", "quality"]:
         st.warning("⛔ Yetkisiz Erişim")
         return
+    
     st.header("📝 Un Analiz & Sevkiyat Kaydı")
     
-    # --- 1. İŞLEM TİPİ VE AKILLI LOT (EN BAŞA EKLENDİ) ---
-    islem_tipi = st.selectbox("İşlem Tipi *", ["ÜRETİM", "SEVKİYAT", "NUMUNE", "ŞİKAYET", "İADE"])
+    # --- 1. İŞLEM TİPİ VE AKILLI LOT ---
+    islem_tipi = st.selectbox("İşlem Tipi Seçiniz *", ["ÜRETİM", "SEVKİYAT", "NUMUNE", "ŞİKAYET", "İADE"])
     
     prefix_map = {
         "ÜRETİM": "PRD",
@@ -539,11 +540,11 @@ def show_un_analiz_kaydi():
     timestamp_str = datetime.now().strftime('%y%m%d%H%M')
     auto_lot = f"{current_prefix}-{timestamp_str}"
 
-    col1, col2 = st.columns([1, 1], gap="large")
+    col1, col2 = st.columns([1, 1], gap="medium")
     
-    # --- SOL KOLON (KİMLİK & SEVKİYAT BİLGİLERİ) ---
+    # --- SOL KOLON: KİMLİK BİLGİLERİ ---
     with col1:
-        st.subheader("📋 Kayıt Bilgileri")
+        st.subheader("📋 Kayıt Künyesi")
         
         st.info(f"**Otomatik Lot:** `{auto_lot}`")
         lot_no = st.text_input("Lot Numarası *", value=auto_lot)
@@ -584,7 +585,6 @@ def show_un_analiz_kaydi():
             # Silo
             df_silo = fetch_data("silolar") 
             if not df_silo.empty:
-                # 'isim' sütununu bulmaya çalış, yoksa ilk sütunu al
                 col_name = 'isim' if 'isim' in df_silo.columns else df_silo.columns[0]
                 silo_list = ["(Belirtilmemiş)"] + df_silo[col_name].tolist()
                 uretim_silosu = st.selectbox("Üretim Silosu", silo_list)
@@ -615,9 +615,9 @@ def show_un_analiz_kaydi():
             
         notlar = st.text_area("Notlar")
 
-    # --- SAĞ KOLON (ANALİZLER - HİÇBİR ŞEY SİLİNMEDİ) ---
+    # --- SAĞ KOLON: SEKME YAPISI (TABS) ---
     with col2:
-        st.subheader("🧪 Analiz Değerleri")
+        st.subheader("🧪 Laboratuvar Analizleri")
         
         # Spec Hazırlığı
         current_specs = {}
@@ -636,64 +636,63 @@ def show_un_analiz_kaydi():
                     st.error(f"❌ Limit Dışı!")
             return val
             
-        # Varsayılan değer ayarı (Sevkiyat ise 0 gelir)
+        # Varsayılan değer ayarı
         def get_def(std_val): return 0.0 if islem_tipi == "SEVKİYAT" else std_val
 
-        # 1. KİMYASAL (ZORUNLU)
-        with st.expander("🧪 KİMYASAL ANALİZLER (Zorunlu)", expanded=(islem_tipi != "SEVKİYAT")):
-            k1, k2 = st.columns(2)
-            with k1:
+        # --- YENİ TAB DÜZENİ ---
+        tab1, tab2, tab3 = st.tabs(["🧪 KİMYASAL (Tümü)", "📈 FARINOGRAPH", "📊 EXTENSOGRAPH"])
+
+        # TAB 1: KİMYASAL (BİRLEŞTİRİLMİŞ)
+        with tab1:
+            c1, c2, c3 = st.columns(3)
+            with c1:
                 protein = validate_input("protein", "Protein", st.number_input("Protein (%)", 0.0, 20.0, get_def(11.5), 0.1))
                 rutubet = validate_input("rutubet", "Rutubet", st.number_input("Rutubet (%)", 0.0, 20.0, get_def(14.5), 0.1))
                 gluten = validate_input("gluten", "Gluten", st.number_input("Gluten (%)", 0.0, 50.0, get_def(28.0), 0.1))
                 gluten_index = validate_input("gluten_index", "GI", st.number_input("Gluten Index", 0.0, 100.0, get_def(85.0), 1.0))
-            with k2:
+            with c2:
                 sedim = validate_input("sedim", "Sedim", st.number_input("Sedim (ml)", 0.0, 100.0, get_def(40.0), 1.0))
                 g_sedim = validate_input("gecikmeli_sedim", "G.Sedim", st.number_input("Gecikmeli Sedim", 0.0, 100.0, get_def(50.0), 1.0))
                 fn = validate_input("fn", "FN", st.number_input("Düşme Sayısı (FN)", 0.0, 999.0, get_def(350.0), 1.0))
                 ffn = st.number_input("F.F.N", 0.0, 999.0, get_def(380.0), 1.0)
-        
-        # 2. DİĞER KİMYASAL
-        with st.expander("🔬 DİĞER KİMYASAL ANALİZLER", expanded=False):
-            k3, k4 = st.columns(2)
-            with k3:
+            with c3:
+                # "Diğer Kimyasal" buraya taşındı
                 amilo = validate_input("amilograph", "Amilo", st.number_input("Amilograph (AU)", 0.0, value=get_def(650.0)))
-                nisasta = st.number_input("Nişasta Zedelenmesi", 0.0, value=get_def(15.0))
-            with k4:
+                nisasta = st.number_input("Nişasta Zed.", 0.0, value=get_def(15.0))
                 kul = validate_input("kul", "Kül", st.number_input("Kül (%)", 0.0, value=get_def(0.720), step=0.001, format="%.3f"))
-        
-        # 3. FARINOGRAPH (EKSİKSİZ GERİ GELDİ!)
-        with st.expander("📈 FARINOGRAPH ANALİZLERİ", expanded=False):
-            f1, f2 = st.columns(2)
-            with f1:
+
+        # TAB 2: FARINOGRAPH
+        with tab2:
+            c1, c2 = st.columns(2)
+            with c1:
                 f_su = st.number_input("Su Kaldırma (%)", 0.0, value=get_def(57.0))
                 f_gelisme = st.number_input("Gelişme Süresi (dk)", 0.0, value=get_def(1.8))
-            with f2:
+            with c2:
                 f_stab = st.number_input("Stabilite (dk)", 0.0, value=get_def(2.3))
                 f_yumus = st.number_input("Yumuşama (FU)", 0.0, value=get_def(100.0))
-                
-        # 4. EXTENSOGRAPH (EKSİKSİZ GERİ GELDİ!)
-        with st.expander("📊 EXTENSOGRAPH ANALİZLERİ (Detaylı)", expanded=False):
-            st.write("**45. Dakika:**")
-            e1, e2, e3 = st.columns(3)
-            e45_d = e1.number_input("Direnç (45)", value=get_def(610.0))
-            e45_t = e2.number_input("Taban (45)", value=get_def(165.0))
-            e45_e = e3.number_input("Enerji (45)", value=get_def(110.0))
-            
-            st.write("**90. Dakika:**")
-            e1, e2, e3 = st.columns(3)
-            e90_d = e1.number_input("Direnç (90)", value=get_def(900.0))
-            e90_t = e2.number_input("Taban (90)", value=get_def(125.0))
-            e90_e = e3.number_input("Enerji (90)", value=get_def(120.0))
-            
-            st.write("**135. Dakika:**")
-            e1, e2, e3 = st.columns(3)
-            e135_d = e1.number_input("Direnç (135)", value=get_def(980.0))
-            e135_t = e2.number_input("Taban (135)", value=get_def(120.0))
-            e135_e = e3.number_input("Enerji (135)", value=get_def(126.0))
-            
+
+        # TAB 3: EXTENSOGRAPH (DETAYLI)
+        with tab3:
             su_e = st.number_input("Su Kaldırma (Extenso) (%)", value=get_def(54.3))
+            st.divider()
             
+            t1, t2, t3 = st.columns(3)
+            with t1:
+                st.markdown("**45. Dakika**")
+                e45_d = t1.number_input("Direnç (45)", value=get_def(610.0))
+                e45_t = t1.number_input("Taban (45)", value=get_def(165.0))
+                e45_e = t1.number_input("Enerji (45)", value=get_def(110.0))
+            with t2:
+                st.markdown("**90. Dakika**")
+                e90_d = t2.number_input("Direnç (90)", value=get_def(900.0))
+                e90_t = t2.number_input("Taban (90)", value=get_def(125.0))
+                e90_e = t2.number_input("Enerji (90)", value=get_def(120.0))
+            with t3:
+                st.markdown("**135. Dakika**")
+                e135_d = t3.number_input("Direnç (135)", value=get_def(980.0))
+                e135_t = t3.number_input("Taban (135)", value=get_def(120.0))
+                e135_e = t3.number_input("Enerji (135)", value=get_def(126.0))
+
     st.divider()
     
     # --- KAYIT BUTONU ---
@@ -713,8 +712,9 @@ def show_un_analiz_kaydi():
             
         validasyon_hatalari = []
 
-        # 2. SEVKİYAT KONTROLÜ
+        # 2. İŞLEM TİPİNE GÖRE KONTROL
         if islem_tipi == "SEVKİYAT":
+            # Sevkiyat ise sadece Müşteri ve Plaka zorunlu
             if not musteri_adi or not plaka_no:
                 st.error("⚠️ Sevkiyat için Müşteri Adı ve Plaka zorunludur!")
                 return
@@ -734,7 +734,7 @@ def show_un_analiz_kaydi():
             for hata in validasyon_hatalari: st.write(f"- {hata}")
             return
         
-        # 3. VERİ PAKETLEME (TÜM VERİLER DAHİL)
+        # 3. VERİ PAKETLEME (EKSİKSİZ)
         analiz_data = {
             'un_cinsi_marka': un_cinsi_marka, 
             'un_markasi': un_markasi, 
@@ -1253,6 +1253,7 @@ def show_flour_yonetimi():
                 st.error("⚠️ Enzim modülü (calculations.py) bulunamadı.")
             except Exception as e:
                 st.error(f"⚠️ Modül yüklenirken hata oluştu: {e}")
+
 
 
 
