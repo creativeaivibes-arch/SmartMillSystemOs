@@ -102,13 +102,12 @@ def fetch_all_dashboard_data():
     return data
 
 def get_dashboard_data(force_refresh=False):
-    """Veriyi session state'den getirir, yoksa yeni çeker (Cache Mekanizması)"""
-    if not force_refresh and 'dashboard_data' in st.session_state:
-        last_update = st.session_state.get('dashboard_last_update', datetime.min)
-        # Config'den süreyi al
-        if (datetime.now() - last_update).total_seconds() < DASHBOARD_CONFIG['REFRESH_INTERVAL']:
-            return st.session_state['dashboard_data']
-            
+    """
+    DASHBOARD ÖNBELLEK İPTALİ (DÜZELTİLDİ)
+    Artık 5 dakika beklemez, Admin panelindeki değişikliği anında görür.
+    """
+    # Eski zamanlayıcı (if ... timer < 300) kodunu sildik.
+    # Doğrudan güncel veriyi çekmesini söylüyoruz.
     return fetch_all_dashboard_data()
 # --------------------------------------------------------------------------
 # SİLO KARTI (Senin "Aynı Kalsın" Dediğin Orijinal Kart Yapısı)
@@ -478,6 +477,7 @@ def show_dashboard():
                         show_silo_card(df_silo.iloc[i + j])
     else:
         st.info("📭 Gösterilecek aktif silo verisi bulunamadı.")
+
 
 
 
