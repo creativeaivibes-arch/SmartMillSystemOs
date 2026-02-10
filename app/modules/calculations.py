@@ -22,6 +22,38 @@ CALCULATIONS_CONFIG = {
 # BÖLÜM 3: ENZİM VE KATKI MODÜLLERİ
 # ==============================================================================
 
+def get_active_production_lots_for_enzyme():
+    """Enzim reçetesi yazılacak aktif üretimleri (PRD) çeker."""
+    try:
+        # un_analiz tablosundaki ÜRETİM kayıtlarına bakıyoruz
+        df = fetch_data("un_analiz", force_refresh=True)
+        if df.empty: return []
+        
+        # Sadece ÜRETİM olanlar
+        if 'islem_tipi' in df.columns:
+            df = df[df['islem_tipi'] == "ÜRETİM"]
+            
+        if 'tarih' in df.columns:
+            df['tarih'] = pd.to_datetime(df['tarih'], errors='coerce')
+            df = df.sort_values('tarih', ascending=False)
+            
+        lot_list = []
+        for _, row in df.iterrows():
+            try:
+                lot = str(row.get('lot_no', ''))
+                if not lot or lot.lower() == 'nan': continue
+                
+                marka = row.get('un_markasi', '') or row.get('un_cinsi_marka', '-')
+                tarih_str = row['tarih'].strftime('%d.%m %H:%M') if pd.notnull(row['tarih']) else "-"
+                
+                # Format: PRD-LOT | Marka | Tarih
+                label = f"{lot} | {marka} | {tarih_str}"
+                lot_list.append(label)
+            except: continue
+            
+        return lot_list
+    except: return []
+
 def show_katki_maliyeti_modulu():
     """Katkı ve Enzim Maliyeti Modülü - Config Entegreli Final Versiyon"""
     
@@ -720,6 +752,7 @@ def show_fire_maliyet_hesaplama():
             <p style='color: #7f1d1d; margin:0;'>Bu fire olmasaydı (veya %0 olsaydı) cebinizde kalacak olan tutar.</p>
         </div>
         """, unsafe_allow_html=True)
+
 
 
 
