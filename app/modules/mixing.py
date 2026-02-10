@@ -375,54 +375,71 @@ def show_pacal_hesaplayici():
         st.error(f"Hata: {e}")
 
 def show_pacal_gecmisi():
-    """Paçal Geçmişi - Traceability Uyumlu Yeni Versiyon"""
+    """Paçal Geçmişi - Traceability Uyumlu (Kuru ve Tavlı Detaylı)"""
     st.header("📜 Paçal Arşivi (Traceability)")
     
     df = get_pacal_history()
     
     if df.empty:
-        st.info("📭 Henüz kayıtlı paçal bulunmamaktadır (mixing_batches boş).")
+        st.info("📭 Henüz kayıtlı paçal bulunmamaktadır.")
         return
 
     # Tablo Gösterimi
     for idx, row in df.iterrows():
-        # Başlıkta ID ve İsim Göster
         with st.expander(f"📦 {row.get('urun_adi','-')} | {row.get('tarih','-')} | ID: {row.get('batch_id','?')}"):
             c1, c2 = st.columns(2)
             
             # Sol: Silo Detayları (Snapshot Çözümleme)
             with c1:
-                st.caption("🏗️ Paçalın Yapıldığı Anki Silo Değerleri")
+                st.markdown("**🏗️ Paçalın Yapıldığı Anki Silo Değerleri**")
                 try:
                     snapshot = json.loads(row.get('silo_snapshot_json', '{}'))
                     temiz_veri = []
                     
                     for silo, data in snapshot.items():
-                        # Yeni format kontrolü
                         if isinstance(data, dict):
                             oran = data.get('oran', 0)
-                            prot = data.get('analiz_degerleri', {}).get('protein', '-')
-                            temiz_veri.append({"Silo": silo, "Oran": f"%{oran}", "Protein (O An)": prot})
-                        else:
-                            # Eski kayıtlar patlamasın diye
-                            temiz_veri.append({"Silo": silo, "Oran": f"%{data}", "Protein": "?"})
+                            # Kuru Verileri Al (Yoksa eskiye uyumluluk için - koy)
+                            kuru = data.get('kuru_analiz', {})
+                            k_prot = kuru.get('protein', '-')
+                            k_glut = kuru.get('gluten', '-')
                             
-                    st.dataframe(pd.DataFrame(temiz_veri), hide_index=True)
+                            # Tavlı Verileri Al
+                            tavli = data.get('tavli_analiz_ozet', {})
+                            t_prot = tavli.get('protein', '-')
+                            
+                            temiz_veri.append({
+                                "Silo": silo, 
+                                "Oran": f"%{oran}", 
+                                "Kuru Prot.": k_prot,
+                                "Tavlı Prot.": t_prot,
+                                "Cins": kuru.get('cins', '-')
+                            })
+                        else:
+                            # Eski kayıt formatı desteği
+                            temiz_veri.append({"Silo": silo, "Oran": f"%{data}", "Kuru Prot.": "?"})
+                            
+                    st.dataframe(pd.DataFrame(temiz_veri), hide_index=True, use_container_width=True)
                 except:
                     st.error("Veri okunamadı.")
             
             # Sağ: Sonuç Analizleri
             with c2:
-                st.caption("🧪 Hedeflenen Paçal Sonucu")
+                st.markdown("**🧪 Hedeflenen Paçal Sonucu**")
                 try:
                     analiz = json.loads(row.get('analiz_snapshot_json', '{}'))
-                    # Hızlıca 3 kritik değeri gösterelim
-                    m1, m2, m3 = st.columns(3)
-                    m1.metric("Protein", f"{analiz.get('protein',0):.1f}")
-                    m1.metric("Gluten", f"{analiz.get('gluten',0):.1f}")
-                    m3.metric("Maliyet", f"{row.get('maliyet',0):.2f} TL")
+                    
+                    kpi1, kpi2 = st.columns(2)
+                    kpi1.metric("Kuru Protein (Teorik)", f"{analiz.get('teorik_kuru_protein', 0):.1f}")
+                    kpi2.metric("Tavlı Protein (Hesap)", f"{analiz.get('protein',0):.1f}")
+                    
+                    st.divider()
+                    st.write(f"**Enerji (135):** {analiz.get('enerji135', '-')}")
+                    st.write(f"**Stabilite:** {analiz.get('stabilite', '-')}")
+                    st.metric("Maliyet", f"{row.get('maliyet',0):.2f} TL")
                 except:
                     st.write("-")
+
 
 
 
