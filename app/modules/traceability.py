@@ -28,84 +28,83 @@ def get_trace_chain(search_query):
     
     # A) Üretim Kayıtlarında Ara (PRD-...)
     if not chain["found"]:
-        df_uretim = fetch_data("uretim_kaydi")
-        if not df_uretim.empty:
-            # Parti No içinde ara
-            match = df_uretim[df_uretim.astype(str).apply(lambda x: x.str.contains(search_query, case=False)).any(axis=1)]
-            if not match.empty:
-                chain["found"] = True
-                chain["PRD"] = match.iloc[0]
+        try:
+            df_uretim = fetch_data("uretim_kaydi")
+            if not df_uretim.empty:
+                match = df_uretim[df_uretim.astype(str).apply(lambda x: x.str.contains(search_query, case=False)).any(axis=1)]
+                if not match.empty:
+                    chain["found"] = True
+                    chain["PRD"] = match.iloc[0]
+        except: pass
 
     # B) Paçal Kayıtlarında Ara (MIX-...)
     if not chain["found"]:
-        df_mix = fetch_data("mixing_batches")
-        if not df_mix.empty:
-            match = df_mix[df_mix['batch_id'].astype(str) == search_query]
-            if not match.empty:
-                chain["found"] = True
-                chain["MIX"] = match.iloc[0]
+        try:
+            df_mix = fetch_data("mixing_batches")
+            if not df_mix.empty:
+                match = df_mix[df_mix['batch_id'].astype(str) == search_query]
+                if not match.empty:
+                    chain["found"] = True
+                    chain["MIX"] = match.iloc[0]
+        except: pass
 
     # C) Sevkiyat Listesinde Ara (SHIP/IRSALIYE)
     if not chain["found"]:
-        # Hata önleyici: Tablo yoksa boş dataframe dön
         try:
             df_ship = fetch_data("sevkiyat_listesi")
-        except:
-            df_ship = pd.DataFrame()
-            
-        if not df_ship.empty:
-            match = df_ship[df_ship.astype(str).apply(lambda x: x.str.contains(search_query, case=False)).any(axis=1)]
-            if not match.empty:
-                chain["found"] = True
-                chain["SHIP"] = match.iloc[0]
-                # Sevkiyattan Üretime Köprü (uretim_lot_no varsa)
-                if 'uretim_lot_no' in chain["SHIP"]:
-                    lot_ref = str(chain["SHIP"]['uretim_lot_no'])
-                    if lot_ref:
-                        # Üretimi bul ve bağla
-                        df_uretim = fetch_data("uretim_kaydi")
-                        if not df_uretim.empty:
-                            u_match = df_uretim[df_uretim['parti_no'] == lot_ref]
-                            if not u_match.empty: chain["PRD"] = u_match.iloc[0]
+            if not df_ship.empty:
+                match = df_ship[df_ship.astype(str).apply(lambda x: x.str.contains(search_query, case=False)).any(axis=1)]
+                if not match.empty:
+                    chain["found"] = True
+                    chain["SHIP"] = match.iloc[0]
+                    # Sevkiyattan Üretime Köprü
+                    if 'uretim_lot_no' in chain["SHIP"]:
+                        lot_ref = str(chain["SHIP"]['uretim_lot_no'])
+                        if lot_ref:
+                            df_uretim = fetch_data("uretim_kaydi")
+                            if not df_uretim.empty:
+                                u_match = df_uretim[df_uretim['parti_no'] == lot_ref]
+                                if not u_match.empty: chain["PRD"] = u_match.iloc[0]
+        except: pass
 
-    # D) Un Analizlerinde Ara (LAB-...)
-    # (Bazen sevkiyat yerine doğrudan analiz lotu aranır)
+    # D) Un Analizlerinde Ara (LAB-...) - DÜZELTİLEN KISIM
     if not chain["found"]:
         try:
-            df_lab_search = fetch_data("un_analizleri")
-        except:
-            df_lab_search = pd.DataFrame()
+            # HATA BURADAYDI: 'un_analizleri' -> 'un_analiz' OLARAK DÜZELTİLDİ
+            df_lab_search = fetch_data("un_analiz") 
             
-        if not df_lab_search.empty and 'lot_no' in df_lab_search.columns:
-            match = df_lab_search[df_lab_search['lot_no'].astype(str) == search_query]
-            if not match.empty:
-                chain["found"] = True
-                chain["LAB"] = match.iloc[0]
-                # Lab analizinden üretime geçiş (Eğer analizde parti no varsa)
-                # Genelde lab analizleri 'lot_no' ile 'parti_no'yu eşleştirir
-                uretim_ref = str(chain["LAB"].get('lot_no', ''))
-                df_uretim = fetch_data("uretim_kaydi")
-                if not df_uretim.empty:
-                    u_match = df_uretim[df_uretim['parti_no'] == uretim_ref]
-                    if not u_match.empty: chain["PRD"] = u_match.iloc[0]
+            if not df_lab_search.empty and 'lot_no' in df_lab_search.columns:
+                match = df_lab_search[df_lab_search['lot_no'].astype(str) == search_query]
+                if not match.empty:
+                    chain["found"] = True
+                    chain["LAB"] = match.iloc[0]
+                    # Lab analizinden üretime geçiş
+                    uretim_ref = str(chain["LAB"].get('lot_no', ''))
+                    df_uretim = fetch_data("uretim_kaydi")
+                    if not df_uretim.empty:
+                        u_match = df_uretim[df_uretim['parti_no'] == uretim_ref]
+                        if not u_match.empty: chain["PRD"] = u_match.iloc[0]
+        except: pass
 
     # --- ADIM 2: ZİNCİRİ TAMAMLA (Eksik halkaları doldur) ---
     
-    # Eğer elimizde PRD (Üretim) varsa -> MIX (Paçal) ve LAB (Analiz) bul
     if chain["PRD"] is not None:
         # 1. Paçalı Bul
-        mix_id = str(chain["PRD"].get('mixing_batch_id', '')) # mill.py'de bu isimle kaydetmiştik
+        mix_id = str(chain["PRD"].get('mixing_batch_id', ''))
         if mix_id and mix_id != "BILINMIYOR":
-            df_mix = fetch_data("mixing_batches")
-            if not df_mix.empty:
-                m_match = df_mix[df_mix['batch_id'] == mix_id]
-                if not m_match.empty: chain["MIX"] = m_match.iloc[0]
+            try:
+                df_mix = fetch_data("mixing_batches")
+                if not df_mix.empty:
+                    m_match = df_mix[df_mix['batch_id'] == mix_id]
+                    if not m_match.empty: chain["MIX"] = m_match.iloc[0]
+            except: pass
         
-        # 2. Lab Analizini Bul (Un Analizleri tablosunda Parti No ile)
-        # Eğer zaten LAB bulunmadıysa ara
+        # 2. Lab Analizini Bul - DÜZELTİLEN KISIM
         if chain["LAB"] is None:
             try:
-                df_lab = fetch_data("un_analizleri")
+                # HATA BURADAYDI: 'un_analizleri' -> 'un_analiz' OLARAK DÜZELTİLDİ
+                df_lab = fetch_data("un_analiz")
+                
                 if not df_lab.empty:
                     parti_no = str(chain["PRD"].get('parti_no', ''))
                     l_match = df_lab[df_lab['lot_no'] == parti_no]
@@ -149,7 +148,7 @@ def show_traceability_dashboard():
             chain = get_trace_chain(query)
         
         if not chain["found"]:
-            st.error("❌ Kayıt bulunamadı. Lütfen kodu kontrol edin veya ilgili tablonun (ör. sevkiyat_listesi) oluşturulduğundan emin olun.")
+            st.error("❌ Kayıt bulunamadı. Lütfen kodu kontrol edin veya ilgili tabloların (un_analiz, sevkiyat_listesi vb.) dolu olduğundan emin olun.")
             return
 
         st.success("✅ Zincir Başarıyla Kuruldu!")
@@ -164,7 +163,8 @@ def show_traceability_dashboard():
                     render_kvkk_row("Müşteri", ship.get('musteri_adi'))
                     render_kvkk_row("Plaka", ship.get('plaka'))
                 with c2:
-                    render_kvkk_row("Tarih", str(ship.get('tarih'))[:10])
+                    tarih_val = str(ship.get('tarih'))[:16]
+                    render_kvkk_row("Tarih", tarih_val)
                     render_kvkk_row("Miktar", ship.get('miktar'), "Kg")
                     render_kvkk_row("Ürün", ship.get('urun_adi'))
 
@@ -176,7 +176,10 @@ def show_traceability_dashboard():
                 with c1:
                     st.markdown("##### ⚙️ Operasyonel Bilgiler")
                     render_kvkk_row("Parti No", prd.get('parti_no'))
-                    render_kvkk_row("Tarih", pd.to_datetime(prd.get('tarih')).strftime('%d.%m.%Y %H:%M'))
+                    try:
+                        t_prd = pd.to_datetime(prd.get('tarih')).strftime('%d.%m.%Y %H:%M')
+                    except: t_prd = str(prd.get('tarih'))
+                    render_kvkk_row("Tarih", t_prd)
                     render_kvkk_row("Vardiya", f"{prd.get('vardiya')} ({prd.get('sorumlu')})")
                     render_kvkk_row("Hat", prd.get('uretim_hatti'))
                     st.divider()
@@ -251,7 +254,7 @@ def show_traceability_dashboard():
                     st.error(f"Paçal verisi okunurken hata: {e}")
 
         elif chain["PRD"] is not None:
-            st.warning("⚠️ Bu üretime bağlı Paçal (MIX) kaydı bulunamadı. (Manuel paçal veya eski kayıt olabilir)")
+            st.warning("⚠️ Bu üretime bağlı Paçal (MIX) kaydı bulunamadı.")
 
         # 3. HALKA: LABORATUVAR (Final Ürün Analizi)
         if chain["LAB"] is not None:
@@ -259,17 +262,20 @@ def show_traceability_dashboard():
             with st.expander("🔬 3. FİNAL ÜRÜN ANALİZİ (LAB)", expanded=True):
                 st.markdown(f"**Numune:** {lab.get('numune_adi')} | **Tarih:** {lab.get('tarih')}")
                 
+                # Değerleri güvenli çekme
+                def safe_val(key): return lab.get(key, '-')
+
                 t1, t2 = st.tabs(["Kimyasal", "Reoloji"])
                 with t1:
                     lc1, lc2, lc3 = st.columns(3)
-                    lc1.metric("Protein", lab.get('protein'))
-                    lc2.metric("Kül", lab.get('kul'))
-                    lc3.metric("Renk", lab.get('renk'))
+                    lc1.metric("Protein", safe_val('protein'))
+                    lc2.metric("Kül", safe_val('kul'))
+                    lc3.metric("Renk", safe_val('renk'))
                 with t2:
                     lc4, lc5, lc6 = st.columns(3)
-                    lc4.metric("Enerji", lab.get('enerji'))
-                    lc5.metric("Direnç", lab.get('direnc'))
-                    lc6.metric("Stabilite", lab.get('stabilite'))
+                    lc4.metric("Enerji", safe_val('enerji135') if safe_val('enerji135') != '-' else safe_val('enerji'))
+                    lc5.metric("Direnç", safe_val('direnc135') if safe_val('direnc135') != '-' else safe_val('direnc'))
+                    lc6.metric("Stabilite", safe_val('stabilite'))
         
         elif chain["found"]:
             st.info("ℹ️ Bu partiye ait laboratuvar sonucu henüz girilmemiş veya eşleşmemiş.")
