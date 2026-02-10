@@ -420,165 +420,233 @@ def show_katki_maliyeti_modulu():
         else: st.info("Henüz arşiv kaydı yok.")
             
 def show_enzim_dozajlama():
-    """Un Geliştirici Enzim Dozajlama - PRD LINKING VE ENZ-ID EKLENDİ"""
-    
-    # Session State Başlatma
-    if 'enzim_last_data' not in st.session_state:
-        st.session_state.enzim_last_data = {
-            'un_ton': CALCULATIONS_CONFIG['DEFAULT_UN_TON'],
-            'bugday_hiz': CALCULATIONS_CONFIG['DEFAULT_BUGDAY_HIZ'],
-            'randiman': CALCULATIONS_CONFIG['DEFAULT_RANDIMAN'],
-            'dk_akis_gr': 30.0,
-            'enzim_rows': [{'name': '', 'doz': '', 'total': 0} for _ in range(CALCULATIONS_CONFIG['MAX_ENZIM_ROWS'])]
-        }
+    """Un Geliştirici Enzim Dozajlama - HEM KAYIT HEM GEÇMİŞ (Tabs)"""
     
     st.markdown("""
-    <div style="text-align: center; margin-bottom: 30px;">
-        <h1 style="color: #0B4F6C; margin-bottom: 5px;">🧬 Akıllı Enzim & Reçete Yönetimi</h1>
-        <p style="color: #666; margin:0;">Üretim partisine özel dozajlama ve izlenebilirlik kaydı</p>
+    <div style="text-align: center; margin-bottom: 20px;">
+        <h2 style="color: #0B4F6C; margin:0;">🧬 Enzim & Reçete Yönetimi</h2>
     </div>
     """, unsafe_allow_html=True)
-    
-    col_left, col_right = st.columns([1, 1.5], gap="large")
-    
-    # --- 1. ÜRETİM VE KİMLİK SEÇİMİ ---
-    with col_left:
-        st.markdown("### 🔗 1. Üretim Bağlantısı")
-        with st.container(border=True):
-            # YENİ: Otomatik Enzim ID
-            enzim_id = f"ENZ-{datetime.now().strftime('%y%m%d%H%M')}"
-            st.info(f"🆔 **Reçete Kimliği:** `{enzim_id}`")
+
+    # --- SEKMELİ YAPI ---
+    tab_yeni, tab_gecmis = st.tabs(["📝 Yeni Reçete Oluştur", "📚 Reçete Geçmişi & Arşiv"])
+
+    # ==========================================================================
+    # SEKME 1: YENİ REÇETE OLUŞTURMA (Mevcut Kodun Buraya Taşındı)
+    # ==========================================================================
+    with tab_yeni:
+        # Session State Başlatma
+        if 'enzim_last_data' not in st.session_state:
+            st.session_state.enzim_last_data = {
+                'un_ton': CALCULATIONS_CONFIG['DEFAULT_UN_TON'],
+                'bugday_hiz': CALCULATIONS_CONFIG['DEFAULT_BUGDAY_HIZ'],
+                'randiman': CALCULATIONS_CONFIG['DEFAULT_RANDIMAN'],
+                'dk_akis_gr': 30.0,
+                'enzim_rows': [{'name': '', 'doz': '', 'total': 0} for _ in range(CALCULATIONS_CONFIG['MAX_ENZIM_ROWS'])]
+            }
+        
+        col_left, col_right = st.columns([1, 1.5], gap="large")
+        
+        # --- SOL: ÜRETİM VE KİMLİK SEÇİMİ ---
+        with col_left:
+            st.markdown("### 🔗 1. Üretim Bağlantısı")
+            with st.container(border=True):
+                # Otomatik Enzim ID
+                enzim_id = f"ENZ-{datetime.now().strftime('%y%m%d%H%M')}"
+                st.info(f"🆔 **Reçete Kimliği:** `{enzim_id}`")
+                
+                # Üretim Seçimi (PRD Linki)
+                uretim_listesi = get_active_production_lots_for_enzyme()
+                secilen_uretim = st.selectbox(
+                    "Hangi Üretime Uygulanacak? (PRD) *",
+                    ["(Genel / Stoktan)"] + uretim_listesi,
+                    key="sel_uretim_new"
+                )
+                
+                uretim_kodu = "GENEL"
+                uretim_adi_display = "Stoktan"
+                
+                if secilen_uretim != "(Genel / Stoktan)":
+                    try: 
+                        parts = secilen_uretim.split(' | ')
+                        uretim_kodu = parts[0].strip()
+                        if len(parts) > 1: uretim_adi_display = parts[1]
+                    except: pass
+                    st.caption(f"🔗 Bağlı Lot: **{uretim_kodu}**")
+
+                st.divider()
+                
+                last_data = st.session_state.enzim_last_data
+                
+                c1, c2 = st.columns(2)
+                with c1:
+                    un_ton = st.number_input("Hedef Un (Ton)", min_value=0.1, value=float(last_data['un_ton']), step=0.1, key="num_un_ton")
+                with c2:
+                    bugday_hiz = st.number_input("Buğday Hızı (kg/s)", min_value=100.0, value=float(last_data['bugday_hiz']), step=100.0, key="num_bugday_hiz")
+                
+                c3, c4 = st.columns(2)
+                with c3:
+                    randiman = st.number_input("Randıman (%)", min_value=1.0, max_value=100.0, value=float(last_data['randiman']), step=0.1, key="num_randiman")
+                with c4:
+                    dk_akis_gr = st.number_input("Dozaj Akışı (gr/dk)", min_value=1.0, value=float(last_data['dk_akis_gr']), step=1.0, key="num_dk_akis")
+
+                # Hesaplamalar
+                try:
+                    cuval_sayisi = (un_ton * 1000) / 50
+                    uretim_ton_saat = bugday_hiz * (randiman / 100) / 1000
+                    toplam_dakika = (un_ton / uretim_ton_saat * 60) if uretim_ton_saat > 0 else 0
+                    toplam_gereken_karisim = toplam_dakika * dk_akis_gr
+                except:
+                    cuval_sayisi = 0
+                    toplam_gereken_karisim = 0
+                    toplam_dakika = 0
+                
+                saat = int(toplam_dakika // 60)
+                dakika = int(toplam_dakika % 60)
+                st.info(f"📦 Çuval: **{cuval_sayisi:,.0f}** | ⏳ Süre: **{saat}s {dakika}dk**")
+
+        # --- SAĞ: ENZİM LİSTESİ ---
+        with col_right:
+            st.markdown("### 🧪 2. Reçete İçeriği (gr/çuval)")
             
-            # YENİ: Üretim Seçimi (PRD Linki)
-            # Dosyanın tepesindeki yardımcı fonksiyonu kullanıyoruz
-            uretim_listesi = get_active_production_lots_for_enzyme()
-            secilen_uretim = st.selectbox(
-                "Hangi Üretime Uygulanacak? (PRD) *",
-                ["(Genel / Stoktan)"] + uretim_listesi
+            if 'enzim_rows' not in st.session_state:
+                st.session_state.enzim_rows = st.session_state.enzim_last_data['enzim_rows']
+                
+            toplam_enzim_agirligi = 0
+            
+            c1, c2, c3 = st.columns([2, 1, 1])
+            c1.caption("Katkı Adı")
+            c2.caption("Doz (gr/50kg)")
+            c3.caption("Toplam (gr)")
+
+            for i in range(CALCULATIONS_CONFIG['MAX_ENZIM_ROWS']):
+                cols = st.columns([2, 1, 1])
+                with cols[0]:
+                    st.session_state.enzim_rows[i]['name'] = st.text_input(f"E{i}", value=st.session_state.enzim_rows[i]['name'], key=f"en_{i}", label_visibility="collapsed", placeholder="Katkı Adı")
+                with cols[1]:
+                    doz_val = st.text_input(f"D{i}", value=st.session_state.enzim_rows[i]['doz'], key=f"ed_{i}", label_visibility="collapsed", placeholder="0")
+                    st.session_state.enzim_rows[i]['doz'] = doz_val
+                with cols[2]:
+                    try:
+                        d_float = float(doz_val.replace(',', '.')) if doz_val.strip() else 0.0
+                        satir_toplam = cuval_sayisi * d_float
+                        st.session_state.enzim_rows[i]['total'] = satir_toplam
+                        toplam_enzim_agirligi += satir_toplam
+                        if satir_toplam > 0: st.markdown(f"**:green[{satir_toplam:,.0f}]**")
+                    except: st.write("-")
+
+            irmik_miktari = max(0, toplam_gereken_karisim - toplam_enzim_agirligi)
+            
+            c_res1, c_res2 = st.columns(2)
+            with c_res1: st.metric("🧪 Aktif Madde", f"{toplam_enzim_agirligi:,.0f} gr")
+            with c_res2: st.metric("🧱 İrmik Dolgu", f"{irmik_miktari:,.0f} gr")
+
+        st.divider()
+        col_save, _ = st.columns([1, 2])
+        
+        with col_save:
+            if st.button("✅ REÇETEYİ KAYDET (ENZ-ID)", type="primary", use_container_width=True):
+                try:
+                    # Dolu satırları filtrele
+                    enzim_verisi = [{'ad': r['name'], 'doz': r['doz'], 'toplam': r['total']} 
+                                   for r in st.session_state.enzim_rows if r['name'].strip()]
+                    
+                    if not enzim_verisi:
+                        st.error("⚠️ En az bir katkı maddesi giriniz.")
+                    else:
+                        data_to_save = {
+                            'enzim_id': enzim_id,
+                            'uretim_kodu': uretim_kodu,
+                            'uretim_adi': uretim_adi_display,
+                            'un_ton': un_ton,
+                            'bugday_hiz': bugday_hiz,
+                            'randiman': randiman,
+                            'dozaj_akis': dk_akis_gr,
+                            'enzim_verisi_json': json.dumps(enzim_verisi, ensure_ascii=False),
+                            'irmik_miktari': irmik_miktari,
+                            'tarih': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                            'kullanici': st.session_state.get('username', 'Sistem')
+                        }
+                        
+                        if add_data("enzim_receteleri", data_to_save):
+                            st.success(f"✅ Reçete Kaydedildi! Kimlik: {enzim_id}")
+                            st.balloons()
+                            # Veriyi hatırla
+                            st.session_state.enzim_last_data.update({
+                                'un_ton': un_ton, 'bugday_hiz': bugday_hiz,
+                                'randiman': randiman, 'dk_akis_gr': dk_akis_gr,
+                                'enzim_rows': st.session_state.enzim_rows.copy()
+                            })
+                            time.sleep(1.5)
+                            st.rerun()
+                        else:
+                            st.error("Kayıt veritabanına yazılamadı.")
+                except Exception as e:
+                    st.error(f"Hata oluştu: {e}")
+
+    # ==========================================================================
+    # SEKME 2: REÇETE GEÇMİŞİ VE ARŞİV (YENİ ÖZELLİK)
+    # ==========================================================================
+    with tab_gecmis:
+        st.markdown("### 📋 Geçmiş Enzim Reçeteleri")
+        
+        # Veriyi Çek
+        try:
+            df_arsiv = fetch_data("enzim_receteleri", force_refresh=True)
+        except:
+            df_arsiv = pd.DataFrame()
+            
+        if df_arsiv.empty:
+            st.info("📭 Henüz kayıtlı bir reçete bulunmamaktadır.")
+        else:
+            # Tarihe göre sırala
+            if 'tarih' in df_arsiv.columns:
+                df_arsiv['tarih'] = pd.to_datetime(df_arsiv['tarih'], errors='coerce')
+                df_arsiv = df_arsiv.sort_values('tarih', ascending=False)
+
+            # JSON Verisini Okunabilir Hale Getir
+            def format_icerik(json_str):
+                try:
+                    data = json.loads(json_str)
+                    # Çıktı: "C Vitamini (150) | Alfa Amilaz (20)"
+                    return " | ".join([f"{item['ad']} ({item['doz']} gr)" for item in data])
+                except:
+                    return "Hata/Boş"
+
+            if 'enzim_verisi_json' in df_arsiv.columns:
+                df_arsiv['Reçete İçeriği (gr/çuval)'] = df_arsiv['enzim_verisi_json'].apply(format_icerik)
+            else:
+                df_arsiv['Reçete İçeriği (gr/çuval)'] = "-"
+
+            # Tabloyu Düzenle ve Göster
+            # İstenen Format: ID | PRD | İsim | İçerik
+            cols_to_show = ['tarih', 'enzim_id', 'uretim_kodu', 'uretim_adi', 'Reçete İçeriği (gr/çuval)']
+            # Mevcut olan sütunları seç (hata önlemek için)
+            final_cols = [c for c in cols_to_show if c in df_arsiv.columns]
+            
+            df_display = df_arsiv[final_cols].copy()
+            
+            # Sütun isimlerini Türkçeleştir/Güzelleştir
+            df_display = df_display.rename(columns={
+                'tarih': 'Tarih',
+                'enzim_id': 'Reçete ID',
+                'uretim_kodu': 'Referans (PRD)',
+                'uretim_adi': 'Üretim İsmi',
+                'Reçete İçeriği (gr/çuval)': '🧪 Katkı ve Dozajlar (gr/çuval)'
+            })
+
+            st.dataframe(
+                df_display,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Tarih": st.column_config.DatetimeColumn("Kayıt Tarihi", format="DD.MM.YYYY HH:mm"),
+                    "Referans (PRD)": st.column_config.TextColumn("Üretim Lotu", help="Bağlı olduğu üretim partisi"),
+                    "🧪 Katkı ve Dozajlar (gr/çuval)": st.column_config.TextColumn("Reçete İçeriği", width="large")
+                }
             )
             
-            uretim_kodu = "GENEL"
-            uretim_adi_display = "Stoktan"
-            
-            if secilen_uretim != "(Genel / Stoktan)":
-                try: 
-                    # Format: PRD-LOT | Marka | Tarih
-                    parts = secilen_uretim.split(' | ')
-                    uretim_kodu = parts[0].strip()
-                    if len(parts) > 1: uretim_adi_display = parts[1]
-                except: pass
-                st.caption(f"🔗 Bağlı Lot: **{uretim_kodu}**")
-
-            st.divider()
-            
-            last_data = st.session_state.enzim_last_data
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                un_ton = st.number_input("Hedef Un (Ton)", min_value=0.1, value=float(last_data['un_ton']), step=0.1)
-            with col2:
-                bugday_hiz = st.number_input("Buğday Hızı (kg/s)", min_value=100.0, value=float(last_data['bugday_hiz']), step=100.0)
-            
-            col3, col4 = st.columns(2)
-            with col3:
-                randiman = st.number_input("Randıman (%)", min_value=1.0, max_value=100.0, value=float(last_data['randiman']), step=0.1)
-            with col4:
-                dk_akis_gr = st.number_input("Dozaj Akışı (gr/dk)", min_value=1.0, value=float(last_data['dk_akis_gr']), step=1.0)
-
-            # Hesaplamalar
-            try:
-                cuval_sayisi = (un_ton * 1000) / 50
-                uretim_ton_saat = bugday_hiz * (randiman / 100) / 1000
-                toplam_dakika = (un_ton / uretim_ton_saat * 60) if uretim_ton_saat > 0 else 0
-                toplam_gereken_karisim = toplam_dakika * dk_akis_gr
-            except:
-                cuval_sayisi = 0
-                toplam_gereken_karisim = 0
-                toplam_dakika = 0
-            
-            saat = int(toplam_dakika // 60)
-            dakika = int(toplam_dakika % 60)
-            st.info(f"📦 Çuval: **{cuval_sayisi:,.0f}** | ⏳ Süre: **{saat}s {dakika}dk**")
-
-    # --- 2. ENZİM LİSTESİ ---
-    with col_right:
-        st.markdown("### 🧪 2. Reçete İçeriği (gr/çuval)")
-        
-        if 'enzim_rows' not in st.session_state:
-            st.session_state.enzim_rows = st.session_state.enzim_last_data['enzim_rows']
-            
-        toplam_enzim_agirligi = 0
-        
-        # Başlıklar
-        c1, c2, c3 = st.columns([2, 1, 1])
-        c1.caption("Katkı Adı")
-        c2.caption("Doz (gr/50kg)")
-        c3.caption("Toplam (gr)")
-
-        for i in range(CALCULATIONS_CONFIG['MAX_ENZIM_ROWS']):
-            cols = st.columns([2, 1, 1])
-            with cols[0]:
-                st.session_state.enzim_rows[i]['name'] = st.text_input(f"E{i}", value=st.session_state.enzim_rows[i]['name'], key=f"en_{i}", label_visibility="collapsed", placeholder="Katkı Adı")
-            with cols[1]:
-                doz_val = st.text_input(f"D{i}", value=st.session_state.enzim_rows[i]['doz'], key=f"ed_{i}", label_visibility="collapsed", placeholder="0")
-                st.session_state.enzim_rows[i]['doz'] = doz_val
-            with cols[2]:
-                try:
-                    d_float = float(doz_val.replace(',', '.')) if doz_val.strip() else 0.0
-                    satir_toplam = cuval_sayisi * d_float
-                    st.session_state.enzim_rows[i]['total'] = satir_toplam
-                    toplam_enzim_agirligi += satir_toplam
-                    if satir_toplam > 0: st.markdown(f"**:green[{satir_toplam:,.0f}]**")
-                except: st.write("-")
-
-        irmik_miktari = max(0, toplam_gereken_karisim - toplam_enzim_agirligi)
-        
-        c_res1, c_res2 = st.columns(2)
-        with c_res1: st.metric("🧪 Aktif Madde", f"{toplam_enzim_agirligi:,.0f} gr")
-        with c_res2: st.metric("🧱 İrmik Dolgu", f"{irmik_miktari:,.0f} gr")
-
-    st.divider()
-    col_save, _ = st.columns([1, 2])
-    
-    with col_save:
-        if st.button("✅ REÇETEYİ KAYDET (ENZ-ID)", type="primary", use_container_width=True):
-            try:
-                # Dolu satırları filtrele
-                enzim_verisi = [{'ad': r['name'], 'doz': r['doz'], 'toplam': r['total']} 
-                               for r in st.session_state.enzim_rows if r['name'].strip()]
-                
-                if not enzim_verisi:
-                    st.error("⚠️ En az bir katkı maddesi giriniz.")
-                else:
-                    data_to_save = {
-                        'enzim_id': enzim_id,       # YENİ: ID
-                        'uretim_kodu': uretim_kodu, # YENİ: PRD Linki (PRD-...)
-                        'uretim_adi': uretim_adi_display, # Eski uyumluluk için isim
-                        'un_ton': un_ton,
-                        'bugday_hiz': bugday_hiz,
-                        'randiman': randiman,
-                        'dozaj_akis': dk_akis_gr,
-                        'enzim_verisi_json': json.dumps(enzim_verisi, ensure_ascii=False),
-                        'irmik_miktari': irmik_miktari,
-                        'tarih': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                        'kullanici': st.session_state.get('username', 'Sistem')
-                    }
-                    
-                    if add_data("enzim_receteleri", data_to_save):
-                        st.success(f"✅ Reçete Kaydedildi! Kimlik: {enzim_id}")
-                        st.balloons()
-                        # Son verileri hatırla
-                        st.session_state.enzim_last_data.update({
-                            'un_ton': un_ton, 'bugday_hiz': bugday_hiz,
-                            'randiman': randiman, 'dk_akis_gr': dk_akis_gr,
-                            'enzim_rows': st.session_state.enzim_rows.copy()
-                        })
-                        time.sleep(1.5)
-                        st.rerun()
-                    else:
-                        st.error("Kayıt hatası.")
-            except Exception as e:
-                st.error(f"Hata: {e}")
+            st.caption("ℹ️ Tablodaki satırları genişleterek tam içeriği görebilirsiniz.")
 def show_fire_maliyet_hesaplama():
     """Fire Maliyet Hesaplama Modülü - NET ZARAR GÖSTERGELİ & TR FORMATLI"""
     
@@ -681,6 +749,7 @@ def show_fire_maliyet_hesaplama():
             <p style='color: #7f1d1d; margin:0;'>Bu fire olmasaydı (veya %0 olsaydı) cebinizde kalacak olan tutar.</p>
         </div>
         """, unsafe_allow_html=True)
+
 
 
 
