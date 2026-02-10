@@ -25,11 +25,11 @@ except ImportError:
     def turkce_karakter_duzelt_pdf(text): return text
 
 # --- CACHE VE DATA FONKSİYONLARI ---
-@st.cache_data(ttl=300) 
-def get_silo_data():
-    """Silo verilerini getir"""
+def get_silo_data_fresh():
+    """Silo verilerini TAZE çeker (Cache kullanmaz - Anlık Cins Bilgisi İçin)"""
     try:
-        df = fetch_data("silolar")
+        # force_refresh=True ile en güncel ismi/cinsi alıyoruz
+        df = fetch_data("silolar", force_refresh=True)
         if df.empty:
             return pd.DataFrame(columns=['isim', 'kapasite', 'mevcut_miktar', 'bugday_cinsi', 'maliyet'])
 
@@ -132,7 +132,7 @@ def calculate_pacal_metrics(oranlar, tavli_analizler):
 # MODÜL 1: PAÇAL HESAPLAYICI VE KAYITÇI
 # ==============================================================================
 def show_pacal_hesaplayici():
-    """Paçal Hesaplayıcı - TAM SNAPSHOT ÖZELLİKLİ"""
+    """Paçal Hesaplayıcı - TAM DETAYLI GÖRÜNÜM"""
     
     if st.session_state.get('user_role') not in ["admin", "operations", "quality"]:
         st.warning("⛔ Bu modüle erişim izniniz yok!")
@@ -140,8 +140,8 @@ def show_pacal_hesaplayici():
     
     st.header("📊 Paçal Hesaplayıcı")
     
-    # 1. Silo Verilerini Çek
-    df = get_silo_data()
+    # 1. Silo Verilerini Çek (TAZE VERİ - Cins Bilgisi İçin Önemli)
+    df = get_silo_data_fresh()
     if df.empty:
         st.warning("Silo verisi bulunamadı!")
         return
@@ -205,25 +205,22 @@ def show_pacal_hesaplayici():
     
     # 4. Sağ Kolon: Sonuçlar ve Kayıt
     with col_result:
-        st.subheader("📈 Tahmini Sonuçlar")
+        st.subheader("📈 Tahmini Sonuçlar (Paçal Ort.)")
         
         if toplam_oran > 0:
-            # A) Kuru Paçal Ortalamaları (Hektolitre, Protein, Maliyet)
+            # A) Kuru Paçal Ortalamaları
             pacal_maliyeti = 0.0
             kuru_pacal_ozet = {'protein': 0.0, 'gluten': 0.0, 'hektolitre': 0.0}
             
             for isim, oran in oranlar.items():
                 if oran > 0:
-                    # Silonun o anki KURU ortalamasını çek
                     kuru_analiz = get_kuru_bugday_agirlikli_ortalama(isim)
                     silo_row = dolu_silolar[dolu_silolar['isim'] == isim].iloc[0]
                     katsayi = oran / 100.0
                     
-                    # Maliyet
                     maliyet = float(silo_row.get('maliyet', 0))
                     pacal_maliyeti += maliyet * katsayi
                     
-                    # Kuru Veriler (Yoksa 0 kabul et)
                     kuru_pacal_ozet['protein'] += float(kuru_analiz.get('protein', 0) or 0) * katsayi
                     kuru_pacal_ozet['gluten'] += float(kuru_analiz.get('gluten', 0) or 0) * katsayi
                     kuru_pacal_ozet['hektolitre'] += float(kuru_analiz.get('hektolitre', 0) or 0) * katsayi
@@ -232,22 +229,47 @@ def show_pacal_hesaplayici():
             tavli_sonuc = calculate_pacal_metrics(oranlar, tavli_analizler)
             
             if toplam_oran == 100:
-                # GÖSTERGELER (DASHBOARD)
-                with st.container(border=True):
-                    st.markdown("##### 🔬 Paçal Özeti")
-                    c1, c2, c3 = st.columns(3)
-                    c1.metric("Kuru Protein", f"{kuru_pacal_ozet['protein']:.1f}")
-                    c1.metric("Kuru Hektolitre", f"{kuru_pacal_ozet['hektolitre']:.1f}")
+                # --- ANA GÖSTERGELER ---
+                c1, c2 = st.columns(2)
+                c1.metric("💰 Ort. Maliyet", f"{pacal_maliyeti:.2f} TL")
+                c2.metric("🌾 Kuru Protein (Ort)", f"{kuru_pacal_ozet['protein']:.1f}")
+
+                # --- DETAYLI ANALİZLER (SEKMELİ YAPI) ---
+                if tavli_sonuc:
+                    st.divider()
+                    st.markdown("##### 🔬 Tavlı Paçal Analizi (Ağırlıklı Ort.)")
                     
-                    c2.metric("Tavlı Protein", f"{tavli_sonuc.get('protein', 0):.1f}" if tavli_sonuc else "-")
-                    c2.metric("Tavlı Gluten", f"{tavli_sonuc.get('gluten', 0):.1f}" if tavli_sonuc else "-")
+                    t1, t2, t3 = st.tabs(["🧪 Kimyasal", "📈 Farinograph", "📊 Extensograph"])
                     
-                    c3.metric("Tahmini Maliyet", f"{pacal_maliyeti:.2f} TL")
-                    c3.metric("Tavlı Enerji", f"{tavli_sonuc.get('enerji135', 0):.0f}" if tavli_sonuc else "-")
+                    with t1:
+                        k1, k2, k3 = st.columns(3)
+                        k1.metric("Protein", f"{tavli_sonuc.get('protein', 0):.1f}")
+                        k2.metric("Gluten", f"{tavli_sonuc.get('gluten', 0):.1f}")
+                        k3.metric("Sedim", f"{tavli_sonuc.get('sedim', 0):.0f}")
+                        
+                        k4, k5, k6 = st.columns(3)
+                        k4.metric("G. İndeks", f"{tavli_sonuc.get('gluten_index', 0):.0f}")
+                        k5.metric("FN", f"{tavli_sonuc.get('fn', 0):.0f}")
+                        k6.metric("Kül", f"{tavli_sonuc.get('kul', 0):.3f}")
+
+                    with t2:
+                        f1, f2 = st.columns(2)
+                        f1.metric("Su Kal. (F)", f"{tavli_sonuc.get('su_kaldirma_f', 0):.1f}")
+                        f2.metric("Stabilite", f"{tavli_sonuc.get('stabilite', 0):.1f}")
+                        f3, f4 = st.columns(2)
+                        f3.metric("Gelişme", f"{tavli_sonuc.get('gelisme_suresi', 0):.1f}")
+                        f4.metric("Yumuşama", f"{tavli_sonuc.get('yumusama', 0):.0f}")
+
+                    with t3:
+                        st.caption("Extensograph 135. Dakika Ortalamaları")
+                        e1, e2, e3 = st.columns(3)
+                        e1.metric("Enerji", f"{tavli_sonuc.get('enerji135', 0):.0f}")
+                        e2.metric("Direnç", f"{tavli_sonuc.get('direnc135', 0):.0f}")
+                        e3.metric("Taban", f"{tavli_sonuc.get('taban135', 0):.0f}")
 
                 st.divider()
                 
-                # --- KAYIT BÖLÜMÜ (KRİTİK SNAPSHOT NOKTASI) ---
+                # --- KAYIT BÖLÜMÜ ---
                 st.success("✅ Reçete Kayda Hazır")
                 urun_adi = st.text_input("Reçete Adı (Örn: Lüks Ekmeklik)", placeholder="Üretilecek Un Cinsini Yazınız")
                 
@@ -261,25 +283,18 @@ def show_pacal_hesaplayici():
                             unique_suffix = str(uuid.uuid4())[:4].upper()
                             batch_id = f"MIX-{date_str}-{unique_suffix}"
                             
-                            # 2. SİLO SNAPSHOT AL (Düzeltilen Kısım)
+                            # 2. SİLO SNAPSHOT AL (Kritik: Cins ve Maliyet Kaydı)
                             silo_snapshot = {}
                             for s_isim, s_oran in oranlar.items():
                                 if s_oran > 0:
-                                    # Silo ana verisini bul (Maliyet ve Cins için)
                                     raw_silo = dolu_silolar[dolu_silolar['isim'] == s_isim].iloc[0]
-                                    
-                                    # Kuru Analiz Ortalamasını Çek (wheat.py'den)
                                     kuru_analiz = get_kuru_bugday_agirlikli_ortalama(s_isim)
-                                    
-                                    # Tavlı Analiz Verisini Al
                                     tavli_analiz = tavli_analizler.get(s_isim, {})
                                     
-                                    # Hepsini paketle
                                     silo_snapshot[s_isim] = {
                                         "oran": s_oran,
                                         "meta": {
-                                            # Cins ve Maliyeti buraya sabitliyoruz
-                                            "cins": str(raw_silo.get('bugday_cinsi', '-')), 
+                                            "cins": str(raw_silo.get('bugday_cinsi', '-')), # <-- BURASI DÜZELDİ
                                             "maliyet": float(raw_silo.get('maliyet', 0))
                                         },
                                         "kuru_analiz": kuru_analiz,
@@ -348,21 +363,34 @@ def show_pacal_gecmisi():
 
             # 1. BÖLÜM: PAÇAL ÖZETİ (HEDEF KALİTE)
             st.markdown("#### 🧪 Paçal Özeti (Hesaplanan Ortalamalar)")
-            kpi1, kpi2, kpi3, kpi4 = st.columns(4)
             
-            # Kuru Değerler
+            # Üst Özet
+            kpi1, kpi2, kpi3 = st.columns(3)
             k_prot = analiz.get('kuru_protein_ort', analiz.get('teorik_kuru_protein', 0))
-            k_hl = analiz.get('kuru_hektolitre_ort', 0)
-            
-            # Tavlı Değerler
-            t_prot = analiz.get('protein', 0)
-            t_stab = analiz.get('stabilite', 0)
-            t_enerji = analiz.get('enerji135', 0)
-            
             kpi1.metric("Kuru Protein", f"{k_prot:.1f}")
-            kpi2.metric("Tavlı Protein", f"{t_prot:.1f}")
-            kpi3.metric("Tavlı Enerji (135)", f"{t_enerji:.0f}")
-            kpi4.metric("Ort. Maliyet", f"{row.get('maliyet',0):.2f} TL")
+            kpi2.metric("Ort. Maliyet", f"{row.get('maliyet',0):.2f} TL")
+            kpi3.metric("Tavlı Protein", f"{analiz.get('protein', 0):.1f}")
+
+            # Detaylı Tablar (Geçmişte de detay görünsün isteği üzerine)
+            t_kimya, t_farino, t_extenso = st.tabs(["Kimyasal", "Farino", "Extenso"])
+            
+            with t_kimya:
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Gluten", f"{analiz.get('gluten', 0):.1f}")
+                c2.metric("Sedim", f"{analiz.get('sedim', 0):.0f}")
+                c3.metric("G. İndeks", f"{analiz.get('gluten_index', 0):.0f}")
+            
+            with t_farino:
+                f1, f2, f3 = st.columns(3)
+                f1.metric("Su Kal. (F)", f"{analiz.get('su_kaldirma_f', 0):.1f}")
+                f2.metric("Stabilite", f"{analiz.get('stabilite', 0):.1f}")
+                f3.metric("Gelişme", f"{analiz.get('gelisme_suresi', 0):.1f}")
+                
+            with t_extenso:
+                e1, e2, e3 = st.columns(3)
+                e1.metric("Enerji (135)", f"{analiz.get('enerji135', 0):.0f}")
+                e2.metric("Direnç (135)", f"{analiz.get('direnc135', 0):.0f}")
+                e3.metric("Taban (135)", f"{analiz.get('taban135', 0):.0f}")
             
             st.divider()
             
