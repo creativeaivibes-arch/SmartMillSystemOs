@@ -650,19 +650,10 @@ def show_mal_kabul():
 
     st.header(f"🚜 {t('header_goods_receipt')}")
     
-    # --- DİNAMİK LOT NUMARASI MANTIĞI ---
-    # Seçili dile göre Lot önekini (Prefix) değiştiriyoruz
+    # --- DİNAMİK LOT NUMARASI ---
     lang_code = st.session_state.get('language_code', 'TR')
-    
-    prefix_map = {
-        'TR': 'BUGDAY',
-        'EN': 'WHEAT',
-        'FR': 'BLE',
-        'RU': 'PSHN' # veya 'ПШН' (Kiril karakter bazen sorun olabilir ama deneyebiliriz)
-    }
+    prefix_map = {'TR': 'BUGDAY', 'EN': 'WHEAT', 'FR': 'BLE', 'RU': 'PSHN'}
     lot_prefix = prefix_map.get(lang_code, 'BUGDAY')
-    
-    # Lot numarasını oluştur
     timestamp = datetime.now().strftime('%y%m%d%H%M%S')
     lot_no = f"{lot_prefix}-{timestamp}"
     
@@ -670,10 +661,7 @@ def show_mal_kabul():
     
     with col1:
         st.subheader(f"📋 {t('subheader_basic_info')}")
-        
-        # Dinamik etiketli Lot No
         st.info(f"**{t('label_lot')}:** `{lot_no}`")
-        
         
         df_silo = get_silo_data()
         if df_silo.empty: 
@@ -682,7 +670,7 @@ def show_mal_kabul():
             
         secilen_silo = st.selectbox(f"{t('label_silo')} *", df_silo['isim'].tolist())
         
-        # Kapasite
+        # Kapasite Gösterimi
         silo_row = df_silo[df_silo['isim'] == secilen_silo].iloc[0]
         mevcut = float(silo_row.get('mevcut_miktar', 0))
         kapasite = float(silo_row.get('kapasite', 0))
@@ -698,7 +686,6 @@ def show_mal_kabul():
             specs_list = df_specs['bugday_cinsi'].unique().tolist()
             
         secilen_standart = st.selectbox(t("label_standard"), ["( - )"] + specs_list)
-        
         bugday_cinsi = st.text_input(f"{t('label_variety')} *")
         
         current_specs = {}
@@ -710,6 +697,8 @@ def show_mal_kabul():
         tedarikci = st.text_input(f"{t('label_supplier')} *")
         yore = st.text_input(f"{t('label_origin')} *")
         plaka = st.text_input(f"{t('label_plate')} *")
+        
+        # HATA KAYNAĞI BURASIYDI: Değişken adı 'notlar'
         notlar = st.text_area(t("label_notes"), key="mal_kabul_notlar")
         
         miktar = st.number_input(f"{t('label_weight')} *", min_value=0.0, format="%.1f")
@@ -718,7 +707,6 @@ def show_mal_kabul():
     with col2:
         st.subheader(f"🧪 {t('subheader_quality')}")
         
-        # Validasyon Helper
         def validate_val(key, val, label):
             if key in current_specs:
                 spec = current_specs[key]
@@ -728,37 +716,22 @@ def show_mal_kabul():
                     st.error(f"❌ {label} Limit Dışı!")
 
         c1, c2, c3 = st.columns(3)
-        
         with c1:
-            # Hektolitre (Test Weight)
             g_hl = st.number_input(t("ana_test_weight"), 0.0, 100.0, 78.0)
             validate_val("hektolitre", g_hl, "HL")
-            
-            # Rutubet (Moisture)
             g_rut = st.number_input(t("ana_moisture"), 0.0, 20.0, 13.5)
             validate_val("rutubet", g_rut, "Rutubet")
-            
-            # Protein
             g_prot = st.number_input(t("ana_protein"), 0.0, 20.0, 12.0)
             validate_val("protein", g_prot, "Protein")
-            
-            # Gluten (Wet Gluten)
             g_glut = st.number_input(t("ana_gluten"), 0.0, 50.0, 28.0)
             validate_val("gluten", g_glut, "Gluten")
 
         with c2:
-            # Gluten Index
             g_index = st.number_input(t("ana_gluten_index"), 0.0, 100.0, 90.0)
             validate_val("gluten_index", g_index, "G.Index")
-            
-            # Sedim (Zeleny)
             g_sedim = st.number_input(t("ana_sedim"), 0.0, 100.0, 30.0)
             validate_val("sedim", g_sedim, "Sedim")
-            
-            # Gecikmeli Sedim (henüz excelde yoktu, sabit kalabilir veya eklenebilir)
             g_g_sedim = st.number_input("G.Sedim / Delayed", 0.0, 100.0, 35.0)
-            
-            # Süne
             sune = st.number_input("Süne (%)", 0.0, 10.0, 0.5)
 
         with c3:
@@ -768,24 +741,19 @@ def show_mal_kabul():
 
     st.divider()
     
-    # Kaydet Butonu
     if st.button(f"💾 {t('btn_submit')}", type="primary", use_container_width=True):
-        # ... (Validasyon kodları aynen kalıyor, buraya dokunma) ...
-        # ... (Validasyon kodları aynen kalıyor, buraya dokunma) ...
-
-        # 👇 SPINNER BURADA BAŞLIYOR 👇
         with st.spinner("Veritabanına kaydediliyor, lütfen bekleyiniz..."):
             
-            # 1. Stok Hareketi Logla
+            # 1. Stok Hareketi Logla (DÜZELTİLDİ: note_final -> notlar)
             ok_log = log_stok_hareketi(
                 secilen_silo, "Giriş", miktar,
                 protein=g_prot, gluten=g_glut, rutubet=g_rut, hektolitre=g_hl,
                 sedim=g_sedim, maliyet=fiyat, lot_no=lot_no,
-                tedarikci=tedarikci, yore=yore, notlar=note_final
+                tedarikci=tedarikci, yore=yore, notlar=notlar 
             )
             
             if ok_log:
-                # 2. Arşive Ekle
+                # 2. Arşive Ekle (DÜZELTİLDİ: note_final -> notlar)
                 ok_arc = add_to_bugday_giris_arsivi(
                     lot_no, tarih=str(tarih), bugday_cinsi=bugday_cinsi,
                     tedarikci=tedarikci, yore=yore, plaka=plaka,
@@ -793,12 +761,12 @@ def show_mal_kabul():
                     hektolitre=g_hl, protein=g_prot, rutubet=g_rut,
                     gluten=g_glut, gluten_index=g_index, sedim=g_sedim,
                     gecikmeli_sedim=g_g_sedim, sune=sune, kirik_ciliz=kirik_ciliz,
-                    yabanci_tane=yabanci_tane, notlar=note_final
+                    yabanci_tane=yabanci_tane, notlar=notlar
                 )
                 
                 if ok_arc:
                     st.success("✅ Kayıt Başarılı!")
-                    recalculate_silos_from_logs() # Siloları güncelle (Bu işlem uzun sürer)
+                    recalculate_silos_from_logs()
                     time.sleep(1)
                     st.rerun()
                 else:
@@ -2158,6 +2126,7 @@ def show_tavli_analiz_arsivi():
                 if st.button("❌ İPTAL", use_container_width=True):
                     st.session_state.silme_onayi_aktif = False
                     st.rerun()
+
 
 
 
