@@ -329,4 +329,157 @@ def show_pacal_hesaplayici():
                             kayit_verisi = {
                                 "batch_id": batch_id,
                                 "tarih": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                                "operator": st.
+                                "operator": st.session_state.get('username', 'Unknown'),
+                                "urun_adi": urun_adi.strip(),
+                                "silo_snapshot_json": json.dumps(silo_snapshot, ensure_ascii=False),
+                                "analiz_snapshot_json": json.dumps(final_analiz_ozet, ensure_ascii=False),
+                                "maliyet": pacal_maliyeti
+                            }
+                            
+                            if add_data("mixing_batches", kayit_verisi):
+                                st.cache_data.clear()
+                                st.success(f"✅ Paçal Kaydedildi! ID: {batch_id}")
+                                time.sleep(1.5)
+                                st.rerun()
+                            else:
+                                st.error("Kayıt sırasında veritabanı hatası oluştu.")
+                                
+                        except Exception as e:
+                            st.error(f"Kayıt Hatası: {e}")
+            else:
+                st.info("ℹ️ Toplam oranı %100 yapınız.")
+        else:
+            st.info("👈 Soldan oranları giriniz.")
+
+# ==============================================================================
+# MODÜL 2: PAÇAL GEÇMİŞİ (ZENGİN ÖZET GÖRÜNÜMÜ)
+# ==============================================================================
+def show_pacal_gecmisi():
+    """Paçal Geçmişi - Zengin Özet ve Traceability Bağlantısı"""
+    st.header("📜 Paçal Arşivi (Traceability)")
+    
+    # Güncel siloları çek (Eski kayıtlarda cins yoksa buradan bakmak için)
+    current_silos = get_silo_data_fresh()
+    
+    df = get_pacal_history()
+    
+    if df.empty:
+        st.info("📭 Henüz kayıtlı paçal bulunmamaktadır.")
+        return
+
+    for idx, row in df.iterrows():
+        # Kart Başlığı
+        baslik = f"📦 {row.get('urun_adi','-')} | {row.get('tarih','-')} | ID: {row.get('batch_id','?')}"
+        
+        with st.expander(baslik):
+            # JSON verilerini çözümle
+            try:
+                snapshot = json.loads(row.get('silo_snapshot_json', '{}'))
+                analiz = json.loads(row.get('analiz_snapshot_json', '{}'))
+            except:
+                st.error("Veri paketi bozuk.")
+                continue
+
+            # --- 1. KULLANILAN SİLOLAR (TABLO) ---
+            st.markdown("#### 🏗️ Kullanılan Silolar (Reçete)")
+            
+            silo_listesi = []
+            for silo_adi, data in snapshot.items():
+                if isinstance(data, dict):
+                    # VERİ AYIKLAMA
+                    meta = data.get('meta', {})
+                    kuru = data.get('kuru_analiz', {})
+                    
+                    # CİNS BULMA (AKILLI FALLBACK)
+                    cins = meta.get('cins') or kuru.get('cins')
+                    
+                    # Eğer arşivde cins yoksa veya '-' ise, GÜNCEL SİLO KARTINA BAK
+                    if not cins or cins in ["-", "nan", ""]:
+                        if not current_silos.empty:
+                            found = current_silos[current_silos['isim'] == silo_adi]
+                            if not found.empty:
+                                cins = str(found.iloc[0].get('bugday_cinsi', '-'))
+                    
+                    if not cins: cins = "-"
+                    
+                    # Diğer veriler
+                    maliyet = meta.get('maliyet', kuru.get('maliyet', 0))
+                    
+                    silo_listesi.append({
+                        "Silo Adı": silo_adi,
+                        "Oran": f"%{data.get('oran', 0)}",
+                        "Buğday Cinsi": cins
+                    })
+                else:
+                    # Eski versiyon kayıtlar
+                    silo_listesi.append({"Silo Adı": silo_adi, "Oran": f"%{data}", "Buğday Cinsi": "-"})
+            
+            st.dataframe(pd.DataFrame(silo_listesi), hide_index=True, use_container_width=True)
+            
+            st.divider()
+
+            # --- 2. DETAYLI ANALİZLER (SEKMELİ YAPI) ---
+            st.markdown("#### 🧪 Paçal Özeti (Hesaplanan Ortalamalar)")
+            
+            # Üst Özet
+            kpi1, kpi2, kpi3 = st.columns(3)
+            k_prot = analiz.get('kuru_protein_ort', analiz.get('teorik_kuru_protein', 0))
+            
+            # Helper: Değer varsa formatla, yoksa '-'
+            def fmt(val, decimals=1):
+                try: return f"{float(val):.{decimals}f}"
+                except: return "-"
+
+            kpi1.metric("💰 Ort. Maliyet", f"{row.get('maliyet',0):.2f} TL")
+            kpi2.metric("🌾 Kuru Protein", f"{fmt(k_prot)}")
+            kpi3.metric("🧪 Tavlı Protein", f"{fmt(analiz.get('protein', 0))}")
+
+            # Detaylı Tablar
+            t_kimya, t_farino, t_extenso = st.tabs(["⚗️ Kimyasal Analizler", "📈 Farinograph", "📊 Extensograph"])
+            
+            with t_kimya:
+                c1, c2, c3 = st.columns(3)
+                c1.markdown(f"**Protein (Ort):** {fmt(analiz.get('protein', 0))}")
+                c2.markdown(f"**Rutubet (Ort):** {fmt(analiz.get('rutubet', 0))}")
+                c3.markdown(f"**Gluten (Ort):** {fmt(analiz.get('gluten', 0))}")
+                
+                c4, c5, c6 = st.columns(3)
+                c4.markdown(f"**Gluten Index:** {fmt(analiz.get('gluten_index', 0), 0)}")
+                c5.markdown(f"**Sedim (Ort):** {fmt(analiz.get('sedim', 0), 0)}")
+                c6.markdown(f"**G. Sedim:** {fmt(analiz.get('g_sedim', 0), 0)}")
+                
+                c7, c8, c9 = st.columns(3)
+                c7.markdown(f"**FN (Ort):** {fmt(analiz.get('fn', 0), 0)}")
+                c8.markdown(f"**FFN (Ort):** {fmt(analiz.get('ffn', 0), 0)}")
+                c9.markdown(f"**Amilograph:** {fmt(analiz.get('amilograph', 0), 0)}")
+
+            with t_farino:
+                f1, f2 = st.columns(2)
+                f1.markdown(f"**Su Kal. (F):** {fmt(analiz.get('su_kaldirma_f', 0))}")
+                f1.markdown(f"**Gelişme Süresi:** {fmt(analiz.get('gelisme_suresi', 0))}")
+                
+                f2.markdown(f"**Stabilite:** {fmt(analiz.get('stabilite', 0))}")
+                f2.markdown(f"**Yumuşama:** {fmt(analiz.get('yumusama', 0), 0)}")
+
+            with t_extenso:
+                st.markdown(f"**Su Kaldırma (E):** {fmt(analiz.get('su_kaldirma_e', 0))}")
+                st.markdown("---")
+                
+                ec1, ec2, ec3 = st.columns(3)
+                ec1.caption("45. Dakika")
+                ec1.markdown(f"Direnç: {fmt(analiz.get('direnc45', 0), 0)}")
+                ec1.markdown(f"Taban: {fmt(analiz.get('taban45', 0), 0)}")
+                ec1.markdown(f"Enerji: {fmt(analiz.get('enerji45', 0), 0)}")
+                
+                ec2.caption("90. Dakika")
+                ec2.markdown(f"Direnç: {fmt(analiz.get('direnc90', 0), 0)}")
+                ec2.markdown(f"Taban: {fmt(analiz.get('taban90', 0), 0)}")
+                ec2.markdown(f"Enerji: {fmt(analiz.get('enerji90', 0), 0)}")
+                
+                ec3.caption("135. Dakika")
+                ec3.markdown(f"Direnç: {fmt(analiz.get('direnc135', 0), 0)}")
+                ec3.markdown(f"Taban: {fmt(analiz.get('taban135', 0), 0)}")
+                ec3.markdown(f"Enerji: {fmt(analiz.get('enerji135', 0), 0)}")
+            
+            st.divider()
+            st.info(f"ℹ️ Bu paçalı oluşturan siloların detaylı analizleri **Traceability (Kara Kutu)** modülünde `{row.get('batch_id')}` kodu ile saklanmaktadır.")
