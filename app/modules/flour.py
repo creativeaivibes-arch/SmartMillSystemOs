@@ -523,37 +523,31 @@ def show_un_analiz_kaydi():
     if st.session_state.get('user_role') not in ["admin", "operations", "quality"]:
         st.warning("⛔ Yetkisiz Erişim")
         return
-    
     st.header("📝 Un Analiz & Sevkiyat Kaydı")
     
-    # --- 1. İŞLEM TİPİ SEÇİMİ (EN ÜSTE ALINDI) ---
-    # Lot numarası buna göre değişeceği için önce bunu sormalıyız.
-    islem_tipi = st.selectbox("İşlem Tipi Seçiniz *", ["ÜRETİM", "SEVKİYAT", "NUMUNE", "ŞİKAYET", "İADE"])
-
-    # --- 2. AKILLI LOT (PREFIX) MANTIĞI ---
-    prefix_map = {
-        "ÜRETİM": "PRD",     # Production
-        "SEVKİYAT": "SHIP",  # Shipment
-        "NUMUNE": "SAMPLE",  # Sample
-        "İADE": "RTRN",      # Return
-        "ŞİKAYET": "CLAIM"   # Claim
-    }
-    # Seçilen işleme göre ön ek belirle (Yoksa varsayılan UN)
-    current_prefix = prefix_map.get(islem_tipi, "UN")
+    # --- 1. İŞLEM TİPİ VE AKILLI LOT (EN BAŞA EKLENDİ) ---
+    islem_tipi = st.selectbox("İşlem Tipi *", ["ÜRETİM", "SEVKİYAT", "NUMUNE", "ŞİKAYET", "İADE"])
     
-    # Lot Formatı: PREFIX-YilAyGunSaatDakika (Örn: SHIP-2602100945)
+    prefix_map = {
+        "ÜRETİM": "PRD",
+        "SEVKİYAT": "SHIP",
+        "NUMUNE": "SAMPLE",
+        "İADE": "RTRN",
+        "ŞİKAYET": "CLAIM"
+    }
+    current_prefix = prefix_map.get(islem_tipi, "UN")
     timestamp_str = datetime.now().strftime('%y%m%d%H%M')
     auto_lot = f"{current_prefix}-{timestamp_str}"
 
     col1, col2 = st.columns([1, 1], gap="large")
     
-    # --- SOL KOLON ---
+    # --- SOL KOLON (KİMLİK & SEVKİYAT BİLGİLERİ) ---
     with col1:
         st.subheader("📋 Kayıt Bilgileri")
         
-        st.info(f"**Otomatik İşlem Kimliği:** `{auto_lot}`")
-        lot_no = st.text_input("Lot / Parti Numarası *", value=auto_lot)
-        analiz_tarihi = st.date_input("Tarih", datetime.now())
+        st.info(f"**Otomatik Lot:** `{auto_lot}`")
+        lot_no = st.text_input("Lot Numarası *", value=auto_lot)
+        analiz_tarihi = st.date_input("Analiz Tarihi", datetime.now())
         
         # --- DİNAMİK ALANLAR ---
         kaynak_parti = None
@@ -561,27 +555,25 @@ def show_un_analiz_kaydi():
         plaka_no = None
         uretim_silosu = None
         
-        # A) SEVKİYAT MODU (Analizsiz)
+        # A) SEVKİYAT MODU
         if islem_tipi == "SEVKİYAT":
             st.markdown("🚚 **Sevkiyat Detayları**")
-            st.warning("ℹ️ Sevkiyat modunda analiz değerleri girilmesine gerek yoktur.")
+            st.warning("ℹ️ Sevkiyat modunda analiz girilmesi zorunlu değildir.")
             
             musteri_adi = st.text_input("Müşteri / Firma Adı *")
             plaka_no = st.text_input("Araç Plakası / Şoför *")
             
             # Kaynak Seçimi
             prod_lots = get_active_production_lots()
-            secilen_kaynak = st.selectbox("Hangi Üretimden Sevk Ediliyor? (Opsiyonel)", ["(Stoktan / Karışık)"] + prod_lots)
+            secilen_kaynak = st.selectbox("Hangi Üretimden Sevk Ediliyor?", ["(Stoktan / Karışık)"] + prod_lots)
             
             if secilen_kaynak != "(Stoktan / Karışık)":
                 try: kaynak_parti = secilen_kaynak.split(' | ')[0].strip()
                 except: kaynak_parti = secilen_kaynak
 
-        # B) ÜRETİM MODU (Analizli)
+        # B) ÜRETİM MODU
         elif islem_tipi == "ÜRETİM":
             st.markdown("🏭 **Üretim Kaynağı**")
-            
-            # Kaynak Üretim
             prod_lots = get_active_production_lots()
             secilen_parti = st.selectbox("Hangi Üretim Partisi? (PRD)", ["(Bağımsız)"] + prod_lots)
             
@@ -590,9 +582,9 @@ def show_un_analiz_kaydi():
                 except: kaynak_parti = secilen_parti
 
             # Silo
-            df_silo = fetch_data("silolar") # uretim_silolari yerine silolar tablosunu kullanıyoruz
+            df_silo = fetch_data("silolar") 
             if not df_silo.empty:
-                # İsim sütunu varsa onu kullan, yoksa ilk sütunu
+                # 'isim' sütununu bulmaya çalış, yoksa ilk sütunu al
                 col_name = 'isim' if 'isim' in df_silo.columns else df_silo.columns[0]
                 silo_list = ["(Belirtilmemiş)"] + df_silo[col_name].tolist()
                 uretim_silosu = st.selectbox("Üretim Silosu", silo_list)
@@ -601,41 +593,33 @@ def show_un_analiz_kaydi():
 
         st.divider()
         
-        # 3. UN CİNSİ SEÇİMİ
-        st.markdown("🌾 **Ürün Tanımı**")
-        un_markasi = st.text_input("Marka Adı (Ticari)", placeholder="Örn: Pırlanta, Yıldız")
+        # Un Tanımı
+        un_markasi = st.text_input("Un Markası (Ticari)", placeholder="Örn: Pırlanta")
         
-        # Spec Listesini Çek
-        try:
-            df_spek = fetch_data("un_spekleri")
-            type_list = sorted(df_spek['un_cinsi'].unique().tolist()) if not df_spek.empty else []
-        except:
+        df_spek = fetch_data("un_spekleri")
+        if not df_spek.empty:
+            type_list = sorted(df_spek['un_cinsi'].unique().tolist())
+        else:
             type_list = []
             
         c_sel, c_new = st.columns([2, 1])
         with c_sel:
-            # Burası "UN CİNSİ" zorunlu alanıdır
-            selected_type = st.selectbox("Un Cinsi (Sistem Tanımı) *", ["(Seçiniz)"] + type_list + ["(Yeni Tanımla)"])
+            selected_type = st.selectbox("Un Cinsi (Spec) *", ["(Seçiniz)"] + type_list + ["(Yeni)"])
         
-        if selected_type == "(Yeni Tanımla)":
-            un_cinsi_marka = c_new.text_input("Yeni Cins Adı Giriniz").strip().upper()
+        if selected_type == "(Yeni)":
+            un_cinsi_marka = c_new.text_input("Yeni Cins").strip()
         elif selected_type != "(Seçiniz)":
             un_cinsi_marka = selected_type
         else:
-            un_cinsi_marka = "" 
+            un_cinsi_marka = ""
             
         notlar = st.text_area("Notlar")
 
-    # --- SAĞ KOLON: ANALİZ DEĞERLERİ ---
+    # --- SAĞ KOLON (ANALİZLER - HİÇBİR ŞEY SİLİNMEDİ) ---
     with col2:
-        # Eğer Sevkiyat ise burayı pasif gösterelim
-        if islem_tipi == "SEVKİYAT":
-            st.info("📦 Sevkiyat işlemi seçildiği için analiz girişi zorunlu değildir.")
-            st.caption("Eğer sevkiyat öncesi kontrol analizi yaptıysanız girebilirsiniz, yoksa boş bırakın.")
-        else:
-            st.subheader("🧪 Analiz Değerleri")
-
-        # Spec verilerini hazırla
+        st.subheader("🧪 Analiz Değerleri")
+        
+        # Spec Hazırlığı
         current_specs = {}
         if un_cinsi_marka and not df_spek.empty:
             df_s = df_spek[df_spek['un_cinsi'] == un_cinsi_marka]
@@ -643,7 +627,7 @@ def show_un_analiz_kaydi():
                 current_specs[row['parametre']] = row
         
         def validate_input(key, label, val):
-            # Sevkiyat değilse limit kontrolü yap
+            # Sevkiyat hariç limit kontrolü
             if key in current_specs and islem_tipi != "SEVKİYAT":
                 spec = current_specs[key]
                 s_min, s_max, s_tgt = float(spec['min_deger']), float(spec['max_deger']), float(spec['hedef_deger'])
@@ -652,41 +636,67 @@ def show_un_analiz_kaydi():
                     st.error(f"❌ Limit Dışı!")
             return val
             
-        with st.expander("🧪 KİMYASAL ANALİZLER", expanded=(islem_tipi != "SEVKİYAT")):
-            k1, k2 = st.columns(2)
-            # Sevkiyat ise varsayılan 0.0, değilse standart değerler
-            def_val = 0.0 if islem_tipi=="SEVKİYAT" else 0.0
-            
-            with k1:
-                protein = validate_input("protein", "Protein", st.number_input("Protein (%)", 0.0, 20.0, 11.5 if islem_tipi!="SEVKİYAT" else 0.0, 0.1))
-                rutubet = validate_input("rutubet", "Rutubet", st.number_input("Rutubet (%)", 0.0, 20.0, 14.5 if islem_tipi!="SEVKİYAT" else 0.0, 0.1))
-                gluten = validate_input("gluten", "Gluten", st.number_input("Gluten (%)", 0.0, 50.0, 28.0 if islem_tipi!="SEVKİYAT" else 0.0, 0.1))
-                gluten_index = validate_input("gluten_index", "GI", st.number_input("Gluten Index", 0.0, 100.0, 85.0 if islem_tipi!="SEVKİYAT" else 0.0, 1.0))
-            with k2:
-                sedim = validate_input("sedim", "Sedim", st.number_input("Sedim (ml)", 0.0, 100.0, 40.0 if islem_tipi!="SEVKİYAT" else 0.0, 1.0))
-                g_sedim = validate_input("gecikmeli_sedim", "G.Sedim", st.number_input("Gecikmeli Sedim", 0.0, 100.0, 50.0 if islem_tipi!="SEVKİYAT" else 0.0, 1.0))
-                fn = validate_input("fn", "FN", st.number_input("Düşme Sayısı (FN)", 0.0, 999.0, 350.0 if islem_tipi!="SEVKİYAT" else 0.0, 1.0))
-                ffn = st.number_input("F.F.N", 0.0, 999.0, 380.0 if islem_tipi!="SEVKİYAT" else 0.0, 1.0)
-                
-        with st.expander("🔬 DİĞER & REOLOJİK", expanded=False):
-            # Diğer analizler
-            c1, c2 = st.columns(2)
-            amilo = c1.number_input("Amilograph", 0.0, value=0.0)
-            kul = c2.number_input("Kül (%)", 0.0, step=0.001, format="%.3f", value=0.0)
-            nisasta = st.number_input("Nişasta Zed.", 0.0, value=0.0)
-            
-            st.markdown("**Farinograph**")
-            f_su = st.number_input("Su Kaldırma (F)", 0.0, value=0.0)
-            f_gelisme = st.number_input("Gelişme Süresi", 0.0, value=0.0)
-            f_stab = st.number_input("Stabilite", 0.0, value=0.0)
-            f_yumus = st.number_input("Yumuşama", 0.0, value=0.0)
-            
-            # Extenso değerleri (Varsayılan 0)
-            su_e = e45_d = e45_t = e45_e = e90_d = e90_t = e90_e = e135_d = e135_t = e135_e = 0.0
+        # Varsayılan değer ayarı (Sevkiyat ise 0 gelir)
+        def get_def(std_val): return 0.0 if islem_tipi == "SEVKİYAT" else std_val
 
+        # 1. KİMYASAL (ZORUNLU)
+        with st.expander("🧪 KİMYASAL ANALİZLER (Zorunlu)", expanded=(islem_tipi != "SEVKİYAT")):
+            k1, k2 = st.columns(2)
+            with k1:
+                protein = validate_input("protein", "Protein", st.number_input("Protein (%)", 0.0, 20.0, get_def(11.5), 0.1))
+                rutubet = validate_input("rutubet", "Rutubet", st.number_input("Rutubet (%)", 0.0, 20.0, get_def(14.5), 0.1))
+                gluten = validate_input("gluten", "Gluten", st.number_input("Gluten (%)", 0.0, 50.0, get_def(28.0), 0.1))
+                gluten_index = validate_input("gluten_index", "GI", st.number_input("Gluten Index", 0.0, 100.0, get_def(85.0), 1.0))
+            with k2:
+                sedim = validate_input("sedim", "Sedim", st.number_input("Sedim (ml)", 0.0, 100.0, get_def(40.0), 1.0))
+                g_sedim = validate_input("gecikmeli_sedim", "G.Sedim", st.number_input("Gecikmeli Sedim", 0.0, 100.0, get_def(50.0), 1.0))
+                fn = validate_input("fn", "FN", st.number_input("Düşme Sayısı (FN)", 0.0, 999.0, get_def(350.0), 1.0))
+                ffn = st.number_input("F.F.N", 0.0, 999.0, get_def(380.0), 1.0)
+        
+        # 2. DİĞER KİMYASAL
+        with st.expander("🔬 DİĞER KİMYASAL ANALİZLER", expanded=False):
+            k3, k4 = st.columns(2)
+            with k3:
+                amilo = validate_input("amilograph", "Amilo", st.number_input("Amilograph (AU)", 0.0, value=get_def(650.0)))
+                nisasta = st.number_input("Nişasta Zedelenmesi", 0.0, value=get_def(15.0))
+            with k4:
+                kul = validate_input("kul", "Kül", st.number_input("Kül (%)", 0.0, value=get_def(0.720), step=0.001, format="%.3f"))
+        
+        # 3. FARINOGRAPH (EKSİKSİZ GERİ GELDİ!)
+        with st.expander("📈 FARINOGRAPH ANALİZLERİ", expanded=False):
+            f1, f2 = st.columns(2)
+            with f1:
+                f_su = st.number_input("Su Kaldırma (%)", 0.0, value=get_def(57.0))
+                f_gelisme = st.number_input("Gelişme Süresi (dk)", 0.0, value=get_def(1.8))
+            with f2:
+                f_stab = st.number_input("Stabilite (dk)", 0.0, value=get_def(2.3))
+                f_yumus = st.number_input("Yumuşama (FU)", 0.0, value=get_def(100.0))
+                
+        # 4. EXTENSOGRAPH (EKSİKSİZ GERİ GELDİ!)
+        with st.expander("📊 EXTENSOGRAPH ANALİZLERİ (Detaylı)", expanded=False):
+            st.write("**45. Dakika:**")
+            e1, e2, e3 = st.columns(3)
+            e45_d = e1.number_input("Direnç (45)", value=get_def(610.0))
+            e45_t = e2.number_input("Taban (45)", value=get_def(165.0))
+            e45_e = e3.number_input("Enerji (45)", value=get_def(110.0))
+            
+            st.write("**90. Dakika:**")
+            e1, e2, e3 = st.columns(3)
+            e90_d = e1.number_input("Direnç (90)", value=get_def(900.0))
+            e90_t = e2.number_input("Taban (90)", value=get_def(125.0))
+            e90_e = e3.number_input("Enerji (90)", value=get_def(120.0))
+            
+            st.write("**135. Dakika:**")
+            e1, e2, e3 = st.columns(3)
+            e135_d = e1.number_input("Direnç (135)", value=get_def(980.0))
+            e135_t = e2.number_input("Taban (135)", value=get_def(120.0))
+            e135_e = e3.number_input("Enerji (135)", value=get_def(126.0))
+            
+            su_e = st.number_input("Su Kaldırma (Extenso) (%)", value=get_def(54.3))
+            
     st.divider()
     
-    # --- KAYIT BUTONU VE MANTIK ---
+    # --- KAYIT BUTONU ---
     btn_text = "🚚 SEVKİYATI KAYDET" if islem_tipi == "SEVKİYAT" else "✅ ANALİZİ KAYDET"
     
     if st.button(btn_text, type="primary", use_container_width=True):
@@ -698,37 +708,33 @@ def show_un_analiz_kaydi():
             return
         
         if not un_cinsi_marka:
-            st.error("⚠️ Lütfen 'Un Cinsi (Sistem Tanımı)' kutusundan bir ürün seçiniz veya yeni tanımlayınız.")
+            st.error("⚠️ Lütfen 'Un Cinsi' seçiniz.")
             return
             
         validasyon_hatalari = []
 
-        # 2. İŞLEM TİPİNE GÖRE KONTROL
+        # 2. SEVKİYAT KONTROLÜ
         if islem_tipi == "SEVKİYAT":
-            # Sevkiyat ise sadece Müşteri ve Plaka zorunlu
             if not musteri_adi or not plaka_no:
                 st.error("⚠️ Sevkiyat için Müşteri Adı ve Plaka zorunludur!")
                 return
-            # Analiz kontrolü YOK
-            
         else:
-            # Üretim vb. ise Analizler ZORUNLU
+            # ÜRETİM/NUMUNE İSE ANALİZLER ZORUNLU
             zorunlu_analizler = [
                 (protein, 'protein', 'Protein'),
                 (rutubet, 'rutubet', 'Rutubet'),
                 (gluten, 'gluten', 'Gluten')
             ]
             for deger, key, label in zorunlu_analizler:
-                if deger <= 0: # 0 girilmesine izin verme
+                if deger <= 0: 
                     validasyon_hatalari.append(f"{label} değeri 0 olamaz!")
 
-        # Hata varsa dur
         if validasyon_hatalari:
             st.error("🚫 Eksik Bilgiler Var:")
             for hata in validasyon_hatalari: st.write(f"- {hata}")
             return
         
-        # 3. VERİ PAKETLEME
+        # 3. VERİ PAKETLEME (TÜM VERİLER DAHİL)
         analiz_data = {
             'un_cinsi_marka': un_cinsi_marka, 
             'un_markasi': un_markasi, 
@@ -739,11 +745,16 @@ def show_un_analiz_kaydi():
             'protein': protein, 'rutubet': rutubet, 'gluten': gluten, 'gluten_index': gluten_index,
             'sedim': sedim, 'gecikmeli_sedim': g_sedim, 'fn': fn, 'ffn': ffn,
             'amilograph': amilo, 'nisasta_zedelenmesi': nisasta, 'kul': kul,
+            
+            # Farino
             'su_kaldirma_f': f_su, 'gelisme_suresi': f_gelisme, 'stabilite': f_stab, 'yumusama': f_yumus,
+            
+            # Extenso
             'su_kaldirma_e': su_e,
             'direnc45': e45_d, 'taban45': e45_t, 'enerji45': e45_e,
             'direnc90': e90_d, 'taban90': e90_t, 'enerji90': e90_e,
             'direnc135': e135_d, 'taban135': e135_t, 'enerji135': e135_e,
+            
             'notlar': notlar
         }
         
@@ -1242,6 +1253,7 @@ def show_flour_yonetimi():
                 st.error("⚠️ Enzim modülü (calculations.py) bulunamadı.")
             except Exception as e:
                 st.error(f"⚠️ Modül yüklenirken hata oluştu: {e}")
+
 
 
 
