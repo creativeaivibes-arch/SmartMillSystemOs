@@ -170,7 +170,7 @@ def show_traceability_dashboard():
         st.success(f"✅ Kayıt Bulundu: {query}")
         
         # ======================================================================
-        # 0. HALKA: SEVKİYAT BİLGİSİ (SHIP) - GÜNCELLENDİ (FULL PARAMETRELER)
+        # 0. HALKA: SEVKİYAT BİLGİSİ (SHIP) - PLAKA VE PARAMETRELER DÜZELTİLDİ
         # ======================================================================
         if chain["SHIP"] is not None:
             ship = chain["SHIP"]
@@ -179,10 +179,13 @@ def show_traceability_dashboard():
                 c1, c2 = st.columns(2)
                 with c1:
                     render_kvkk_row("Lot No", ship.get('lot_no'))
-                    # Müşteri adı (Farklı sütun isimlerine karşı önlem)
+                    # Müşteri adı
                     musteri = ship.get('musteri_adi') or ship.get('musteri') or ship.get('cari_adi')
                     render_kvkk_row("Müşteri", musteri)
+                    
+                    # Plaka (Excel'de 'plaka' sütunu varsa gelir)
                     render_kvkk_row("Plaka", ship.get('plaka'))
+                    
                 with c2:
                     # Ürün adı
                     urun = ship.get('un_cinsi_marka') or ship.get('un_markasi') or ship.get('urun_adi')
@@ -199,7 +202,7 @@ def show_traceability_dashboard():
 
                 st.divider()
                 
-                # --- B. DETAYLI ANALİZ (3 TAB - FULL SPEKTRUM) ---
+                # --- B. DETAYLI ANALİZ (3 TAB - FULL SPEKTRUM, RENK/BENEK YOK) ---
                 st.markdown("##### 🧪 Çıkış Analiz Değerleri (Full)")
                 
                 t1, t2, t3 = st.tabs(["⚗️ Kimyasal", "📈 Farinograph", "📊 Extensograph"])
@@ -219,11 +222,10 @@ def show_traceability_dashboard():
                     k7.metric("G. Sedim", fmt(ship.get('gecikmeli_sedim') or ship.get('g_sedim'), 0))
                     k8.metric("FN", fmt(ship.get('fn'), 0))
                     
-                    # Satır 3 (Opsiyonel)
+                    # Satır 3
                     k9, k10, k11, k12 = st.columns(4)
                     k9.metric("FFN", fmt(ship.get('ffn'), 0))
-                    k10.metric("Renk", ship.get('renk', '-'))
-                    k11.metric("Benek", ship.get('benek', '-'))
+                    # Renk ve Benek KALDIRILDI
 
                 with t2:
                     f1, f2 = st.columns(2)
@@ -288,34 +290,84 @@ def show_traceability_dashboard():
                     render_kvkk_row("Kayıp Oranı", f"{kayip:.2f}", "%", "red" if kayip > 2 else "black")
 
         # ======================================================================
-        # 3. HALKA: LABORATUVAR (Üretim Kontrolü)
+        # 3. HALKA: LABORATUVAR (Üretim Kontrolü) - STANDARDİZE EDİLDİ
         # ======================================================================
-        # Eğer Sevkiyat ile Lab lotları farklıysa göster (Yani bu bir üretim kontrol analizi ise)
         if chain["LAB"] is not None:
             ship_lot = chain.get("SHIP", {}).get('lot_no') if chain.get("SHIP") is not None else ""
             lab_lot = chain["LAB"].get('lot_no')
             
-            # Sadece farklıysa göster, çünkü aynıysa zaten yukarıda SHIP içinde gösterdik
+            # Sadece farklıysa göster (Sevkiyat analizinden farklı bir lab analizi ise)
             if ship_lot != lab_lot:
                 lab = chain["LAB"]
                 with st.expander("🔬 3. ÜRETİM KONTROL ANALİZİ (LAB)", expanded=True):
-                    st.markdown(f"**Referans:** `{lab.get('lot_no')}` | **Tarih:** {str(lab.get('tarih'))[:16]}")
+                    # 1. ÜST BİLGİ (İstenen Format)
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        render_kvkk_row("Lot No", lab.get('lot_no'))
+                        # Ürün adını bul
+                        urun_adi = lab.get('un_cinsi_marka') or lab.get('un_markasi') or lab.get('urun_adi') or lab.get('numune_adi')
+                        render_kvkk_row("Ürün", urun_adi)
+                    with c2:
+                        render_kvkk_row("Tarih", str(lab.get('tarih'))[:16])
                     
-                    lt1, lt2, lt3 = st.tabs(["Kimyasal", "Reoloji", "Diğer"])
+                    st.divider()
+                    
+                    # 2. DETAYLI ANALİZ (Sevkiyat ile BİREBİR AYNI YAPI)
+                    lt1, lt2, lt3 = st.tabs(["⚗️ Kimyasal", "📈 Farinograph", "📊 Extensograph"])
+                    
                     with lt1:
-                        cols = st.columns(3)
-                        cols[0].metric("Protein", fmt(lab.get('protein')))
-                        cols[1].metric("Kül", fmt(lab.get('kul'), 3))
-                        cols[2].metric("Gluten", fmt(lab.get('gluten')))
+                        # Satır 1
+                        k1, k2, k3, k4 = st.columns(4)
+                        k1.metric("Protein", fmt(lab.get('protein')))
+                        k2.metric("Kül", fmt(lab.get('kul'), 3))
+                        k3.metric("Rutubet", fmt(lab.get('rutubet')))
+                        k4.metric("Gluten", fmt(lab.get('gluten')))
+                        
+                        # Satır 2
+                        k5, k6, k7, k8 = st.columns(4)
+                        k5.metric("G. İndeks", fmt(lab.get('gluten_index'), 0))
+                        k6.metric("Sedim", fmt(lab.get('sedim'), 0))
+                        k7.metric("G. Sedim", fmt(lab.get('gecikmeli_sedim') or lab.get('g_sedim'), 0))
+                        k8.metric("FN", fmt(lab.get('fn'), 0))
+                        
+                        # Satır 3 (FFN)
+                        k9, k10, k11, k12 = st.columns(4)
+                        k9.metric("FFN", fmt(lab.get('ffn'), 0))
+                        # Renk ve Benek KALDIRILDI
+
                     with lt2:
-                        cols = st.columns(3)
-                        cols[0].metric("Enerji", fmt(lab.get('enerji') or lab.get('enerji135'), 0))
-                        cols[1].metric("Direnç", fmt(lab.get('direnc') or lab.get('direnc135'), 0))
-                        cols[2].metric("Stabilite", fmt(lab.get('stabilite')))
+                        f1, f2 = st.columns(2)
+                        f1.metric("Su Kal. (F)", fmt(lab.get('su_kaldirma_f')))
+                        f1.metric("Gelişme", fmt(lab.get('gelisme_suresi')))
+                        f2.metric("Stabilite", fmt(lab.get('stabilite')))
+                        f2.metric("Yumuşama", fmt(lab.get('yumusama'), 0))
+
                     with lt3:
-                        cols = st.columns(2)
-                        cols[0].metric("Renk", lab.get('renk', '-'))
-                        cols[1].metric("Benek", lab.get('benek', '-'))
+                        # 45 DK
+                        st.markdown("**45. Dakika**")
+                        ex1, ex2, ex3 = st.columns(3)
+                        ex1.metric("Enerji (45)", fmt(lab.get('enerji45'), 0))
+                        ex2.metric("Direnç (45)", fmt(lab.get('direnc45'), 0))
+                        ex3.metric("Uzama (45)", fmt(lab.get('uzama45'), 0))
+                        
+                        # 90 DK
+                        st.markdown("**90. Dakika**")
+                        ex4, ex5, ex6 = st.columns(3)
+                        ex4.metric("Enerji (90)", fmt(lab.get('enerji90'), 0))
+                        ex5.metric("Direnç (90)", fmt(lab.get('direnc90'), 0))
+                        ex6.metric("Uzama (90)", fmt(lab.get('uzama90'), 0))
+                        
+                        # 135 DK
+                        st.markdown("**135. Dakika**")
+                        ex7, ex8, ex9 = st.columns(3)
+                        # Yedekli okuma
+                        e135 = lab.get('enerji135') or lab.get('enerji')
+                        d135 = lab.get('direnc135') or lab.get('direnc')
+                        u135 = lab.get('uzama135') or lab.get('uzama')
+                        
+                        ex7.metric("Enerji (135)", fmt(e135, 0))
+                        ex8.metric("Direnç (135)", fmt(d135, 0))
+                        ex9.metric("Uzama (135)", fmt(u135, 0))
 
         # ======================================================================
         # 2. HALKA: PAÇAL (Mix Data)
