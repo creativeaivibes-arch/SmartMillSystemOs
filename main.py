@@ -238,16 +238,16 @@ with st.sidebar:
         # Alt başlığı da çeviriyoruz
         st.sidebar.markdown(f"### 🧪 {t('menu_quality')}")
         
-        # Alt menüleri henüz languages.py'ye eklemedik, Türkçe kalsın şimdilik
-        # İleride bunları da t('submenu_wheat') gibi yapabiliriz
         kk_bolum = st.sidebar.radio(
             "Bölüm Seçiniz", 
-            ["🌾 Buğday Yönetimi", "🍞 Un Yönetimi","🔍 Geri İzlenebilirlik"]
+            ["🌾 Buğday Yönetimi", "🍞 Un Yönetimi", "🔍 Geri İzlenebilirlik"]
         )
         if kk_bolum == "🌾 Buğday Yönetimi":
             selected_page = "KK_BUGDAY"
         elif kk_bolum == "🍞 Un Yönetimi":
             selected_page = "KK_UN"
+        elif kk_bolum == "🔍 Geri İzlenebilirlik":
+            selected_page = "TRACEABILITY"
 
     elif ana_menu == opt_mill:
         selected_page = "PRODUCTION_MANAGER"
@@ -442,6 +442,7 @@ with st.sidebar:
     # En Alt Footer
     st.caption(f"🏢 {LICENSE_CONFIG.get('CLIENT_NAME', 'Client')}")
     st.caption("v2.0 Enterprise")
+
 
 
 
