@@ -1390,33 +1390,96 @@ def create_traceability_pdf_report(chain_data):
         enz  = clean_data(chain_data.get('ENZ')) # Enzim eklendi
 
         # --- 1. SEVKİYAT BİLGİSİ ---
-        add_section("1. SEVKİYAT & MÜŞTERİ BİLGİSİ")
+        add_section("1. SEVKIYAT & MUSTERI BILGISI")
         if ship:
             make_table([
-                ("Müşteri",       get_val(ship, ['musteri_adi', 'musteri', 'cari_adi'])),
+                ("Musteri",       get_val(ship, ['musteri_adi', 'musteri', 'cari_adi'])),
                 ("Lot No",        get_val(ship, ['lot_no'])),
-                ("Araç Plaka",    get_val(ship, ['plaka'])),
+                ("Arac Plaka",    get_val(ship, ['plaka'])),
                 ("Sevk Tarihi",   str(get_val(ship, ['tarih']))[:19]),
-                ("Ürün Cinsi",    get_val(ship, ['un_cinsi_marka', 'un_markasi', 'urun_adi']))
+                ("Urun Cinsi",    get_val(ship, ['un_cinsi_marka', 'un_markasi', 'urun_adi']))
+            ])
+            
+            story.append(Spacer(1, 3*mm))
+            story.append(Paragraph("<b>Cikis Numune Analiz Sonuclari:</b>", styles['Normal']))
+            story.append(Spacer(1, 2*mm))
+            
+            # Kimyasal Analizler
+            make_table([
+                ("Protein",           f"% {get_val(ship, ['protein'])}"),
+                ("Rutubet",           f"% {get_val(ship, ['rutubet'])}"),
+                ("Kul",               f"% {get_val(ship, ['kul'])}"),
+                ("Sedim",             get_val(ship, ['sedim'])),
+                ("Gluten",            get_val(ship, ['gluten'])),
+                ("Gluten Indeks",     get_val(ship, ['gluten_index'])),
+                ("FN",                get_val(ship, ['fn'])),
+                ("FFN",               get_val(ship, ['ffn'])),
+                ("Gecikmeli Sedim",   get_val(ship, ['gecikmeli_sedim', 'g_sedim']))
+            ])
+            
+            story.append(Spacer(1, 2*mm))
+            story.append(Paragraph("<b>Farinograph Degerleri:</b>", styles['Normal']))
+            make_table([
+                ("Su Kaldirma (F)",   get_val(ship, ['su_kaldirma_f'])),
+                ("Gelisme Suresi",    get_val(ship, ['gelisme_suresi'])),
+                ("Stabilite",         get_val(ship, ['stabilite'])),
+                ("Yumusama",          get_val(ship, ['yumusama']))
+            ])
+            
+            story.append(Spacer(1, 2*mm))
+            story.append(Paragraph("<b>Extensograph Degerleri:</b>", styles['Normal']))
+            make_table([
+                ("Enerji 45",         get_val(ship, ['enerji45'])),
+                ("Direnc 45",         get_val(ship, ['direnc45'])),
+                ("Uzama 45",          get_val(ship, ['uzama45'])),
+                ("Enerji 90",         get_val(ship, ['enerji90'])),
+                ("Direnc 90",         get_val(ship, ['direnc90'])),
+                ("Uzama 90",          get_val(ship, ['uzama90'])),
+                ("Enerji 135",        get_val(ship, ['enerji135', 'enerji'])),
+                ("Direnc 135",        get_val(ship, ['direnc135', 'direnc'])),
+                ("Uzama 135",         get_val(ship, ['uzama135', 'uzama']))
             ])
         else:
             story.append(Paragraph("Sevkiyat verisi bulunamadi.", styles['Normal']))
             story.append(Spacer(1, 8*mm))
 
-        # --- 2. LABORATUVAR ANALİZ ---
-        add_section("2. LABORATUVAR KALİTE DEĞERLERİ")
+        # --- 2. LABORATUVAR ANALIZ ---
+        add_section("2. URETIM LABORATUVAR KALITE DEGERLERI")
         if lab:
+            # Kimyasal Analizler
             make_table([
-                ("Protein",       f"% {get_val(lab, ['protein'])}"),
-                ("Rutubet",       f"% {get_val(lab, ['rutubet'])}"),
-                ("Kül",           f"% {get_val(lab, ['kul'])}"),
-                ("Sedim",         get_val(lab, ['sedim'])),
-                ("Gluten",        get_val(lab, ['gluten'])),
-                ("Gluten İndeks", get_val(lab, ['gluten_index'])),
-                ("FN",            get_val(lab, ['fn'])),
-                ("FFN",           get_val(lab, ['ffn'])),
-                ("Hektolitre",    get_val(lab, ['hektolitre'])),
-                ("Sedim (G)",     get_val(lab, ['gecikmeli_sedim', 'g_sedim']))
+                ("Protein",           f"% {get_val(lab, ['protein'])}"),
+                ("Rutubet",           f"% {get_val(lab, ['rutubet'])}"),
+                ("Kul",               f"% {get_val(lab, ['kul'])}"),
+                ("Sedim",             get_val(lab, ['sedim'])),
+                ("Gluten",            get_val(lab, ['gluten'])),
+                ("Gluten Indeks",     get_val(lab, ['gluten_index'])),
+                ("FN",                get_val(lab, ['fn'])),
+                ("FFN",               get_val(lab, ['ffn'])),
+                ("Gecikmeli Sedim",   get_val(lab, ['gecikmeli_sedim', 'g_sedim']))
+            ])
+            
+            story.append(Spacer(1, 2*mm))
+            story.append(Paragraph("<b>Farinograph Degerleri:</b>", styles['Normal']))
+            make_table([
+                ("Su Kaldirma (F)",   get_val(lab, ['su_kaldirma_f'])),
+                ("Gelisme Suresi",    get_val(lab, ['gelisme_suresi'])),
+                ("Stabilite",         get_val(lab, ['stabilite'])),
+                ("Yumusama",          get_val(lab, ['yumusama']))
+            ])
+            
+            story.append(Spacer(1, 2*mm))
+            story.append(Paragraph("<b>Extensograph Degerleri:</b>", styles['Normal']))
+            make_table([
+                ("Enerji 45",         get_val(lab, ['enerji45'])),
+                ("Direnc 45",         get_val(lab, ['direnc45'])),
+                ("Uzama 45",          get_val(lab, ['uzama45'])),
+                ("Enerji 90",         get_val(lab, ['enerji90'])),
+                ("Direnc 90",         get_val(lab, ['direnc90'])),
+                ("Uzama 90",          get_val(lab, ['uzama90'])),
+                ("Enerji 135",        get_val(lab, ['enerji135', 'enerji'])),
+                ("Direnc 135",        get_val(lab, ['direnc135', 'direnc'])),
+                ("Uzama 135",         get_val(lab, ['uzama135', 'uzama']))
             ])
         else:
             story.append(Paragraph("Analiz verisi bulunamadi.", styles['Normal']))
@@ -1571,6 +1634,7 @@ def create_traceability_pdf_report(chain_data):
         st.error(f"❌ PDF OLUŞTURMA HATASI: {str(e)}")
         st.code(traceback.format_exc()) # Detaylı hata raporunu ekrana basar
         return None
+
 
 
 
