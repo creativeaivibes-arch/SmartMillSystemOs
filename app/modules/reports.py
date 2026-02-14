@@ -947,12 +947,6 @@ def download_styled_excel(df, filename, sheet_name="Rapor"):
     )
 
 # =============================================================================
-# İZLENEBİLİRLİK (TRACEABILITY) RAPORU - CERRAHİ EKLEME
-# =============================================================================
-# =============================================================================
-# İZLENEBİLİRLİK (TRACEABILITY) RAPORU - FİNAL (PANDAS FIX)
-# =============================================================================
-# =============================================================================
 # İZLENEBİLİRLİK (TRACEABILITY) RAPORU - FİNAL (PANDAS FIX)
 # =============================================================================
 def create_traceability_pdf_report(chain_data):
@@ -1418,6 +1412,7 @@ def create_traceability_pdf_report(chain_data):
         st.error(f"❌ PDF OLUŞTURMA HATASI: {str(e)}")
         st.code(traceback.format_exc()) # Detaylı hata raporunu ekrana basar
         return None
+
 
 
 
