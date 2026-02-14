@@ -1300,6 +1300,17 @@ def create_traceability_pdf_report(chain_data):
     if not PDF_AVAILABLE:
         st.error("HATA: ReportLab kütüphanesi yüklenemediği için PDF oluşturulamıyor.")
         return None
+    def safe_extract(data_obj):
+        if data_obj is None:
+            return None
+        if hasattr(data_obj, 'to_dict'):
+            try:
+                return data_obj.to_dict()
+            except:
+                return None
+        if isinstance(data_obj, dict):
+            return data_obj
+        return None
 
     try:
         buffer = io.BytesIO()
@@ -1348,8 +1359,8 @@ def create_traceability_pdf_report(chain_data):
 
         # 1. SEVKİYAT BİLGİLERİ (SHIP)
         add_section_header("1. SEVKİYAT & MÜŞTERİ BİLGİSİ")
-        if chain_data.get('SHIP'):
-            ship = chain_data['SHIP']
+        ship = safe_extract(chain_data.get('SHIP'))
+        if ship:
             ship_table_data = {
                 '1': ('Müşteri', ship.get('musteri', '-')),
                 '2': ('Lot No (İrsaliye)', ship.get('lot_no', '-')),
@@ -1363,8 +1374,8 @@ def create_traceability_pdf_report(chain_data):
 
         # 2. KALİTE ANALİZ SONUÇLARI (LAB)
         add_section_header("2. LABORATUVAR ANALİZ DEĞERLERİ")
-        if chain_data.get('LAB'):
-            lab = chain_data['LAB']
+        lab = safe_extract(chain_data.get('LAB'))
+        if lab:            
             lab_table_data = {
                 '1': ('Ürün Cinsi', lab.get('urun_cinsi', '-')),
                 '2': ('Protein', f"% {lab.get('protein', '-')}" if lab.get('protein') else '-'),
@@ -1379,8 +1390,8 @@ def create_traceability_pdf_report(chain_data):
 
         # 3. ÜRETİM PARAMETRELERİ (PRD)
         add_section_header("3. ÜRETİM & DEĞİRMEN VERİLERİ")
-        if chain_data.get('PRD'):
-            prd = chain_data['PRD']
+        prd = safe_extract(chain_data.get('PRD'))
+        if prd:
             prd_table_data = {
                 '1': ('Üretim Tarihi', str(prd.get('tarih', '-'))),
                 '2': ('Vardiya Amiri', prd.get('vardiya_amiri', '-')),
@@ -1394,8 +1405,8 @@ def create_traceability_pdf_report(chain_data):
 
         # 4. PAÇAL (HAMMADDE) İÇERİĞİ (MIX)
         add_section_header("4. KULLANILAN BUĞDAYLAR (PAÇAL)")
-        if chain_data.get('MIX'):
-            mix = chain_data['MIX']
+        mix = safe_extract(chain_data.get('MIX'))
+        if mix:
             mix_content = mix.get('icerik_ozeti', 'Detay yok')
             
             story.append(Paragraph(f"<b>Paçal Kodu:</b> {mix.get('pacal_kodu', '-')}", styles['Normal']))
@@ -1420,6 +1431,7 @@ def create_traceability_pdf_report(chain_data):
         st.error(f"❌ PDF OLUŞTURMA HATASI: {str(e)}")
         st.code(traceback.format_exc()) # Detaylı hata raporunu ekrana basar
         return None
+
 
 
 
