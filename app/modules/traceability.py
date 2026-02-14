@@ -269,160 +269,28 @@ def show_traceability_dashboard():
 
         st.success(f"✅ Kayıt Bulundu: {query}")
         
-        # ======================================================================
-        # 📄 PDF RAPORU OLUŞTURMA VE İNDİRME BUTONU
-        # ======================================================================
-        pdf_bytes = create_traceability_pdf_report(chain, query)
-        if pdf_bytes:
-            st.download_button(
-                label="📄 İZLENEBİLİRLİK RAPORUNU İNDİR (PDF)",
-                data=pdf_bytes,
-                file_name=f"Kalite_Denetim_Raporu_{query}.pdf",
-                mime="application/pdf",
-                type="secondary"
-            )
-            st.write("") # Görsel boşluk
-        
-        # ======================================================================
-        # 1. HALKA: SEVKİYAT BİLGİSİ (SHIP)
-        # ======================================================================
-        if chain["SHIP"] is not None:
-            ship = chain["SHIP"]
-            with st.expander("🚚 1. SEVKİYAT BİLGİLERİ / ÇIKIŞ ANALİZ SONUÇLARI", expanded=True):
-                # --- A. TEMEL BİLGİLER ---
-                c1, c2 = st.columns(2)
-                with c1:
-                    render_kvkk_row("Lot No", ship.get('lot_no'))
-                    # Müşteri adı
-                    musteri = ship.get('musteri_adi') or ship.get('musteri') or ship.get('cari_adi')
-                    render_kvkk_row("Müşteri", musteri)
-                    # Plaka
-                    render_kvkk_row("Plaka", ship.get('plaka'))
-                    
-                with c2:
-                    # Ürün adı
-                    urun = ship.get('un_cinsi_marka') or ship.get('un_markasi') or ship.get('urun_adi')
-                    render_kvkk_row("Ürün", urun)
-                    # Tarih
-                    render_kvkk_row("Tarih", str(ship.get('tarih'))[:16])
+        # --- PDF RAPOR BUTONU (Buraya Ekliyoruz) ---
+            st.divider()
+            col_info, col_btn = st.columns([3, 1])
+            with col_info:
+                st.info("💡 Bu partinin (Lot) tüm hikayesini PDF olarak indirebilirsiniz.")
+            with col_btn:
+                # Rapor Fonksiyonunu Çağır
+                pdf_data = create_traceability_pdf_report(chain)
                 
-                # Bağlantı Uyarısı
-                kaynak = ship.get('kaynak_parti_no') or ship.get('uretim_lot_no')
-                if not kaynak or str(kaynak).lower() == 'nan':
-                    st.warning("⚠️ Bu sevkiyat kaydında 'Kaynak Parti No' (Üretim Lotu) boş olduğu için geriye gidilemiyor.")
+                if pdf_data:
+                    st.download_button(
+                        label="📄 Raporu İndir",
+                        data=pdf_data,
+                        file_name=f"izlenebilirlik_{search_query}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True,
+                        type="primary"
+                    )
                 else:
-                    st.info(f"🔗 Kaynak Üretim Lotu: {kaynak}")
-
-                st.divider()
-                
-                # --- B. DETAYLI ANALİZ (FULL SPEKTRUM) ---
-                st.markdown("##### 🧪 Çıkış Analiz Değerleri (Full)")
-                
-                t1, t2, t3 = st.tabs(["⚗️ Kimyasal", "📈 Farinograph", "📊 Extensograph"])
-                
-                with t1:
-                    k1, k2, k3, k4 = st.columns(4)
-                    k1.metric("Protein", fmt(ship.get('protein')))
-                    k2.metric("Kül", fmt(ship.get('kul'), 3))
-                    k3.metric("Rutubet", fmt(ship.get('rutubet')))
-                    k4.metric("Gluten", fmt(ship.get('gluten')))
-                    
-                    k5, k6, k7, k8 = st.columns(4)
-                    k5.metric("G. İndeks", fmt(ship.get('gluten_index'), 0))
-                    k6.metric("Sedim", fmt(ship.get('sedim'), 0))
-                    k7.metric("G. Sedim", fmt(ship.get('gecikmeli_sedim') or ship.get('g_sedim'), 0))
-                    k8.metric("FN", fmt(ship.get('fn'), 0))
-                    
-                    k9, k10, k11, k12 = st.columns(4)
-                    k9.metric("FFN", fmt(ship.get('ffn'), 0))
-
-                with t2:
-                    f1, f2 = st.columns(2)
-                    f1.metric("Su Kal. (F)", fmt(ship.get('su_kaldirma_f')))
-                    f1.metric("Gelişme", fmt(ship.get('gelisme_suresi')))
-                    f2.metric("Stabilite", fmt(ship.get('stabilite')))
-                    f2.metric("Yumuşama", fmt(ship.get('yumusama'), 0))
-
-                with t3:
-                    st.markdown("**45. Dakika**")
-                    ex1, ex2, ex3 = st.columns(3)
-                    ex1.metric("Enerji (45)", fmt(ship.get('enerji45'), 0))
-                    ex2.metric("Direnç (45)", fmt(ship.get('direnc45'), 0))
-                    ex3.metric("Uzama (45)", fmt(ship.get('uzama45'), 0))
-                    
-                    st.markdown("**90. Dakika**")
-                    ex4, ex5, ex6 = st.columns(3)
-                    ex4.metric("Enerji (90)", fmt(ship.get('enerji90'), 0))
-                    ex5.metric("Direnç (90)", fmt(ship.get('direnc90'), 0))
-                    ex6.metric("Uzama (90)", fmt(ship.get('uzama90'), 0))
-                    
-                    st.markdown("**135. Dakika**")
-                    ex7, ex8, ex9 = st.columns(3)
-                    e135 = ship.get('enerji135') or ship.get('enerji')
-                    d135 = ship.get('direnc135') or ship.get('direnc')
-                    u135 = ship.get('uzama135') or ship.get('uzama')
-                    ex7.metric("Enerji (135)", fmt(e135, 0))
-                    ex8.metric("Direnç (135)", fmt(d135, 0))
-                    ex9.metric("Uzama (135)", fmt(u135, 0))
-        # ======================================================================
-        # 2. HALKA: LABORATUVAR (Üretim Kontrolü)
-        # ======================================================================
-        if chain["LAB"] is not None:
-            ship_lot = chain.get("SHIP", {}).get('lot_no') if chain.get("SHIP") is not None else ""
-            lab_lot = chain["LAB"].get('lot_no')
-            
-            # Eğer sevkiyat analiziyle aynı değilse göster
-            if ship_lot != lab_lot:
-                lab = chain["LAB"]
-                with st.expander("🔬 2. ÜRETİM KONTROL ANALİZİ (LAB)", expanded=True):
-                    st.markdown(f"**Referans:** `{lab.get('lot_no')}` | **Tarih:** {str(lab.get('tarih'))[:16]}")
-                    
-                    lt1, lt2, lt3 = st.tabs(["⚗️ Kimyasal", "📈 Farinograph", "📊 Extensograph"])
-                    
-                    with lt1:
-                        k1, k2, k3, k4 = st.columns(4)
-                        k1.metric("Protein", fmt(lab.get('protein')))
-                        k2.metric("Kül", fmt(lab.get('kul'), 3))
-                        k3.metric("Rutubet", fmt(lab.get('rutubet')))
-                        k4.metric("Gluten", fmt(lab.get('gluten')))
-                        
-                        k5, k6, k7, k8 = st.columns(4)
-                        k5.metric("G. İndeks", fmt(lab.get('gluten_index'), 0))
-                        k6.metric("Sedim", fmt(lab.get('sedim'), 0))
-                        k7.metric("G. Sedim", fmt(lab.get('gecikmeli_sedim') or lab.get('g_sedim'), 0))
-                        k8.metric("FN", fmt(lab.get('fn'), 0))
-                        
-                        k9, k10 = st.columns([1,3])
-                        k9.metric("FFN", fmt(lab.get('ffn'), 0))
-
-                    with lt2:
-                        f1, f2 = st.columns(2)
-                        f1.metric("Su Kal. (F)", fmt(lab.get('su_kaldirma_f')))
-                        f1.metric("Gelişme", fmt(lab.get('gelisme_suresi')))
-                        f2.metric("Stabilite", fmt(lab.get('stabilite')))
-                        f2.metric("Yumuşama", fmt(lab.get('yumusama'), 0))
-
-                    with lt3:
-                        st.markdown("**45. Dakika**")
-                        ex1, ex2, ex3 = st.columns(3)
-                        ex1.metric("Enerji (45)", fmt(lab.get('enerji45'), 0))
-                        ex2.metric("Direnç (45)", fmt(lab.get('direnc45'), 0))
-                        ex3.metric("Uzama (45)", fmt(lab.get('uzama45'), 0))
-                        
-                        st.markdown("**90. Dakika**")
-                        ex4, ex5, ex6 = st.columns(3)
-                        ex4.metric("Enerji (90)", fmt(lab.get('enerji90'), 0))
-                        ex5.metric("Direnç (90)", fmt(lab.get('direnc90'), 0))
-                        ex6.metric("Uzama (90)", fmt(lab.get('uzama90'), 0))
-                        
-                        st.markdown("**135. Dakika**")
-                        ex7, ex8, ex9 = st.columns(3)
-                        e135 = lab.get('enerji135') or lab.get('enerji')
-                        d135 = lab.get('direnc135') or lab.get('direnc')
-                        u135 = lab.get('uzama135') or lab.get('uzama')
-                        ex7.metric("Enerji (135)", fmt(e135, 0))
-                        ex8.metric("Direnç (135)", fmt(d135, 0))
-                        ex9.metric("Uzama (135)", fmt(u135, 0))
+                    st.warning("Rapor oluşturulamadı (PDF Modülü Eksik)")
+            st.divider()
+            # -------------------------------------------
         # ======================================================================
         # 3. HALKA: ENZİM REÇETESİ (ENZ) (PAÇALA BAĞLI)
         # ======================================================================
@@ -631,6 +499,7 @@ def show_traceability_dashboard():
 
         elif chain["PRD"] is not None:
             st.warning("⚠️ Bu üretime bağlı Paçal kaydı bulunamadı (Mix ID eksik veya eşleşmiyor).")
+
 
 
 
