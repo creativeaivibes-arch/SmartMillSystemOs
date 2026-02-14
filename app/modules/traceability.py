@@ -178,7 +178,7 @@ def show_traceability_dashboard():
         # ======================================================================
         if chain["SHIP"] is not None:
             ship = chain["SHIP"]
-            with st.expander("🚚 0. SEVKİYAT / ÇIKIŞ ANALİZİ", expanded=True):
+            with st.expander("🚚 1. SEVKİYAT BİLGİLERİ / ÇIKIŞ ANALİZ SONUÇLARI", expanded=True):
                 # --- A. TEMEL BİLGİLER ---
                 c1, c2 = st.columns(2)
                 with c1:
@@ -260,7 +260,7 @@ def show_traceability_dashboard():
         # ======================================================================
         if chain["PRD"] is not None:
             prd = chain["PRD"]
-            with st.expander("🏭 1. ÜRETİM VE DEĞİRMEN VERİLERİ", expanded=True):
+            with st.expander("🏭 4. ÜRETİM VE DEĞİRMEN VERİLERİ", expanded=True):
                 c1, c2 = st.columns(2)
                 with c1:
                     st.markdown("##### ⚙️ Operasyon")
@@ -293,7 +293,7 @@ def show_traceability_dashboard():
             # Eğer sevkiyat analiziyle aynı değilse göster
             if ship_lot != lab_lot:
                 lab = chain["LAB"]
-                with st.expander("🔬 3. ÜRETİM KONTROL ANALİZİ (LAB)", expanded=True):
+                with st.expander("🔬 2. ÜRETİM KONTROL ANALİZİ (LAB)", expanded=True):
                     st.markdown(f"**Referans:** `{lab.get('lot_no')}` | **Tarih:** {str(lab.get('tarih'))[:16]}")
                     
                     lt1, lt2, lt3 = st.tabs(["⚗️ Kimyasal", "📈 Farinograph", "📊 Extensograph"])
@@ -348,7 +348,7 @@ def show_traceability_dashboard():
         # ======================================================================
         if chain["ENZ"] is not None:
             enz = chain["ENZ"]
-            with st.expander("💊 4. ENZİM VE KATKI REÇETESİ (ENZ)", expanded=True):
+            with st.expander("💊 3. ENZİM VE KATKI REÇETESİ (ENZ)", expanded=True):
                 st.info(f"🔗 **Bağlı Paçal:** `{enz.get('uretim_kodu')}` | **Kimlik:** `{enz.get('enzim_id')}`")
                 
                 c1, c2, c3 = st.columns(3)
@@ -375,7 +375,7 @@ def show_traceability_dashboard():
         # ======================================================================
         if chain["MIX"] is not None:
             mix = chain["MIX"]
-            with st.expander("🌾 2. PAÇAL VE HAMMADDE İÇERİĞİ", expanded=True):
+            with st.expander("🌾 5. PAÇAL VE HAMMADDE İÇERİĞİ", expanded=True):
                 st.info(f"🔗 **Reçete:** `{mix.get('urun_adi')}`")
                 
                 try:
@@ -419,6 +419,7 @@ def show_traceability_dashboard():
 
     elif ara_btn:
         st.warning("Lütfen kod giriniz.")
+
 
 
 
