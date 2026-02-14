@@ -269,19 +269,28 @@ def show_traceability_dashboard():
 
         st.success(f"✅ Kayıt Bulundu: {query}")
         
-        # ======================================================================
-        # 📄 PDF RAPORU OLUŞTURMA VE İNDİRME BUTONU
-        # ======================================================================
-        pdf_bytes = create_traceability_pdf_report(chain, query)
-        if pdf_bytes:
-            st.download_button(
-                label="📄 İZLENEBİLİRLİK RAPORUNU İNDİR (PDF)",
-                data=pdf_bytes,
-                file_name=f"Kalite_Denetim_Raporu_{query}.pdf",
-                mime="application/pdf",
-                type="secondary"
-            )
-            st.write("") # Görsel boşluk
+        # --- PDF RAPOR BUTONU (Buraya Ekliyoruz) ---
+            st.divider()
+            col_info, col_btn = st.columns([3, 1])
+            with col_info:
+                st.info("💡 Bu partinin (Lot) tüm hikayesini PDF olarak indirebilirsiniz.")
+            with col_btn:
+                # Rapor Fonksiyonunu Çağır
+                pdf_data = create_traceability_pdf_report(chain)
+                
+                if pdf_data:
+                    st.download_button(
+                        label="📄 Raporu İndir",
+                        data=pdf_data,
+                        file_name=f"izlenebilirlik_{search_query}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True,
+                        type="primary"
+                    )
+                else:
+                    st.warning("Rapor oluşturulamadı (PDF Modülü Eksik)")
+            st.divider()
+            # -------------------------------------------
         
         # ======================================================================
         # 1. HALKA: SEVKİYAT BİLGİSİ (SHIP)
@@ -631,6 +640,7 @@ def show_traceability_dashboard():
 
         elif chain["PRD"] is not None:
             st.warning("⚠️ Bu üretime bağlı Paçal kaydı bulunamadı (Mix ID eksik veya eşleşmiyor).")
+
 
 
 
