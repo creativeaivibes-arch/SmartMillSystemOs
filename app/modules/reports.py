@@ -952,6 +952,9 @@ def download_styled_excel(df, filename, sheet_name="Rapor"):
 # =============================================================================
 # İZLENEBİLİRLİK (TRACEABILITY) RAPORU - FİNAL (PANDAS FIX)
 # =============================================================================
+# =============================================================================
+# İZLENEBİLİRLİK (TRACEABILITY) RAPORU - FİNAL (PANDAS FIX)
+# =============================================================================
 def create_traceability_pdf_report(chain_data):
     """
     Traceability zincir verisini alır ve profesyonel PDF üretir.
@@ -960,7 +963,7 @@ def create_traceability_pdf_report(chain_data):
     if not PDF_AVAILABLE:
         return None
 
-    # --- PANDAS DÜZELTİCİ (BU KISIM HATAYI ÇÖZER) ---
+    # --- PANDAS DÜZELTİCİ (BU KISIM EKSİKTİ, ŞİMDİ EKLİYORUZ) ---
     def safe_extract(data_obj):
         """Pandas nesnelerini güvenli sözlüğe (dict) çevirir"""
         if data_obj is None:
@@ -1030,7 +1033,7 @@ def create_traceability_pdf_report(chain_data):
 
         # --- 1. SEVKİYAT (SHIP) ---
         add_section_header("1. SEVKİYAT & MÜŞTERİ BİLGİSİ")
-        # BURADA safe_extract KULLANIYORUZ (HATA ÇÖZÜMÜ)
+        # BURADA safe_extract KULLANIYORUZ
         ship = safe_extract(chain_data.get('SHIP'))
         
         if ship:
@@ -1415,6 +1418,7 @@ def create_traceability_pdf_report(chain_data):
         st.error(f"❌ PDF OLUŞTURMA HATASI: {str(e)}")
         st.code(traceback.format_exc()) # Detaylı hata raporunu ekrana basar
         return None
+
 
 
 
