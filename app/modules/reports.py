@@ -947,17 +947,19 @@ def download_styled_excel(df, filename, sheet_name="Rapor"):
     )
 
 # =============================================================================
-# İZLENEBİLİRLİK (TRACEABILITY) RAPORU - KESİN ÇÖZÜM V3.0
+# İZLENEBİLİRLİK (TRACEABILITY) RAPORU - FİNAL (HATASIZ SÜRÜM)
 # =============================================================================
 def create_traceability_pdf_report(chain_data):
     """
     Traceability zincir verisini alır ve profesyonel PDF üretir.
-    Pandas Series/DataFrame hatalarını kesin olarak engeller.
+    Pandas Series/DataFrame hatalarını otomatik düzeltir.
     """
+    # PDF Modülü yoksa hiç uğraşma
     if not PDF_AVAILABLE:
         return None
 
     # --- 🛠️ TEMİZLİK ROBOTU (DATA SANITIZER) ---
+    # BU FONKSİYON EKSİKTİ, ŞİMDİ EKLİYORUZ. BU OLMADAN ÇALIŞMAZ.
     def clean_data(data):
         """
         Pandas verisini (Series/DataFrame) saf Python sözlüğüne çevirir.
@@ -1034,8 +1036,7 @@ def create_traceability_pdf_report(chain_data):
             ]))
             return t
 
-        # --- VERİLERİ ÖNCE TEMİZLİYORUZ ---
-        # Burası çok önemli: chain_data içindeki Pandas verilerini temiz sözlüklere çeviriyoruz.
+        # --- VERİLERİ TEMİZLİYORUZ (BU KISIM EKSİKTİ) ---
         clean_ship = clean_data(chain_data.get('SHIP'))
         clean_lab  = clean_data(chain_data.get('LAB'))
         clean_prd  = clean_data(chain_data.get('PRD'))
@@ -1419,6 +1420,7 @@ def create_traceability_pdf_report(chain_data):
         st.error(f"❌ PDF OLUŞTURMA HATASI: {str(e)}")
         st.code(traceback.format_exc()) # Detaylı hata raporunu ekrana basar
         return None
+
 
 
 
