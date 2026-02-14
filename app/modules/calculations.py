@@ -13,8 +13,8 @@ CALCULATIONS_CONFIG = {
     'DEFAULT_USD': 43.28,       # Varsayılan Dolar Kuru (DB boşsa)
     'DEFAULT_EUR': 50.08,       # Varsayılan Euro Kuru (DB boşsa)
     'MAX_ENZIM_ROWS': 10,       # Dozajlama modülündeki satır sayısı
-    'DEFAULT_UN_TON': 100.0,    # Varsayılan üretim tonajı
-    'DEFAULT_BUGDAY_HIZ': 12500.0, # Kg/Saat
+    'DEFAULT_UN_TON': 50.0,    # Varsayılan üretim tonajı
+    'DEFAULT_BUGDAY_HIZ': 5300.0, # Kg/Saat
     'DEFAULT_RANDIMAN': 70.0
 }
 
@@ -723,6 +723,7 @@ def show_fire_maliyet_hesaplama():
             <p style='color: #7f1d1d; margin:0;'>Bu fire olmasaydı (veya %0 olsaydı) cebinizde kalacak olan tutar.</p>
         </div>
         """, unsafe_allow_html=True)
+
 
 
 
