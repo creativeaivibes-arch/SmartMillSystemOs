@@ -11,123 +11,100 @@ from app.core.database import fetch_data
 # ==============================================================================
 def get_trace_chain(search_query):
     """
-    Girilen Lot/ID'den başlayıp geriye doğru tüm zinciri kurar.
+    Girilen Lot/ID'den başlayıp SAHA GERÇEKLİĞİNE göre tüm zinciri kurar.
+    Sistem Köprüsü: SHIP -> LAB -> MIX <- PRD (Mill)
     """
     chain = {
-        "found": False,
-        "SHIP": None, # Sevkiyat (Un Analiz tablosundan islem_tipi=SEVKİYAT)
-        "LAB": None,  # Laboratuvar (Un Analiz tablosundan islem_tipi=ÜRETİM)
-        "PRD": None,  # Üretim (Değirmen Verileri)
-        "MIX": None,  # Paçal (Reçete ve Snapshot)
-        "ENZ": None   # Enzim (Varsa)
+        "found": False, "SHIP": None, "LAB": None, "PRD": None, "MIX": None, "ENZ": None
     }
     
     search_query = str(search_query).strip()
     
-    # --- ADIM 1: ANALİZ TABLOSUNDAN BAŞLA (Hem Sevkiyat Hem Lab Burada) ---
-    try:
-        # Analiz tablosunu çek
-        df_analiz = fetch_data("un_analiz") 
-        
-        if not df_analiz.empty:
-            # Lot numarasına göre ara (Büyük/Küçük harf duyarsız)
-            match = df_analiz[df_analiz.astype(str).apply(lambda x: x.str.contains(search_query, case=False)).any(axis=1)]
-            
-            if not match.empty:
-                record = match.iloc[0]
-                chain["found"] = True
-                
-                # Kayıt Tipi Kontrolü
-                islem_tipi = str(record.get('islem_tipi', '')).upper()
-                
-                if "SEVK" in islem_tipi:
-                    # --- A) SEVKİYAT KAYDI BULUNDU ---
-                    chain["SHIP"] = record
-                    
-                    # Bağlantı Noktası: Kaynak Parti No (Üretime Gidiş)
-                    kaynak_prd = str(record.get('kaynak_parti_no', ''))
-                    if not kaynak_prd or kaynak_prd.lower() == 'nan':
-                        kaynak_prd = str(record.get('uretim_lot_no', ''))
-                    
-                    if kaynak_prd and len(kaynak_prd) > 3:
-                        # 1. Üretim kaydını bul
-                        df_uretim = fetch_data("uretim_kaydi")
-                        if not df_uretim.empty:
-                            u_match = df_uretim[df_uretim['parti_no'] == kaynak_prd]
-                            if not u_match.empty: chain["PRD"] = u_match.iloc[0]
-                            
-                        # 2. O üretimin laboratuvar (kontrol) analizini bul
-                        l_match = df_analiz[df_analiz['lot_no'] == kaynak_prd]
-                        if not l_match.empty: chain["LAB"] = l_match.iloc[0]
+    # --- 0. VERİTABANLARINI ÇEK ---
+    df_analiz = pd.DataFrame()
+    df_uretim = pd.DataFrame()
+    df_mix = pd.DataFrame()
+    try: df_analiz = fetch_data("un_analiz")
+    except: pass
+    try: df_uretim = fetch_data("uretim_kaydi")
+    except: pass
+    try: df_mix = fetch_data("mixing_batches")
+    except: pass
 
-                else:
-                    # --- B) ÜRETİM/LAB KAYDI BULUNDU ---
-                    chain["LAB"] = record
-                    
-                    # Doğrudan PRD'ye git (Lot no aynıdır)
-                    df_uretim = fetch_data("uretim_kaydi")
-                    if not df_uretim.empty:
-                        u_match = df_uretim[df_uretim['parti_no'] == record.get('lot_no')]
-                        if not u_match.empty: chain["PRD"] = u_match.iloc[0]
-
-    except Exception as e:
-        st.error(f"Analiz tablosu okunurken hata: {e}")
-
-    # --- ADIM 2: EĞER HALA BULUNAMADIYSA DİREKT ÜRETİM/PAÇAL ARA ---
+    # --- ADIM 1: GİRDİYİ BUL (Herhangi bir halkadan başlanabilir) ---
     
-    # PRD Arama (Eğer analizde yoksa)
-    if not chain["found"]:
-        try:
-            df_uretim = fetch_data("uretim_kaydi")
-            if not df_uretim.empty:
-                match = df_uretim[df_uretim['parti_no'] == search_query]
-                if not match.empty:
-                    chain["found"] = True
-                    chain["PRD"] = match.iloc[0]
-        except: pass
-
-    # MIX Arama (Eğer üretimde de yoksa)
-    if not chain["found"]:
-        try:
-            df_mix = fetch_data("mixing_batches")
-            if not df_mix.empty:
-                match = df_mix[df_mix['batch_id'] == search_query]
-                if not match.empty:
-                    chain["found"] = True
-                    chain["MIX"] = match.iloc[0]
-        except: pass
-
-    # --- ADIM 3: ZİNCİRİ TAMAMLA (PRD -> MIX BAĞLANTISI) [GÜNCELLENDİ] ---
-    if chain["PRD"] is not None:
-        mix_id = ""
-        
-        # 1. Öncelik: 'mixing_batch_id' sütunu
-        val1 = str(chain["PRD"].get('mixing_batch_id', ''))
-        if val1 and val1.lower() not in ['nan', 'none', '']:
-            mix_id = val1
+    # A) Analiz Tablosunda Ara (Sevkiyat veya Lab)
+    if not df_analiz.empty:
+        match = df_analiz[df_analiz.astype(str).apply(lambda x: x.str.contains(search_query, case=False)).any(axis=1)]
+        if not match.empty:
+            record = match.iloc[0]
+            chain["found"] = True
+            islem_tipi = str(record.get('islem_tipi', '')).upper()
             
-        # 2. Öncelik: 'kullanilan_pacal' sütunu (PRD tablosunda) - SENİN SORUNUNU ÇÖZEN KISIM
-        if not mix_id:
-            val2 = str(chain["PRD"].get('kullanilan_pacal', ''))
-            if val2 and val2.lower() not in ['nan', 'none', '']:
-                mix_id = val2
-        
-        # 3. Öncelik: Lab kaydındaki 'kullanilan_pacal'
-        if not mix_id and chain["LAB"] is not None:
-             val3 = str(chain["LAB"].get('kullanilan_pacal', ''))
-             if val3 and val3.lower() not in ['nan', 'none', '']:
-                mix_id = val3
+            if "SEVK" in islem_tipi:
+                chain["SHIP"] = record
+                # KÖPRÜ 1: Sevkiyat (SHIP) -> Üretim Analizi (LAB)
+                lab_ref = str(record.get('kaynak_parti_no') or record.get('uretim_lot_no') or '')
+                if lab_ref and lab_ref.lower() != 'nan':
+                    l_match = df_analiz[df_analiz['lot_no'] == lab_ref]
+                    if not l_match.empty: chain["LAB"] = l_match.iloc[0]
+            else:
+                chain["LAB"] = record
 
-        # Eğer geçerli bir ID bulduysak Paçal tablosunu tara
-        if mix_id and mix_id != "BILINMIYOR":
-            try:
-                df_mix = fetch_data("mixing_batches")
-                if not df_mix.empty:
-                    # Tam eşleşme ara
-                    m_match = df_mix[df_mix['batch_id'] == mix_id]
-                    if not m_match.empty: 
-                        chain["MIX"] = m_match.iloc[0]
-            except: pass
+    # B) Üretim (Değirmen) Tablosunda Ara (Direkt girildiyse)
+    if not chain["found"] and not df_uretim.empty:
+        match = df_uretim[df_uretim['parti_no'].astype(str).str.contains(search_query, case=False)]
+        if not match.empty:
+            chain["found"] = True
+            chain["PRD"] = match.iloc[0]
+
+    # C) Paçal Tablosunda Ara (Direkt girildiyse)
+    if not chain["found"] and not df_mix.empty:
+        match = df_mix[df_mix['batch_id'].astype(str).str.contains(search_query, case=False)]
+        if not match.empty:
+            chain["found"] = True
+            chain["MIX"] = match.iloc[0]
+
+
+    # --- ADIM 2: EKSİK HALKALARI TAMAMLA (KÖPRÜLERİ GEÇ) ---
+
+    # KÖPRÜ 2: Laboratuvar (LAB) -> Paçal (MIX)
+    # Lab analiz formunda kaynağa (kaynak_parti_no) MIX-... kaydediliyor.
+    if chain["LAB"] is not None and chain["MIX"] is None:
+        mix_ref = str(chain["LAB"].get('kaynak_parti_no') or chain["LAB"].get('kullanilan_pacal') or '')
+        if mix_ref and "MIX" in mix_ref.upper() and not df_mix.empty:
+            m_match = df_mix[df_mix['batch_id'].astype(str).str.contains(mix_ref, case=False)]
+            if not m_match.empty: chain["MIX"] = m_match.iloc[0]
+
+    # KÖPRÜ 3: Değirmen Üretim (PRD) -> Paçal (MIX)
+    # Değirmen formunda kaynağa (kullanilan_pacal) MIX-... kaydediliyor.
+    if chain["PRD"] is not None and chain["MIX"] is None:
+        mix_ref = str(chain["PRD"].get('kullanilan_pacal') or chain["PRD"].get('mixing_batch_id') or '')
+        if mix_ref and "MIX" in mix_ref.upper() and not df_mix.empty:
+            m_match = df_mix[df_mix['batch_id'].astype(str).str.contains(mix_ref, case=False)]
+            if not m_match.empty: chain["MIX"] = m_match.iloc[0]
+
+    # KÖPRÜ 4: Paçal (MIX) -> Değirmen Üretim (PRD) (Merkez İstasyon Dönüşü)
+    # Elimizde Paçal (MIX) varsa, bu paçalın girdiği DEĞİRMEN ÜRETİMİNİ (PRD) bul.
+    if chain["MIX"] is not None and chain["PRD"] is None and not df_uretim.empty:
+        mix_id = str(chain["MIX"].get('batch_id', ''))
+        if mix_id:
+            u_match = df_uretim[df_uretim['kullanilan_pacal'].astype(str).str.contains(mix_id, case=False)]
+            if not u_match.empty:
+                # Aynı paçalla birden fazla üretim yapıldıysa en son yapılanı alır
+                chain["PRD"] = u_match.sort_values('tarih', ascending=False).iloc[0]
+
+    # KÖPRÜ 5: Eğer Değirmen(PRD) var ama Laboratuvar(LAB) yoksa
+    if chain["PRD"] is not None and chain["LAB"] is None and not df_analiz.empty:
+        # MIX üzerinden kardeşi olan Laboratuvar analizini bul
+        if chain["MIX"] is not None:
+             mix_id = str(chain["MIX"].get('batch_id', ''))
+             l_match = df_analiz[
+                 (df_analiz['kaynak_parti_no'].astype(str).str.contains(mix_id, case=False)) & 
+                 (df_analiz['islem_tipi'] == 'ÜRETİM')
+             ]
+             if not l_match.empty:
+                 chain["LAB"] = l_match.sort_values('tarih', ascending=False).iloc[0]
 
     return chain
 
@@ -404,3 +381,4 @@ def show_traceability_dashboard():
 
     elif ara_btn:
         st.warning("Lütfen kod giriniz.")
+
