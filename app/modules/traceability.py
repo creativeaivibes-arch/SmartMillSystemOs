@@ -276,21 +276,21 @@ def show_traceability_dashboard():
             st.info("💡 Bu partinin (Lot) tüm hikayesini PDF olarak indirebilirsiniz.")
         with col_btn:
             # Rapor Fonksiyonunu Çağır
-            pdf_data = create_traceability_pdf_report(chain)
-            
-            if pdf_data:
-                st.download_button(
-                    label="📄 Raporu İndir",
-                    data=pdf_data,
-                    file_name=f"izlenebilirlik_{query}.pdf",
-                    mime="application/pdf",
-                    use_container_width=True,
-                    type="primary"
-                )
-            else:
-                st.warning("Rapor oluşturulamadı (PDF Modülü Eksik)")
-        st.divider()
-        # -------------------------------------------
+            try:
+                pdf_data = create_traceability_pdf_report(chain)
+                if pdf_data:
+                    st.download_button(
+                        label="📄 Raporu İndir",
+                        data=pdf_data,
+                        file_name=f"izlenebilirlik_{query}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True,
+                        type="primary"
+                    )
+                else:
+                    st.warning("Rapor oluşturulamadı")
+            except Exception as e:
+                st.error(f"PDF hatası: {str(e)}")
         
         # ======================================================================
         # 1. HALKA: SEVKİYAT BİLGİSİ (SHIP)
@@ -640,6 +640,7 @@ def show_traceability_dashboard():
 
         elif chain["PRD"] is not None:
             st.warning("⚠️ Bu üretime bağlı Paçal kaydı bulunamadı (Mix ID eksik veya eşleşmiyor).")
+
 
 
 
