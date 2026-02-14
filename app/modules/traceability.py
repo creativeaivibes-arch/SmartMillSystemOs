@@ -174,7 +174,7 @@ def show_traceability_dashboard():
         st.success(f"✅ Kayıt Bulundu: {query}")
         
         # ======================================================================
-        # 0. HALKA: SEVKİYAT BİLGİSİ (SHIP)
+        # 1. HALKA: SEVKİYAT BİLGİSİ (SHIP)
         # ======================================================================
         if chain["SHIP"] is not None:
             ship = chain["SHIP"]
@@ -254,37 +254,8 @@ def show_traceability_dashboard():
                     ex7.metric("Enerji (135)", fmt(e135, 0))
                     ex8.metric("Direnç (135)", fmt(d135, 0))
                     ex9.metric("Uzama (135)", fmt(u135, 0))
-
         # ======================================================================
-        # 1. HALKA: ÜRETİM (Mill Data)
-        # ======================================================================
-        if chain["PRD"] is not None:
-            prd = chain["PRD"]
-            with st.expander("🏭 4. ÜRETİM VE DEĞİRMEN VERİLERİ", expanded=True):
-                c1, c2 = st.columns(2)
-                with c1:
-                    st.markdown("##### ⚙️ Operasyon")
-                    render_kvkk_row("Parti No", prd.get('parti_no'))
-                    render_kvkk_row("Tarih", str(prd.get('tarih'))[:16])
-                    render_kvkk_row("Vardiya", f"{prd.get('vardiya')} ({prd.get('sorumlu')})")
-                    render_kvkk_row("Kırılan", f"{float(prd.get('kirilan_bugday',0)):,.0f} Kg")
-                    render_kvkk_row("Tav Süresi", prd.get('tav_suresi'), "Saat")
-
-                with c2:
-                    st.markdown("##### 📉 Randıman")
-                    r_top = float(prd.get('toplam_randiman', 0))
-                    render_kvkk_row("TOPLAM RANDIMAN", f"{r_top:.2f}", "%", "green" if r_top>74 else "orange")
-                    st.divider()
-                    render_kvkk_row("Un-1", f"{float(prd.get('un_1',0)):,.0f}", "Kg")
-                    render_kvkk_row("Un-2", f"{float(prd.get('un_2',0)):,.0f}", "Kg")
-                    render_kvkk_row("Kepek", f"{float(prd.get('kepek',0)):,.0f}", "Kg")
-                    render_kvkk_row("Bongalite", f"{float(prd.get('bongalite',0)):,.0f}", "Kg")
-                    
-                    kayip = float(prd.get('kayip', 0))
-                    render_kvkk_row("Kayıp Oranı", f"{kayip:.2f}", "%", "red" if kayip > 2 else "black")
-
-        # ======================================================================
-        # 3. HALKA: LABORATUVAR (Üretim Kontrolü)
+        # 2. HALKA: LABORATUVAR (Üretim Kontrolü)
         # ======================================================================
         if chain["LAB"] is not None:
             ship_lot = chain.get("SHIP", {}).get('lot_no') if chain.get("SHIP") is not None else ""
@@ -342,9 +313,8 @@ def show_traceability_dashboard():
                         ex7.metric("Enerji (135)", fmt(e135, 0))
                         ex8.metric("Direnç (135)", fmt(d135, 0))
                         ex9.metric("Uzama (135)", fmt(u135, 0))
-
         # ======================================================================
-        # 4. HALKA: ENZİM REÇETESİ (ENZ) (PAÇALA BAĞLI)
+        # 3. HALKA: ENZİM REÇETESİ (ENZ) (PAÇALA BAĞLI)
         # ======================================================================
         if chain["ENZ"] is not None:
             enz = chain["ENZ"]
@@ -371,7 +341,36 @@ def show_traceability_dashboard():
                     st.error("Reçete içeriği okunamadı.")
 
         # ======================================================================
-        # 2. HALKA: PAÇAL (Mix Data)
+        # 4. HALKA: ÜRETİM (Mill Data)
+        # ======================================================================
+        if chain["PRD"] is not None:
+            prd = chain["PRD"]
+            with st.expander("🏭 4. ÜRETİM VE DEĞİRMEN VERİLERİ", expanded=True):
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.markdown("##### ⚙️ Operasyon")
+                    render_kvkk_row("Parti No", prd.get('parti_no'))
+                    render_kvkk_row("Tarih", str(prd.get('tarih'))[:16])
+                    render_kvkk_row("Vardiya", f"{prd.get('vardiya')} ({prd.get('sorumlu')})")
+                    render_kvkk_row("Kırılan", f"{float(prd.get('kirilan_bugday',0)):,.0f} Kg")
+                    render_kvkk_row("Tav Süresi", prd.get('tav_suresi'), "Saat")
+
+                with c2:
+                    st.markdown("##### 📉 Randıman")
+                    r_top = float(prd.get('toplam_randiman', 0))
+                    render_kvkk_row("TOPLAM RANDIMAN", f"{r_top:.2f}", "%", "green" if r_top>74 else "orange")
+                    st.divider()
+                    render_kvkk_row("Un-1", f"{float(prd.get('un_1',0)):,.0f}", "Kg")
+                    render_kvkk_row("Un-2", f"{float(prd.get('un_2',0)):,.0f}", "Kg")
+                    render_kvkk_row("Kepek", f"{float(prd.get('kepek',0)):,.0f}", "Kg")
+                    render_kvkk_row("Bongalite", f"{float(prd.get('bongalite',0)):,.0f}", "Kg")
+                    
+                    kayip = float(prd.get('kayip', 0))
+                    render_kvkk_row("Kayıp Oranı", f"{kayip:.2f}", "%", "red" if kayip > 2 else "black")     
+
+        
+        # ======================================================================
+        # 5. HALKA: PAÇAL (Mix Data)
         # ======================================================================
         if chain["MIX"] is not None:
             mix = chain["MIX"]
@@ -419,6 +418,7 @@ def show_traceability_dashboard():
 
     elif ara_btn:
         st.warning("Lütfen kod giriniz.")
+
 
 
 
