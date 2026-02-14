@@ -945,6 +945,258 @@ def download_styled_excel(df, filename, sheet_name="Rapor"):
         use_container_width=True
     )
 
+def create_traceability_pdf_report(chain: Dict[str, Any], query: str) -> Optional[bytes]:
+    """İzlenebilirlik (Kara Kutu) için Profesyonel Denetim PDF Raporu"""
+    import json # Sadece bu fonksiyonda kullanılacağı için burada import ediyoruz
+    
+    if not PDF_AVAILABLE:
+        return None
+        
+    try:
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(
+            buffer, pagesize=A4, 
+            rightMargin=12*mm, leftMargin=12*mm, 
+            topMargin=10*mm, bottomMargin=10*mm
+        )
+        styles = get_pdf_styles()
+        story = []
+
+        # --- 1. RAPOR BAŞLIĞI ---
+        story.append(Paragraph(turkce_karakter_duzelt_pdf("GERİYE DÖNÜK İZLENEBİLİRLİK DENETİM RAPORU"), styles['title']))
+        
+        # Arama sorgusu ve Rapor Tarihi
+        tarih_str = datetime.now().strftime('%d.%m.%Y %H:%M')
+        alt_baslik = f"<b>Sorgu / Takip Kodu:</b> {turkce_karakter_duzelt_pdf(query)} &nbsp;&nbsp;&nbsp; | &nbsp;&nbsp;&nbsp; <b>Rapor Tarihi:</b> {tarih_str}"
+        story.append(Paragraph(alt_baslik, styles['normal']))
+        story.append(Spacer(1, 10))
+
+        # --- YARDIMCI FONKSİYONLAR ---
+        def safe_fmt(val, dec=1, suffix=""):
+            try:
+                if pd.isna(val) or val == "" or str(val).lower() == "nan": return "-"
+                return f"{float(val):.{dec}f} {suffix}".strip()
+            except: return str(val)
+
+        def make_section_header(title, bg_color):
+            """Her modül için renkli şerit başlık"""
+            t = Table([[turkce_karakter_duzelt_pdf(title)]], colWidths=[186*mm])
+            t.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (0,0), colors.HexColor(bg_color)),
+                ('TEXTCOLOR', (0,0), (0,0), colors.white),
+                ('FONTNAME', (0,0), (0,0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0,0), (0,0), 9),
+                ('BOTTOMPADDING', (0,0), (0,0), 4),
+                ('TOPPADDING', (0,0), (0,0), 4),
+            ]))
+            return t
+
+        def make_kv_table(data_tuples):
+            """Verileri 4 kolonlu (Etiket-Değer-Etiket-Değer) sıkıştırılmış tablo yapar"""
+            table_data = []
+            for i in range(0, len(data_tuples), 2):
+                row = []
+                row.append(turkce_karakter_duzelt_pdf(data_tuples[i][0]))
+                row.append(turkce_karakter_duzelt_pdf(str(data_tuples[i][1])))
+                if i+1 < len(data_tuples):
+                    row.append(turkce_karakter_duzelt_pdf(data_tuples[i+1][0]))
+                    row.append(turkce_karakter_duzelt_pdf(str(data_tuples[i+1][1])))
+                else:
+                    row.extend(["", ""])
+                table_data.append(row)
+
+            if not table_data: return None
+            t = Table(table_data, colWidths=[46*mm, 47*mm, 46*mm, 47*mm])
+            t.setStyle(TableStyle([
+                ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
+                ('FONTSIZE', (0,0), (-1,-1), 8),
+                ('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'),
+                ('FONTNAME', (2,0), (2,-1), 'Helvetica-Bold'),
+                ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
+                ('PADDING', (0,0), (-1,-1), 3),
+                ('BACKGROUND', (0,0), (0,-1), colors.HexColor('#F8F9FA')),
+                ('BACKGROUND', (2,0), (2,-1), colors.HexColor('#F8F9FA')),
+            ]))
+            return t
+
+        # ==========================================
+        # HALKA 1: SEVKİYAT
+        # ==========================================
+        if chain.get("SHIP") is not None:
+            ship = chain["SHIP"]
+            story.append(make_section_header("1. SEVKİYAT VE ÇIKIŞ BİLGİLERİ (SHIP)", ReportConstants.COLOR_PRIMARY))
+            story.append(Spacer(1, 3))
+            kv = [
+                ("Lot No", ship.get('lot_no')),
+                ("Tarih", str(ship.get('tarih'))[:16]),
+                ("Müşteri / Cari", ship.get('musteri_adi') or ship.get('musteri') or ship.get('cari_adi')),
+                ("Ürün / Marka", ship.get('un_cinsi_marka') or ship.get('un_markasi') or ship.get('urun_adi')),
+                ("Araç Plakası", ship.get('plaka')),
+                ("Kaynak Üretim Lotu", ship.get('kaynak_parti_no') or ship.get('uretim_lot_no')),
+                ("Protein (%)", safe_fmt(ship.get('protein'), 1, "%")),
+                ("Rutubet (%)", safe_fmt(ship.get('rutubet'), 1, "%")),
+                ("Kül (%)", safe_fmt(ship.get('kul'), 3, "%")),
+                ("Gluten (%)", safe_fmt(ship.get('gluten'), 1, "%")),
+                ("G. İndeks", safe_fmt(ship.get('gluten_index'), 0)),
+                ("Sedim (ml)", safe_fmt(ship.get('sedim'), 0, "ml")),
+                ("Su Kaldırma (F)", safe_fmt(ship.get('su_kaldirma_f'), 1, "%")),
+                ("Enerji (135)", safe_fmt(ship.get('enerji135') or ship.get('enerji'), 0))
+            ]
+            story.append(make_kv_table(kv))
+            story.append(Spacer(1, 6))
+
+        # ==========================================
+        # HALKA 2: LAB ANALİZİ
+        # ==========================================
+        if chain.get("LAB") is not None:
+            lab = chain["LAB"]
+            ship_lot = chain.get("SHIP", {}).get('lot_no') if chain.get("SHIP") is not None else ""
+            if ship_lot != lab.get('lot_no'):
+                story.append(make_section_header("2. ÜRETİM KONTROL ANALİZİ (LAB)", '#4F81BD'))
+                story.append(Spacer(1, 3))
+                kv = [
+                    ("Referans Lot", lab.get('lot_no')),
+                    ("Üretim Tarihi", str(lab.get('tarih'))[:16]),
+                    ("Protein (%)", safe_fmt(lab.get('protein'), 1, "%")),
+                    ("Rutubet (%)", safe_fmt(lab.get('rutubet'), 1, "%")),
+                    ("Kül (%)", safe_fmt(lab.get('kul'), 3, "%")),
+                    ("Gluten (%)", safe_fmt(lab.get('gluten'), 1, "%")),
+                    ("Su Kaldırma (F)", safe_fmt(lab.get('su_kaldirma_f'), 1, "%")),
+                    ("Enerji (135)", safe_fmt(lab.get('enerji135') or lab.get('enerji'), 0))
+                ]
+                story.append(make_kv_table(kv))
+                story.append(Spacer(1, 6))
+
+        # ==========================================
+        # HALKA 3: ENZİM REÇETESİ
+        # ==========================================
+        if chain.get("ENZ") is not None:
+            enz = chain["ENZ"]
+            story.append(make_section_header("3. ENZİM VE KATKI REÇETESİ (ENZ)", '#E67E22'))
+            story.append(Spacer(1, 3))
+            kv = [
+                ("Reçete Kimliği", enz.get('enzim_id')),
+                ("Bağlı Lot", enz.get('uretim_kodu')),
+                ("Hedef Un (Ton)", safe_fmt(enz.get('un_ton'), 1, "Ton")),
+                ("Dozaj Akışı (gr/dk)", safe_fmt(enz.get('dozaj_akis'), 0, "gr/dk"))
+            ]
+            story.append(make_kv_table(kv))
+
+            try:
+                enz_verisi = json.loads(enz.get('enzim_verisi_json', '[]'))
+                if enz_verisi:
+                    enz_data = [[turkce_karakter_duzelt_pdf("Kullanılan Katkı Maddesi"), turkce_karakter_duzelt_pdf("Dozaj (gr / 50kg Çuval)")]]
+                    for item in enz_verisi:
+                        enz_data.append([turkce_karakter_duzelt_pdf(item.get('ad', '-')), f"{item.get('doz', 0)} gr"])
+                    t_enz = Table(enz_data, colWidths=[93*mm, 93*mm])
+                    t_enz.setStyle(TableStyle([
+                        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#FDF2E9')),
+                        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0,0), (-1,-1), 8),
+                        ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
+                        ('ALIGN', (1,0), (1,-1), 'CENTER'),
+                        ('PADDING', (0,0), (-1,-1), 3),
+                    ]))
+                    story.append(Spacer(1, 2))
+                    story.append(t_enz)
+            except: pass
+            story.append(Spacer(1, 6))
+
+        # ==========================================
+        # HALKA 4: DEĞİRMEN ÜRETİM VERİSİ
+        # ==========================================
+        if chain.get("PRD") is not None:
+            prd = chain["PRD"]
+            story.append(make_section_header("4. DEĞİRMEN ÜRETİM VERİLERİ (PRD)", '#7F8C8D'))
+            story.append(Spacer(1, 3))
+            kv = [
+                ("Parti No", prd.get('parti_no')),
+                ("İşlem Tarihi", str(prd.get('tarih'))[:16]),
+                ("Vardiya Sorumlusu", f"{prd.get('vardiya')} ({prd.get('sorumlu')})"),
+                ("Kırılan Buğday", safe_fmt(prd.get('kirilan_bugday'), 0, "Kg")),
+                ("Tav Süresi", safe_fmt(prd.get('tav_suresi'), 1, "Saat")),
+                ("Toplam Randıman", safe_fmt(prd.get('toplam_randiman'), 2, "%")),
+                ("Un-1 Çıkışı", safe_fmt(prd.get('un_1'), 0, "Kg")),
+                ("Kayıp Oranı", safe_fmt(prd.get('kayip'), 2, "%"))
+            ]
+            story.append(make_kv_table(kv))
+            story.append(Spacer(1, 6))
+
+        # ==========================================
+        # HALKA 5: PAÇAL İÇERİĞİ
+        # ==========================================
+        if chain.get("MIX") is not None:
+            mix = chain["MIX"]
+            story.append(make_section_header("5. PAÇAL VE HAMMADDE İÇERİĞİ (MIX)", '#27AE60'))
+            story.append(Spacer(1, 3))
+            
+            try:
+                snapshot = json.loads(mix.get('silo_snapshot_json', '{}'))
+                analiz = json.loads(mix.get('analiz_snapshot_json', '{}'))
+                
+                # Akıllı Kuru Protein Hesaplama
+                k_prot = float(analiz.get('kuru_protein_ort') or analiz.get('teorik_kuru_protein') or 0.0)
+                if k_prot == 0.0:
+                    for s_isim, s_data in snapshot.items():
+                        if isinstance(s_data, dict):
+                            o = float(s_data.get('oran', 0))
+                            p = float(s_data.get('kuru_analiz', {}).get('protein', 0) or 0)
+                            k_prot += p * (o / 100)
+
+                kv = [
+                    ("Reçete Adı", mix.get('urun_adi')),
+                    ("Reçete ID", mix.get('batch_id')),
+                    ("Hedef Kuru Protein", safe_fmt(k_prot, 2, "%")),
+                    ("Ortalama Maliyet", safe_fmt(mix.get('maliyet'), 2, "TL/Kg"))
+                ]
+                story.append(make_kv_table(kv))
+                story.append(Spacer(1, 3))
+
+                # Kullanılan Silolar Tablosu
+                silo_data = [[turkce_karakter_duzelt_pdf(c) for c in ["Silo", "Kullanım Oranı", "Buğday Cinsi", "Kuru Protein", "Birim Maliyet"]]]
+                for silo, data in snapshot.items():
+                    if isinstance(data, dict):
+                        oran = float(data.get('oran', 0))
+                        if oran > 0:
+                            meta = data.get('meta', {})
+                            kuru = data.get('kuru_analiz', {})
+                            cins = meta.get('cins') or kuru.get('cins') or "-"
+                            mal = float(meta.get('maliyet') or kuru.get('maliyet') or 0.0)
+                            prot = float(kuru.get('protein', 0))
+                            silo_data.append([
+                                turkce_karakter_duzelt_pdf(silo), 
+                                f"% {oran}", 
+                                turkce_karakter_duzelt_pdf(cins), 
+                                f"% {prot:.1f}", 
+                                f"{mal:.2f} TL"
+                            ])
+                    else:
+                        silo_data.append([turkce_karakter_duzelt_pdf(silo), f"% {data}", "-", "-", "-"])
+
+                t_silo = Table(silo_data, colWidths=[38*mm, 30*mm, 50*mm, 30*mm, 38*mm])
+                t_silo.setStyle(TableStyle([
+                    ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#E8F8F5')),
+                    ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0,0), (-1,-1), 8),
+                    ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
+                    ('ALIGN', (1,0), (-1,-1), 'CENTER'),
+                    ('PADDING', (0,0), (-1,-1), 3),
+                ]))
+                story.append(t_silo)
+            except Exception as e:
+                story.append(Paragraph(f"Paçal verisi okunamadı: {e}", styles['normal']))
+        
+        # --- FOOTER (ALT BİLGİ) ---
+        story.append(Spacer(1, 10))
+        story.append(HRFlowable(width="100%", thickness=0.5, color=colors.grey))
+        story.append(Paragraph(f"Smart Mill System OS • Kalite Denetim Raporu • Sayfa 1/1", styles['footer']))
+
+        doc.build(story)
+        return buffer.getvalue()
+    except Exception as e:
+        st.error(f"İzlenebilirlik PDF oluşturma hatası: {e}")
+        return None
+
 
 
 
