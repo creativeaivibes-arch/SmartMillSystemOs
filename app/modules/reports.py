@@ -946,79 +946,131 @@ def download_styled_excel(df, filename, sheet_name="Rapor"):
         use_container_width=True
     )
 
-def create_traceability_pdf_report(chain: Dict[str, Any], query: str) -> Optional[bytes]:
-    """İzlenebilirlik (Kara Kutu) için Profesyonel Denetim PDF Raporu"""
-    import json # Sadece bu fonksiyonda kullanılacağı için burada import ediyoruz
-    
+# =============================================================================
+# İZLENEBİLİRLİK (TRACEABILITY) RAPORU - CERRAHİ EKLEME
+# =============================================================================
+def create_traceability_pdf_report(chain_data):
+    """
+    Traceability zincir verisini alır ve profesyonel PDF üretir.
+    Args:
+        chain_data (dict): traceability.py'dan gelen 'chain' sözlüğü
+    """
+    # PDF kütüphanesi yüklü değilse hata vermesin, sessizce çıksın
     if not PDF_AVAILABLE:
         return None
-        
+
     try:
         buffer = io.BytesIO()
-        doc = SimpleDocTemplate(
-            buffer, pagesize=A4, 
-            rightMargin=12*mm, leftMargin=12*mm, 
-            topMargin=10*mm, bottomMargin=10*mm
-        )
-        styles = get_pdf_styles()
+        doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=10*mm, bottomMargin=10*mm)
         story = []
-
-        # --- 1. RAPOR BAŞLIĞI ---
-        story.append(Paragraph(turkce_karakter_duzelt_pdf("GERİYE DÖNÜK İZLENEBİLİRLİK DENETİM RAPORU"), styles['title']))
+        styles = getSampleStyleSheet()
         
-        # Arama sorgusu ve Rapor Tarihi
-        tarih_str = datetime.now().strftime('%d.%m.%Y %H:%M')
-        alt_baslik = f"<b>Sorgu / Takip Kodu:</b> {turkce_karakter_duzelt_pdf(query)} &nbsp;&nbsp;&nbsp; | &nbsp;&nbsp;&nbsp; <b>Rapor Tarihi:</b> {tarih_str}"
-        story.append(Paragraph(alt_baslik, styles['normal']))
-        story.append(Spacer(1, 10))
+        # --- Başlık ---
+        story.append(Paragraph("DİJİTAL İZLENEBİLİRLİK RAPORU", styles['Title']))
+        story.append(Spacer(1, 5*mm))
+        story.append(Paragraph(f"Rapor Tarihi: {datetime.now().strftime('%d.%m.%Y %H:%M')}", styles['Normal']))
+        story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#0B4F6C')))
+        story.append(Spacer(1, 10*mm))
 
-        # --- YARDIMCI FONKSİYONLAR ---
-        def safe_fmt(val, dec=1, suffix=""):
-            try:
-                if pd.isna(val) or val == "" or str(val).lower() == "nan": return "-"
-                return f"{float(val):.{dec}f} {suffix}".strip()
-            except: return str(val)
+        # YARDIMCI: Bölüm Başlığı Oluşturucu
+        def add_section_header(title):
+            story.append(Paragraph(f"<b>{title}</b>", styles['Heading2']))
+            story.append(Spacer(1, 2*mm))
 
-        def make_section_header(title, bg_color):
-            """Her modül için renkli şerit başlık"""
-            t = Table([[turkce_karakter_duzelt_pdf(title)]], colWidths=[186*mm])
-            t.setStyle(TableStyle([
-                ('BACKGROUND', (0,0), (0,0), colors.HexColor(bg_color)),
-                ('TEXTCOLOR', (0,0), (0,0), colors.white),
-                ('FONTNAME', (0,0), (0,0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0,0), (0,0), 9),
-                ('BOTTOMPADDING', (0,0), (0,0), 4),
-                ('TOPPADDING', (0,0), (0,0), 4),
-            ]))
-            return t
-
-        def make_kv_table(data_tuples):
-            """Verileri 4 kolonlu (Etiket-Değer-Etiket-Değer) sıkıştırılmış tablo yapar"""
-            table_data = []
-            for i in range(0, len(data_tuples), 2):
-                row = []
-                row.append(turkce_karakter_duzelt_pdf(data_tuples[i][0]))
-                row.append(turkce_karakter_duzelt_pdf(str(data_tuples[i][1])))
-                if i+1 < len(data_tuples):
-                    row.append(turkce_karakter_duzelt_pdf(data_tuples[i+1][0]))
-                    row.append(turkce_karakter_duzelt_pdf(str(data_tuples[i+1][1])))
+        # YARDIMCI: Veri Tablosu Oluşturucu
+        def create_info_table(data_dict, headers=("Parametre", "Değer")):
+            if not data_dict:
+                return Paragraph("<i>Bu aşama için veri bulunamadı.</i>", styles['Normal'])
+            
+            table_data = [headers] # Başlık satırı
+            for k, v in data_dict.items():
+                # Tuple kontrolü (Etiket, Değer) formatındaysa
+                if isinstance(v, tuple):
+                    label, val = v
                 else:
-                    row.extend(["", ""])
-                table_data.append(row)
-
-            if not table_data: return None
-            t = Table(table_data, colWidths=[46*mm, 47*mm, 46*mm, 47*mm])
+                    label, val = k, v
+                table_data.append([str(label), str(val)])
+                
+            t = Table(table_data, colWidths=[60*mm, 100*mm])
             t.setStyle(TableStyle([
-                ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
-                ('FONTSIZE', (0,0), (-1,-1), 8),
-                ('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'),
-                ('FONTNAME', (2,0), (2,-1), 'Helvetica-Bold'),
+                ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#E6F3F7')), # Başlık rengi
+                ('TEXTCOLOR', (0,0), (-1,0), colors.HexColor('#0B4F6C')),
+                ('ALIGN', (0,0), (-1,-1), 'LEFT'),
                 ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
-                ('PADDING', (0,0), (-1,-1), 3),
-                ('BACKGROUND', (0,0), (0,-1), colors.HexColor('#F8F9FA')),
-                ('BACKGROUND', (2,0), (2,-1), colors.HexColor('#F8F9FA')),
+                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                ('PADDING', (0,0), (-1,-1), 6),
             ]))
             return t
+
+        # 1. SEVKİYAT BİLGİLERİ (SHIP)
+        add_section_header("1. SEVKİYAT & MÜŞTERİ BİLGİSİ")
+        if chain_data.get('SHIP'):
+            ship = chain_data['SHIP']
+            # Veriyi tablo formatına hazırlayalım
+            ship_table_data = {
+                '1': ('Müşteri', ship.get('musteri', '-')),
+                '2': ('Lot No (İrsaliye)', ship.get('lot_no', '-')),
+                '3': ('Plaka', ship.get('plaka', '-')),
+                '4': ('Sevk Tarihi', str(ship.get('tarih', '-')))
+            }
+            story.append(create_info_table(ship_table_data))
+        else:
+            story.append(Paragraph("Sevkiyat kaydı bulunamadı.", styles['Normal']))
+        story.append(Spacer(1, 10*mm))
+
+        # 2. KALİTE ANALİZ SONUÇLARI (LAB)
+        add_section_header("2. LABORATUVAR ANALİZ DEĞERLERİ")
+        if chain_data.get('LAB'):
+            lab = chain_data['LAB']
+            # Önemli analiz parametrelerini seçelim
+            lab_table_data = {
+                '1': ('Ürün Cinsi', lab.get('urun_cinsi', '-')),
+                '2': ('Protein', f"% {lab.get('protein', '-')}" if lab.get('protein') else '-'),
+                '3': ('Kül', f"% {lab.get('kul', '-')}" if lab.get('kul') else '-'),
+                '4': ('Rutubet', f"% {lab.get('rutubet', '-')}" if lab.get('rutubet') else '-'),
+                '5': ('Sedim', lab.get('sedim', '-')),
+            }
+            story.append(create_info_table(lab_table_data))
+        else:
+            story.append(Paragraph("Analiz verisi bulunamadı.", styles['Normal']))
+        story.append(Spacer(1, 10*mm))
+
+        # 3. ÜRETİM PARAMETRELERİ (PRD)
+        add_section_header("3. ÜRETİM & DEĞİRMEN VERİLERİ")
+        if chain_data.get('PRD'):
+            prd = chain_data['PRD']
+            prd_table_data = {
+                '1': ('Üretim Tarihi', str(prd.get('tarih', '-'))),
+                '2': ('Vardiya Amiri', prd.get('vardiya_amiri', '-')),
+                '3': ('Hava Durumu', prd.get('hava_durumu', '-')),
+                '4': ('Kullanılan Çuval', prd.get('cuval_turu', '-')),
+            }
+            story.append(create_info_table(prd_table_data))
+        else:
+            story.append(Paragraph("Üretim kaydı bulunamadı.", styles['Normal']))
+        story.append(Spacer(1, 10*mm))
+
+        # 4. PAÇAL (HAMMADDE) İÇERİĞİ (MIX)
+        add_section_header("4. KULLANILAN BUĞDAYLAR (PAÇAL)")
+        if chain_data.get('MIX'):
+            mix = chain_data['MIX']
+            # Paçal biraz farklı, içinde bir liste olabilir veya özet string olabilir.
+            # Burada 'icerik_ozeti' veya 'silo_detaylari' bekliyoruz.
+            mix_content = mix.get('icerik_ozeti', 'Detay yok')
+            
+            # Eğer string ise Paragraph olarak ekle
+            story.append(Paragraph(f"<b>Paçal Kodu:</b> {mix.get('pacal_kodu', '-')}", styles['Normal']))
+            story.append(Spacer(1, 2*mm))
+            story.append(Paragraph(f"<b>Karışım Oranları:</b><br/>{mix_content}", styles['Normal']))
+        else:
+            story.append(Paragraph("Paçal reçetesi bulunamadı.", styles['Normal']))
+
+        # PDF Oluştur
+        doc.build(story)
+        buffer.seek(0)
+        return buffer
+    except Exception as e:
+        return None
 
         # ==========================================
         # HALKA 1: SEVKİYAT
@@ -1197,6 +1249,7 @@ def create_traceability_pdf_report(chain: Dict[str, Any], query: str) -> Optiona
     except Exception as e:
         st.error(f"İzlenebilirlik PDF oluşturma hatası: {e}")
         return None
+
 
 
 
