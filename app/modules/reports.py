@@ -1250,6 +1250,140 @@ def create_traceability_pdf_report(chain_data):
         st.error(f"İzlenebilirlik PDF oluşturma hatası: {e}")
         return None
 
+# =============================================================================
+# İZLENEBİLİRLİK (TRACEABILITY) RAPORU - DEBUG MODU
+# =============================================================================
+def create_traceability_pdf_report(chain_data):
+    """
+    Traceability zincir verisini alır ve profesyonel PDF üretir.
+    Hata ayıklama modu aktiftir.
+    """
+    # 1. PDF Kütüphanesi Kontrolü
+    if not PDF_AVAILABLE:
+        st.error("HATA: ReportLab kütüphanesi yüklenemediği için PDF oluşturulamıyor.")
+        return None
+
+    try:
+        buffer = io.BytesIO()
+        # Sayfa yapısı
+        doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=10*mm, bottomMargin=10*mm)
+        story = []
+        styles = getSampleStyleSheet()
+        
+        # --- Başlık ---
+        story.append(Paragraph("DİJİTAL İZLENEBİLİRLİK RAPORU", styles['Title']))
+        story.append(Spacer(1, 5*mm))
+        story.append(Paragraph(f"Rapor Tarihi: {datetime.now().strftime('%d.%m.%Y %H:%M')}", styles['Normal']))
+        story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#0B4F6C')))
+        story.append(Spacer(1, 10*mm))
+
+        # YARDIMCI: Bölüm Başlığı Oluşturucu
+        def add_section_header(title):
+            story.append(Paragraph(f"<b>{title}</b>", styles['Heading2']))
+            story.append(Spacer(1, 2*mm))
+
+        # YARDIMCI: Veri Tablosu Oluşturucu
+        def create_info_table(data_dict, headers=("Parametre", "Değer")):
+            if not data_dict:
+                return Paragraph("<i>Bu aşama için veri bulunamadı.</i>", styles['Normal'])
+            
+            table_data = [headers] # Başlık satırı
+            for k, v in data_dict.items():
+                # Tuple kontrolü (Etiket, Değer) formatındaysa
+                if isinstance(v, tuple):
+                    label, val = v
+                else:
+                    label, val = k, v
+                # Her şeyi stringe çeviriyoruz ki hata çıkmasın
+                table_data.append([str(label), str(val)])
+                
+            t = Table(table_data, colWidths=[60*mm, 100*mm])
+            t.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#E6F3F7')),
+                ('TEXTCOLOR', (0,0), (-1,0), colors.HexColor('#0B4F6C')),
+                ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+                ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
+                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                ('PADDING', (0,0), (-1,-1), 6),
+            ]))
+            return t
+
+        # 1. SEVKİYAT BİLGİLERİ (SHIP)
+        add_section_header("1. SEVKİYAT & MÜŞTERİ BİLGİSİ")
+        if chain_data.get('SHIP'):
+            ship = chain_data['SHIP']
+            ship_table_data = {
+                '1': ('Müşteri', ship.get('musteri', '-')),
+                '2': ('Lot No (İrsaliye)', ship.get('lot_no', '-')),
+                '3': ('Plaka', ship.get('plaka', '-')),
+                '4': ('Sevk Tarihi', str(ship.get('tarih', '-')))
+            }
+            story.append(create_info_table(ship_table_data))
+        else:
+            story.append(Paragraph("Sevkiyat kaydı bulunamadı.", styles['Normal']))
+        story.append(Spacer(1, 10*mm))
+
+        # 2. KALİTE ANALİZ SONUÇLARI (LAB)
+        add_section_header("2. LABORATUVAR ANALİZ DEĞERLERİ")
+        if chain_data.get('LAB'):
+            lab = chain_data['LAB']
+            lab_table_data = {
+                '1': ('Ürün Cinsi', lab.get('urun_cinsi', '-')),
+                '2': ('Protein', f"% {lab.get('protein', '-')}" if lab.get('protein') else '-'),
+                '3': ('Kül', f"% {lab.get('kul', '-')}" if lab.get('kul') else '-'),
+                '4': ('Rutubet', f"% {lab.get('rutubet', '-')}" if lab.get('rutubet') else '-'),
+                '5': ('Sedim', lab.get('sedim', '-')),
+            }
+            story.append(create_info_table(lab_table_data))
+        else:
+            story.append(Paragraph("Analiz verisi bulunamadı.", styles['Normal']))
+        story.append(Spacer(1, 10*mm))
+
+        # 3. ÜRETİM PARAMETRELERİ (PRD)
+        add_section_header("3. ÜRETİM & DEĞİRMEN VERİLERİ")
+        if chain_data.get('PRD'):
+            prd = chain_data['PRD']
+            prd_table_data = {
+                '1': ('Üretim Tarihi', str(prd.get('tarih', '-'))),
+                '2': ('Vardiya Amiri', prd.get('vardiya_amiri', '-')),
+                '3': ('Hava Durumu', prd.get('hava_durumu', '-')),
+                '4': ('Kullanılan Çuval', prd.get('cuval_turu', '-')),
+            }
+            story.append(create_info_table(prd_table_data))
+        else:
+            story.append(Paragraph("Üretim kaydı bulunamadı.", styles['Normal']))
+        story.append(Spacer(1, 10*mm))
+
+        # 4. PAÇAL (HAMMADDE) İÇERİĞİ (MIX)
+        add_section_header("4. KULLANILAN BUĞDAYLAR (PAÇAL)")
+        if chain_data.get('MIX'):
+            mix = chain_data['MIX']
+            mix_content = mix.get('icerik_ozeti', 'Detay yok')
+            
+            story.append(Paragraph(f"<b>Paçal Kodu:</b> {mix.get('pacal_kodu', '-')}", styles['Normal']))
+            story.append(Spacer(1, 2*mm))
+            # Paçal içeriği bazen liste bazen string gelebilir, garantiye alalım
+            if isinstance(mix_content, list):
+                mix_str = ", ".join([str(x) for x in mix_content])
+                story.append(Paragraph(f"<b>Karışım:</b> {mix_str}", styles['Normal']))
+            else:
+                story.append(Paragraph(f"<b>Karışım Detayı:</b><br/>{str(mix_content)}", styles['Normal']))
+        else:
+            story.append(Paragraph("Paçal reçetesi bulunamadı.", styles['Normal']))
+
+        # PDF Oluştur
+        doc.build(story)
+        buffer.seek(0)
+        return buffer
+
+    except Exception as e:
+        # İŞTE BURASI HATAYI GÖSTERECEK
+        import traceback
+        st.error(f"❌ PDF OLUŞTURMA HATASI: {str(e)}")
+        st.code(traceback.format_exc()) # Detaylı hata raporunu ekrana basar
+        return None
+
+
 
 
 
