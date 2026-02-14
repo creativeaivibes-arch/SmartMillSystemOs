@@ -1431,10 +1431,10 @@ def create_traceability_pdf_report(chain_data):
                 ("Vardiya",           vardiya_text),
                 ("Kırılan Buğday",    f"{get_val(prd, ['kirilan_bugday'])} Kg"),
                 ("Tav Süresi",        f"{get_val(prd, ['tav_suresi'])} Saat"),
-                ("Toplam Randıman",   f"% {get_val(prd, ['toplam_randiman'])}"),
+                ("Toplam Randıman",   f"% {float(get_val(prd, ['toplam_randiman'])):,.2f}" if get_val(prd, ['toplam_randiman']) != '-' else '-'),
                 ("Un-1",              f"{get_val(prd, ['un_1'])} Kg"),
                 ("Kepek",             f"{get_val(prd, ['kepek'])} Kg"),
-                ("Kayıp Oranı",       f"% {get_val(prd, ['kayip'])}")
+                ("Kayıp Oranı",       f"% {float(get_val(prd, ['kayip'])):,.2f}" if get_val(prd, ['kayip']) != '-' else '-')
             ])
         else:
             story.append(Paragraph("Uretim kaydi bulunamadi.", styles['Normal']))
@@ -1571,6 +1571,7 @@ def create_traceability_pdf_report(chain_data):
         st.error(f"❌ PDF OLUŞTURMA HATASI: {str(e)}")
         st.code(traceback.format_exc()) # Detaylı hata raporunu ekrana basar
         return None
+
 
 
 
