@@ -370,56 +370,101 @@ def show_traceability_dashboard():
 
         
         # ======================================================================
-        # 5. HALKA: PAÇAL (Mix Data)
+        # 5. HALKA: PAÇAL (MIX) - SEKMELİ YENİ TASARIM
         # ======================================================================
         if chain["MIX"] is not None:
             mix = chain["MIX"]
             with st.expander("🌾 5. PAÇAL VE HAMMADDE İÇERİĞİ", expanded=True):
-                st.info(f"🔗 **Reçete:** `{mix.get('urun_adi')}`")
+                st.info(f"🔗 **Reçete:** `{mix.get('urun_adi')}` | **ID:** `{mix.get('batch_id')}`")
                 
                 try:
                     snapshot = json.loads(mix.get('silo_snapshot_json', '{}'))
                     analiz = json.loads(mix.get('analiz_snapshot_json', '{}'))
                     
-                    # Paçal Hedefleri
+                    # --- 1. PAÇAL HEDEFLERİ ---
                     k1, k2, k3 = st.columns(3)
                     k_prot = analiz.get('kuru_protein_ort', analiz.get('teorik_kuru_protein', 0))
-                    k1.metric("Kuru Protein", fmt(k_prot))
-                    k2.metric("Tavlı Protein", fmt(analiz.get('protein', 0)))
-                    k3.metric("Maliyet", f"{float(mix.get('maliyet', 0)):.2f} TL")
+                    k1.metric("Hedef Kuru Protein", fmt(k_prot))
+                    k2.metric("Hedef Tavlı Protein", fmt(analiz.get('protein', 0)))
+                    k3.metric("Ortalama Maliyet", f"{float(mix.get('maliyet', 0)):.2f} TL")
                     
                     st.divider()
-                    st.markdown("**🏗️ Kullanılan Silolar**")
+                    
+                    # --- 2. KULLANILAN SİLOLAR (SADE ÖZET TABLO) ---
+                    st.markdown("##### 🏗️ Kullanılan Silolar (Reçete Özeti)")
                     
                     rows = []
+                    gecerli_silolar = {} # Detay sekmeleri için siloları ayıklıyoruz
                     for silo, data in snapshot.items():
                         if isinstance(data, dict):
-                            meta = data.get('meta', {})
-                            kuru = data.get('kuru_analiz', {})
-                            cins = meta.get('cins') or kuru.get('cins') or "-"
-                            
-                            rows.append({
-                                "Silo": silo,
-                                "Oran": f"%{data.get('oran', 0)}",
-                                "Cins": cins,
-                                "Kuru Prot.": fmt(kuru.get('protein', 0)),
-                                "Süne": fmt(kuru.get('sune', 0))
-                            })
+                            oran = float(data.get('oran', 0))
+                            if oran > 0:
+                                meta = data.get('meta', {})
+                                kuru = data.get('kuru_analiz', {})
+                                cins = meta.get('cins') or kuru.get('cins') or "-"
+                                maliyet = meta.get('maliyet') or kuru.get('maliyet') or 0
+                                
+                                rows.append({
+                                    "Silo": silo,
+                                    "Oran": f"%{oran}",
+                                    "Cins": cins,
+                                    "Maliyet": f"{float(maliyet):.2f} TL"
+                                })
+                                gecerli_silolar[silo] = data
                         else:
-                            rows.append({"Silo": silo, "Oran": f"%{data}"})
+                            rows.append({"Silo": silo, "Oran": f"%{data}", "Cins": "-", "Maliyet": "-"})
                             
                     st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
                     
+                    # --- 3. SİLO DETAYLARI (SEKMELİ / TAB YAPI) ---
+                    if gecerli_silolar:
+                        st.divider()
+                        st.markdown("##### 🔬 Silo Analiz Detayları (O Günkü Ağırlıklı Ortalamalar)")
+                        
+                        # Sekme isimlerini oluştur (Örn: "🏭 SİLO 1 (%30)")
+                        silo_isimleri = [f"🏭 {s} (%{d.get('oran')})" for s, d in gecerli_silolar.items()]
+                        silo_tablari = st.tabs(silo_isimleri)
+                        
+                        # Her bir sekmenin içini doldur
+                        for idx, (silo, data) in enumerate(gecerli_silolar.items()):
+                            with silo_tablari[idx]:
+                                kuru = data.get('kuru_analiz', {})
+                                tavli = data.get('tavli_analiz', {})
+                                
+                                col_kuru, col_bosluk, col_tavli = st.columns([1, 0.05, 1])
+                                
+                                # KURU BUĞDAY KUTUSU
+                                with col_kuru:
+                                    st.markdown("<h6 style='color:#b45309;'>🌾 KURU BUĞDAY ANALİZLERİ</h6>", unsafe_allow_html=True)
+                                    with st.container(border=True):
+                                        c1, c2 = st.columns(2)
+                                        c1.markdown(f"**Protein:** {fmt(kuru.get('protein'))}")
+                                        c1.markdown(f"**Rutubet:** {fmt(kuru.get('rutubet'))}")
+                                        c1.markdown(f"**Hektolitre:** {fmt(kuru.get('hektolitre'))}")
+                                        c1.markdown(f"**Gluten:** {fmt(kuru.get('gluten'))}")
+                                        
+                                        c2.markdown(f"**İndeks:** {fmt(kuru.get('gluten_index'), 0)}")
+                                        c2.markdown(f"**Sedim:** {fmt(kuru.get('sedim'), 0)}")
+                                        c2.markdown(f"**G. Sedim:** {fmt(kuru.get('g_sedim'), 0)}")
+                                        c2.markdown(f"**Süne:** {fmt(kuru.get('sune'))}")
+                                
+                                # TAVLI BUĞDAY KUTUSU
+                                with col_tavli:
+                                    st.markdown("<h6 style='color:#0369a1;'>💧 TAVLI BUĞDAY ANALİZLERİ</h6>", unsafe_allow_html=True)
+                                    with st.container(border=True):
+                                        c3, c4 = st.columns(2)
+                                        c3.markdown(f"**Protein:** {fmt(tavli.get('protein'))}")
+                                        c3.markdown(f"**Kül:** {fmt(tavli.get('kul'), 3)}")
+                                        c3.markdown(f"**FN:** {fmt(tavli.get('fn'), 0)}")
+                                        c3.markdown(f"**Su Kal.(F):** {fmt(tavli.get('su_kaldirma_f'))}")
+                                        
+                                        c4.markdown(f"**Stabilite:** {fmt(tavli.get('stabilite'))}")
+                                        c4.markdown(f"**Enerji(135):** {fmt(tavli.get('enerji135') or tavli.get('enerji'), 0)}")
+                                        c4.markdown(f"**Direnç(135):** {fmt(tavli.get('direnc135') or tavli.get('direnc'), 0)}")
+                                        c4.markdown(f"**Uzama(135):** {fmt(tavli.get('uzama135') or tavli.get('uzama'), 0)}")
+                                
                 except Exception as e:
                     st.error(f"Paçal verisi okunamadı: {e}")
 
         elif chain["PRD"] is not None:
             st.warning("⚠️ Bu üretime bağlı Paçal kaydı bulunamadı (Mix ID eksik veya eşleşmiyor).")
-
-    elif ara_btn:
-        st.warning("Lütfen kod giriniz.")
-
-
-
-
-
