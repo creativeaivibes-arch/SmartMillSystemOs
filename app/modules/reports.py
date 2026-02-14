@@ -947,37 +947,45 @@ def download_styled_excel(df, filename, sheet_name="Rapor"):
     )
 
 # =============================================================================
-# İZLENEBİLİRLİK (TRACEABILITY) RAPORU - FİNAL (PANDAS FIX)
+# İZLENEBİLİRLİK (TRACEABILITY) RAPORU - KESİN ÇÖZÜM V3.0
 # =============================================================================
 def create_traceability_pdf_report(chain_data):
     """
     Traceability zincir verisini alır ve profesyonel PDF üretir.
-    Pandas Series/DataFrame hatalarını otomatik düzeltir.
+    Pandas Series/DataFrame hatalarını kesin olarak engeller.
     """
     if not PDF_AVAILABLE:
         return None
 
-    # --- PANDAS DÜZELTİCİ (BU KISIM EKSİKTİ, ŞİMDİ EKLİYORUZ) ---
-    def safe_extract(data_obj):
-        """Pandas nesnelerini güvenli sözlüğe (dict) çevirir"""
-        if data_obj is None:
+    # --- 🛠️ TEMİZLİK ROBOTU (DATA SANITIZER) ---
+    def clean_data(data):
+        """
+        Pandas verisini (Series/DataFrame) saf Python sözlüğüne çevirir.
+        Hata verdiren 'Ambiguous Truth Value' sorununu kökten çözer.
+        """
+        if data is None:
             return None
-        
-        # Eğer veri Pandas Serisi veya DataFrame ise:
-        if hasattr(data_obj, 'empty'): # Pandas kontrolü
-            if data_obj.empty:
-                return None
-            try:
-                # Seriyi sözlüğe çevir
-                return data_obj.to_dict()
-            except:
-                return None
-                
-        # Zaten sözlük ise ve içi doluysa
-        if isinstance(data_obj, dict) and data_obj:
-            return data_obj
             
-        return None
+        try:
+            # 1. Eğer veri Pandas Serisi ise (Tek satır)
+            if hasattr(data, 'to_dict'):
+                # Series ise direkt çevir
+                if isinstance(data, pd.Series):
+                    return data.to_dict()
+                # DataFrame ise ve boş değilse ilk satırı al
+                if isinstance(data, pd.DataFrame):
+                    if not data.empty:
+                        return data.iloc[0].to_dict()
+                    else:
+                        return None
+            
+            # 2. Zaten sözlük ise
+            if isinstance(data, dict):
+                return data if data else None
+                
+            return None
+        except Exception:
+            return None
     # ------------------------------------------------
 
     try:
@@ -1005,14 +1013,15 @@ def create_traceability_pdf_report(chain_data):
             
             table_data = [headers]
             for k, v in data_dict.items():
-                # Veriyi temizle (Tuple gelirse ayır, değilse direkt al)
+                # Veriyi temizle
                 if isinstance(v, tuple):
                     label, val = v
                 else:
                     label, val = k, v
                 
-                # Her şeyi string yap (Hata önleyici)
-                table_data.append([str(label), str(val)])
+                # Her şeyi stringe çevir (Hata önleyici)
+                val_str = str(val) if val is not None else "-"
+                table_data.append([str(label), val_str])
                 
             t = Table(table_data, colWidths=[60*mm, 100*mm])
             t.setStyle(TableStyle([
@@ -1025,17 +1034,21 @@ def create_traceability_pdf_report(chain_data):
             ]))
             return t
 
+        # --- VERİLERİ ÖNCE TEMİZLİYORUZ ---
+        # Burası çok önemli: chain_data içindeki Pandas verilerini temiz sözlüklere çeviriyoruz.
+        clean_ship = clean_data(chain_data.get('SHIP'))
+        clean_lab  = clean_data(chain_data.get('LAB'))
+        clean_prd  = clean_data(chain_data.get('PRD'))
+        clean_mix  = clean_data(chain_data.get('MIX'))
+
         # --- 1. SEVKİYAT (SHIP) ---
         add_section_header("1. SEVKİYAT & MÜŞTERİ BİLGİSİ")
-        # BURADA safe_extract KULLANIYORUZ
-        ship = safe_extract(chain_data.get('SHIP'))
-        
-        if ship:
+        if clean_ship:
             ship_table_data = {
-                '1': ('Müşteri', ship.get('musteri', '-')),
-                '2': ('Lot No (İrsaliye)', ship.get('lot_no', '-')),
-                '3': ('Plaka', ship.get('plaka', '-')),
-                '4': ('Sevk Tarihi', str(ship.get('tarih', '-')))
+                '1': ('Müşteri', clean_ship.get('musteri', '-')),
+                '2': ('Lot No (İrsaliye)', clean_ship.get('lot_no', '-')),
+                '3': ('Plaka', clean_ship.get('plaka', '-')),
+                '4': ('Sevk Tarihi', str(clean_ship.get('tarih', '-')))
             }
             story.append(create_info_table(ship_table_data))
         else:
@@ -1044,15 +1057,13 @@ def create_traceability_pdf_report(chain_data):
 
         # --- 2. LABORATUVAR (LAB) ---
         add_section_header("2. LABORATUVAR ANALİZ DEĞERLERİ")
-        lab = safe_extract(chain_data.get('LAB'))
-        
-        if lab:
+        if clean_lab:
             lab_table_data = {
-                '1': ('Ürün Cinsi', lab.get('urun_cinsi', '-')),
-                '2': ('Protein', f"% {lab.get('protein', '-')}" if lab.get('protein') else '-'),
-                '3': ('Kül', f"% {lab.get('kul', '-')}" if lab.get('kul') else '-'),
-                '4': ('Rutubet', f"% {lab.get('rutubet', '-')}" if lab.get('rutubet') else '-'),
-                '5': ('Sedim', lab.get('sedim', '-')),
+                '1': ('Ürün Cinsi', clean_lab.get('urun_cinsi', '-')),
+                '2': ('Protein', f"% {clean_lab.get('protein', '-')}" if clean_lab.get('protein') else '-'),
+                '3': ('Kül', f"% {clean_lab.get('kul', '-')}" if clean_lab.get('kul') else '-'),
+                '4': ('Rutubet', f"% {clean_lab.get('rutubet', '-')}" if clean_lab.get('rutubet') else '-'),
+                '5': ('Sedim', clean_lab.get('sedim', '-')),
             }
             story.append(create_info_table(lab_table_data))
         else:
@@ -1061,14 +1072,12 @@ def create_traceability_pdf_report(chain_data):
 
         # --- 3. ÜRETİM (PRD) ---
         add_section_header("3. ÜRETİM & DEĞİRMEN VERİLERİ")
-        prd = safe_extract(chain_data.get('PRD'))
-        
-        if prd:
+        if clean_prd:
             prd_table_data = {
-                '1': ('Üretim Tarihi', str(prd.get('tarih', '-'))),
-                '2': ('Vardiya Amiri', prd.get('vardiya_amiri', '-')),
-                '3': ('Hava Durumu', prd.get('hava_durumu', '-')),
-                '4': ('Kullanılan Çuval', prd.get('cuval_turu', '-')),
+                '1': ('Üretim Tarihi', str(clean_prd.get('tarih', '-'))),
+                '2': ('Vardiya Amiri', clean_prd.get('vardiya_amiri', '-')),
+                '3': ('Hava Durumu', clean_prd.get('hava_durumu', '-')),
+                '4': ('Kullanılan Çuval', clean_prd.get('cuval_turu', '-')),
             }
             story.append(create_info_table(prd_table_data))
         else:
@@ -1077,11 +1086,9 @@ def create_traceability_pdf_report(chain_data):
 
         # --- 4. PAÇAL (MIX) ---
         add_section_header("4. KULLANILAN BUĞDAYLAR (PAÇAL)")
-        mix = safe_extract(chain_data.get('MIX'))
-        
-        if mix:
-            mix_content = mix.get('icerik_ozeti', 'Detay yok')
-            story.append(Paragraph(f"<b>Paçal Kodu:</b> {mix.get('pacal_kodu', '-')}", styles['Normal']))
+        if clean_mix:
+            mix_content = clean_mix.get('icerik_ozeti', 'Detay yok')
+            story.append(Paragraph(f"<b>Paçal Kodu:</b> {clean_mix.get('pacal_kodu', '-')}", styles['Normal']))
             story.append(Spacer(1, 2*mm))
             
             # İçerik listesi kontrolü
@@ -1099,8 +1106,8 @@ def create_traceability_pdf_report(chain_data):
         return buffer
 
     except Exception as e:
-        # Debug için hatayı yazdır (Streamlit loguna düşer)
-        print(f"PDF ERROR: {e}")
+        # Hata olursa yine de program çökmesin, loga yazsın
+        print(f"PDF ERROR: {str(e)}")
         return None
         # ==========================================
         # HALKA 1: SEVKİYAT
@@ -1412,6 +1419,7 @@ def create_traceability_pdf_report(chain_data):
         st.error(f"❌ PDF OLUŞTURMA HATASI: {str(e)}")
         st.code(traceback.format_exc()) # Detaylı hata raporunu ekrana basar
         return None
+
 
 
 
