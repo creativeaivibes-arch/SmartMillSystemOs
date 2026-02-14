@@ -143,18 +143,108 @@ def fmt(val, decimals=1):
     except: return str(val)
 
 def show_traceability_dashboard():
-    """KARA KUTU ANA EKRANI"""
+    """KARA KUTU ANA EKRANI VE AKILLI FİLTRE PANELİ"""
     st.markdown("""
     <div style='background-color: #263238; padding: 20px; border-radius: 10px; color: white; text-align: center; margin-bottom: 20px;'>
         <h1 style='margin:0; font-size: 24px;'>🕵️‍♂️ İZLENEBİLİRLİK (KARA KUTU)</h1>
-        <p style='color: #cfd8dc; margin-top:5px; font-size: 14px;'>Sevkiyat ➔ Üretim ➔ Paçal ➔ Buğday (Geriye Dönük Tam Takip)</p>
+        <p style='color: #cfd8dc; margin-top:5px; font-size: 14px;'>Sevkiyat ➔ Lab ➔ Enzim ➔ Üretim ➔ Paçal ➔ Buğday</p>
     </div>
     """, unsafe_allow_html=True)
 
-    # --- ARAMA MOTORU ---
+    # ==============================================================================
+    # ⚡ HIZLI ERİŞİM VE AKILLI FİLTRE PANELİ
+    # ==============================================================================
+    st.markdown("### ⚡ Son Aktiviteler ve Hızlı Tarama")
+    
+    # Veritabanlarını sessizce çek
+    df_analiz = pd.DataFrame()
+    df_uretim = pd.DataFrame()
+    df_enzim = pd.DataFrame()
+    df_mix = pd.DataFrame()
+    
+    try: df_analiz = fetch_data("un_analiz")
+    except: pass
+    try: df_uretim = fetch_data("uretim_kaydi")
+    except: pass
+    try: df_enzim = fetch_data("enzim_receteleri")
+    except: pass
+    try: df_mix = fetch_data("mixing_batches")
+    except: pass
+
+    # Yardımcı Fonksiyon: Liste Hazırlama
+    def hazirla(df, lot_col, label_cols, filter_col=None, filter_val=None):
+        if df.empty or lot_col not in df.columns: return []
+        temp_df = df.copy()
+        if filter_col and filter_val and filter_col in temp_df.columns:
+            temp_df = temp_df[temp_df[filter_col].astype(str).str.contains(filter_val, case=False, na=False)]
+        if 'tarih' in temp_df.columns:
+            temp_df['tarih'] = pd.to_datetime(temp_df['tarih'], errors='coerce')
+            temp_df = temp_df.sort_values('tarih', ascending=False)
+        
+        liste = []
+        for _, row in temp_df.head(10).iterrows(): # SADECE SON 10 KAYIT
+            lot = str(row.get(lot_col, ''))
+            if not lot or lot.lower() == 'nan': continue
+            
+            tarih = row['tarih'].strftime('%d.%m %H:%M') if pd.notnull(row.get('tarih')) else "-"
+            ekstra = " - ".join([str(row.get(c, '')) for c in label_cols if pd.notnull(row.get(c)) and str(row.get(c)) != 'nan'])
+            
+            liste.append(f"{lot} | {tarih} | {ekstra}")
+        return liste
+
+    # Sekmeler
+    t1, t2, t3, t4, t5 = st.tabs(["🚚 Sevkiyatlar", "🔬 Lab Analizleri", "💊 Enzimler", "🏭 Üretimler", "🌾 Paçallar"])
+    
+    secilen_hizli_kod = None
+    
+    with t1:
+        liste = hazirla(df_analiz, 'lot_no', ['musteri_adi', 'un_cinsi_marka'], 'islem_tipi', 'SEVK')
+        if liste:
+            secim = st.selectbox("Son 10 Sevkiyat Kaydı", ["Seçiniz..."] + liste, key="hizli_sevk")
+            if secim != "Seçiniz...": secilen_hizli_kod = secim.split(' | ')[0].strip()
+        else: st.info("Kayıt yok.")
+            
+    with t2:
+        liste = hazirla(df_analiz, 'lot_no', ['un_markasi'], 'islem_tipi', 'ÜRETİM')
+        if liste:
+            secim = st.selectbox("Son 10 Üretim Analizi (PRD)", ["Seçiniz..."] + liste, key="hizli_lab")
+            if secim != "Seçiniz...": secilen_hizli_kod = secim.split(' | ')[0].strip()
+        else: st.info("Kayıt yok.")
+            
+    with t3:
+        liste = hazirla(df_enzim, 'enzim_id', ['uretim_kodu'])
+        if liste:
+            secim = st.selectbox("Son 10 Enzim Reçetesi", ["Seçiniz..."] + liste, key="hizli_enz")
+            if secim != "Seçiniz...": secilen_hizli_kod = secim.split(' | ')[0].strip()
+        else: st.info("Kayıt yok.")
+            
+    with t4:
+        liste = hazirla(df_uretim, 'parti_no', ['vardiya', 'kullanilan_pacal'])
+        if liste:
+            secim = st.selectbox("Son 10 Değirmen Üretimi", ["Seçiniz..."] + liste, key="hizli_prd")
+            if secim != "Seçiniz...": secilen_hizli_kod = secim.split(' | ')[0].strip()
+        else: st.info("Kayıt yok.")
+            
+    with t5:
+        liste = hazirla(df_mix, 'batch_id', ['urun_adi'])
+        if liste:
+            secim = st.selectbox("Son 10 Paçal Reçetesi", ["Seçiniz..."] + liste, key="hizli_mix")
+            if secim != "Seçiniz...": secilen_hizli_kod = secim.split(' | ')[0].strip()
+        else: st.info("Kayıt yok.")
+
+    st.divider()
+
+    # ==============================================================================
+    # MANUEL ARAMA MOTORU (Alternatif)
+    # ==============================================================================
+    st.markdown("**Veya Geçmiş Bir Kodu Manuel Arayın:**")
     col_search, col_btn = st.columns([3, 1])
+    
+    # Eğer yukarıdan bir şey seçildiyse input kutusuna otomatik yazsın
+    default_query = secilen_hizli_kod if secilen_hizli_kod else ""
+    
     with col_search:
-        query = st.text_input("🔍 Takip Kodu Giriniz", placeholder="SHIP-..., PRD-..., MIX-...")
+        query = st.text_input("🔍 Takip Kodu Giriniz", value=default_query, placeholder="SHIP-..., PRD-..., MIX-...")
     with col_btn:
         st.write("")
         st.write("")
@@ -521,4 +611,5 @@ def show_traceability_dashboard():
 
         elif chain["PRD"] is not None:
             st.warning("⚠️ Bu üretime bağlı Paçal kaydı bulunamadı (Mix ID eksik veya eşleşmiyor).")
+
 
