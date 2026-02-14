@@ -429,7 +429,7 @@ def show_enzim_dozajlama():
     # SEKME 1: YENİ REÇETE OLUŞTURMA
     # ==========================================================================
     with tab_yeni:
-        # 1. Paçal Listesini Çek (YENİ EKLENEN KISIM)
+        # BURASI DÜZELDİ: Artık PRD değil, MIX listesi çekiliyor!
         mix_listesi = get_active_mixing_batches_for_enzyme()
         
         if not mix_listesi:
@@ -458,7 +458,7 @@ def show_enzim_dozajlama():
                     enzim_id = f"ENZ-{datetime.now().strftime('%y%m%d%H%M')}"
                     st.info(f"🆔 **Reçete Kimliği:** `{enzim_id}`")
                     
-                    # Paçal Seçimi
+                    # BURASI DÜZELDİ: Ekranda artık PRD değil MIX (Paçal) soruyor!
                     secilen_mix = st.selectbox(
                         "Hangi Paçal Reçetesine Uygulanacak? (MIX) *",
                         mix_listesi,
@@ -549,7 +549,7 @@ def show_enzim_dozajlama():
                         else:
                             data_to_save = {
                                 'enzim_id': enzim_id,
-                                'uretim_kodu': mix_kodu, # DB yapısı bozulmasın diye buraya MIX kodunu yazıyoruz
+                                'uretim_kodu': mix_kodu, # DB'ye artık MIX kodunu yazıyoruz
                                 'uretim_adi': mix_adi_display,
                                 'un_ton': un_ton,
                                 'bugday_hiz': bugday_hiz,
@@ -723,6 +723,7 @@ def show_fire_maliyet_hesaplama():
             <p style='color: #7f1d1d; margin:0;'>Bu fire olmasaydı (veya %0 olsaydı) cebinizde kalacak olan tutar.</p>
         </div>
         """, unsafe_allow_html=True)
+
 
 
 
