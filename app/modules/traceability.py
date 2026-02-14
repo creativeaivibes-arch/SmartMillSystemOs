@@ -105,7 +105,18 @@ def get_trace_chain(search_query):
              ]
              if not l_match.empty:
                  chain["LAB"] = l_match.sort_values('tarih', ascending=False).iloc[0]
-
+    # KÖPRÜ 6: Paçal (MIX) -> Enzim Reçetesi (ENZ)
+    if chain["MIX"] is not None and chain["ENZ"] is None:
+        mix_id = str(chain["MIX"].get('batch_id', ''))
+        if mix_id:
+            try:
+                df_enz = fetch_data("enzim_receteleri")
+                if not df_enz.empty:
+                    # uretim_kodu sütununa kaydetmiştik, orada arıyoruz
+                    e_match = df_enz[df_enz['uretim_kodu'].astype(str).str.contains(mix_id, case=False)]
+                    if not e_match.empty:
+                        chain["ENZ"] = e_match.sort_values('tarih', ascending=False).iloc[0]
+            except: pass
     return chain
 
 # ==============================================================================
@@ -333,6 +344,33 @@ def show_traceability_dashboard():
                         ex9.metric("Uzama (135)", fmt(u135, 0))
 
         # ======================================================================
+        # 4. HALKA: ENZİM REÇETESİ (ENZ) (PAÇALA BAĞLI)
+        # ======================================================================
+        if chain["ENZ"] is not None:
+            enz = chain["ENZ"]
+            with st.expander("💊 4. ENZİM VE KATKI REÇETESİ (ENZ)", expanded=True):
+                st.info(f"🔗 **Bağlı Paçal:** `{enz.get('uretim_kodu')}` | **Kimlik:** `{enz.get('enzim_id')}`")
+                
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Hedef Un", f"{float(enz.get('un_ton', 0)):.1f} Ton")
+                c2.metric("Buğday Hızı", f"{float(enz.get('bugday_hiz', 0)):.0f} kg/s")
+                c3.metric("Akış Hızı", f"{float(enz.get('dozaj_akis', 0)):.0f} gr/dk")
+                
+                st.divider()
+                
+                try:
+                    enz_verisi = json.loads(enz.get('enzim_verisi_json', '[]'))
+                    if enz_verisi:
+                        st.markdown("**🧪 Reçete İçeriği**")
+                        cols = st.columns(len(enz_verisi))
+                        for idx, item in enumerate(enz_verisi):
+                            cols[idx].metric(item.get('ad', '-'), f"{item.get('doz', 0)} gr/çuv")
+                    else:
+                        st.warning("Reçete içeriği boş.")
+                except:
+                    st.error("Reçete içeriği okunamadı.")
+
+        # ======================================================================
         # 2. HALKA: PAÇAL (Mix Data)
         # ======================================================================
         if chain["MIX"] is not None:
@@ -381,4 +419,5 @@ def show_traceability_dashboard():
 
     elif ara_btn:
         st.warning("Lütfen kod giriniz.")
+
 
