@@ -1393,12 +1393,11 @@ def create_traceability_pdf_report(chain_data):
         add_section("1. SEVKİYAT & MÜŞTERİ BİLGİSİ")
         if ship:
             make_table([
-                ("Müşteri",       get_val(ship, ['musteri', 'Müşteri', 'Musteri', 'Unvan'])),
-                ("Lot No",        get_val(ship, ['lot_no', 'Lot No', 'lot', 'irsaliye_no'])),
-                ("Araç Plaka",    get_val(ship, ['plaka', 'Plaka', 'Arac'])),
-                ("Sevk Tarihi",   get_val(ship, ['tarih', 'Sevk Tarihi', 'Zaman'])),
-                ("Sipariş No",    get_val(ship, ['siparis_no', 'Sipariş No', 'ref_no'])),
-                ("Ürün Cinsi",    get_val(ship, ['urun_cinsi', 'Ürün', 'Urun Cinsi']))
+                ("Müşteri",       get_val(ship, ['musteri_adi', 'musteri', 'cari_adi'])),
+                ("Lot No",        get_val(ship, ['lot_no'])),
+                ("Araç Plaka",    get_val(ship, ['plaka'])),
+                ("Sevk Tarihi",   str(get_val(ship, ['tarih']))[:19]),
+                ("Ürün Cinsi",    get_val(ship, ['un_cinsi_marka', 'un_markasi', 'urun_adi']))
             ])
         else:
             story.append(Paragraph("Sevkiyat verisi bulunamadi.", styles['Normal']))
@@ -1407,17 +1406,17 @@ def create_traceability_pdf_report(chain_data):
         # --- 2. LABORATUVAR ANALİZ ---
         add_section("2. LABORATUVAR KALİTE DEĞERLERİ")
         if lab:
-            # Buradaki anahtar kelimeleri artırdım ki kesin bulsun
             make_table([
-                ("Protein",       f"% {get_val(lab, ['protein', 'Protein', 'prot'])}"),
-                ("Rutubet",       f"% {get_val(lab, ['rutubet', 'Rutubet', 'nem'])}"),
-                ("Kül",           f"% {get_val(lab, ['kul', 'Kül', 'Kul'])}"),
-                ("Sedim",         get_val(lab, ['sedim', 'Sedim', 'sedimantasyon'])),
-                ("Gluten",        get_val(lab, ['gluten', 'Gluten', 'oz'])),
-                ("İndeks",        get_val(lab, ['gluten_index', 'Index', 'İndeks'])),
-                ("Hektolitre",    get_val(lab, ['hektolitre', 'Hektolitre', 'hl'])),
-                ("Alveo W",       get_val(lab, ['energy', 'Enerji', 'W', 'w_degeri'])),
-                ("Alveo P/L",     get_val(lab, ['pl_degeri', 'PL', 'P/L']))
+                ("Protein",       f"% {get_val(lab, ['protein'])}"),
+                ("Rutubet",       f"% {get_val(lab, ['rutubet'])}"),
+                ("Kül",           f"% {get_val(lab, ['kul'])}"),
+                ("Sedim",         get_val(lab, ['sedim'])),
+                ("Gluten",        get_val(lab, ['gluten'])),
+                ("Gluten İndeks", get_val(lab, ['gluten_index'])),
+                ("FN",            get_val(lab, ['fn'])),
+                ("FFN",           get_val(lab, ['ffn'])),
+                ("Hektolitre",    get_val(lab, ['hektolitre'])),
+                ("Sedim (G)",     get_val(lab, ['gecikmeli_sedim', 'g_sedim']))
             ])
         else:
             story.append(Paragraph("Analiz verisi bulunamadi.", styles['Normal']))
@@ -1426,13 +1425,16 @@ def create_traceability_pdf_report(chain_data):
         # --- 3. ÜRETİM & DEĞİRMEN ---
         add_section("3. ÜRETİM & DEĞİRMEN PARAMETRELERİ")
         if prd:
+            vardiya_text = f"{get_val(prd, ['vardiya'])} ({get_val(prd, ['sorumlu'])})"
             make_table([
-                ("Üretim Tarihi", get_val(prd, ['tarih', 'Tarih', 'uretim_tarihi'])),
-                ("Vardiya Amiri", get_val(prd, ['vardiya_amiri', 'Amir', 'sorumlu'])),
-                ("Kullanılan Çuval", get_val(prd, ['cuval_turu', 'Çuval', 'Paket'])),
-                ("Hava Durumu",   get_val(prd, ['hava_durumu', 'Hava', 'sicaklik'])),
-                ("B1 Vals Akım",  get_val(prd, ['b1_akim', 'B1 Akım', 'Vals B1'])),
-                ("Randıman",      get_val(prd, ['randiman', 'Randıman', 'verim']))
+                ("Üretim Tarihi",     str(get_val(prd, ['tarih']))[:19]),
+                ("Vardiya",           vardiya_text),
+                ("Kırılan Buğday",    f"{get_val(prd, ['kirilan_bugday'])} Kg"),
+                ("Tav Süresi",        f"{get_val(prd, ['tav_suresi'])} Saat"),
+                ("Toplam Randıman",   f"% {get_val(prd, ['toplam_randiman'])}"),
+                ("Un-1",              f"{get_val(prd, ['un_1'])} Kg"),
+                ("Kepek",             f"{get_val(prd, ['kepek'])} Kg"),
+                ("Kayıp Oranı",       f"% {get_val(prd, ['kayip'])}")
             ])
         else:
             story.append(Paragraph("Uretim kaydi bulunamadi.", styles['Normal']))
@@ -1441,17 +1443,21 @@ def create_traceability_pdf_report(chain_data):
         # --- 4. ENZİM VE KATKI (YENİ EKLENDİ) ---
         add_section("4. KULLANILAN KATKI & ENZİM REÇETESİ")
         if enz:
-            # Enzim verisi genelde JSON string içinde olabilir, kontrol edelim
-            recete = get_val(enz, ['recete', 'icerik', 'dozajlar'])
-            if isinstance(recete, list):
-                recete_str = ", ".join([str(x) for x in recete])
-            else:
-                recete_str = str(recete)
-                
+            try:
+                import json
+                enz_json = get_val(enz, ['enzim_verisi_json'])
+                if enz_json and enz_json != '-':
+                    enz_list = json.loads(enz_json) if isinstance(enz_json, str) else enz_json
+                    enz_str = ", ".join([f"{e.get('ad')}: {e.get('doz')}gr" for e in enz_list])
+                else:
+                    enz_str = "-"
+            except:
+                enz_str = "-"
+            
             make_table([
-                ("Reçete Adı",    get_val(enz, ['recete_adi', 'Reçete', 'isim'])),
-                ("Toplam Maliyet",f"{get_val(enz, ['toplam_maliyet', 'Maliyet'])} TL"),
-                ("İçerik Detayı", recete_str[:50] + "..." if len(recete_str)>50 else recete_str)
+                ("Reçete ID",      get_val(enz, ['enzim_id'])),
+                ("Bağlı Paçal",    get_val(enz, ['uretim_kodu'])),
+                ("İçerik Detayı",  enz_str)
             ])
         else:
             story.append(Paragraph("Enzim/Katki verisi bulunamadi.", styles['Normal']))
@@ -1460,18 +1466,26 @@ def create_traceability_pdf_report(chain_data):
         # --- 5. PAÇAL (BUĞDAY KARIŞIMI) ---
         add_section("5. BUĞDAY PAÇAL İÇERİĞİ")
         if mix:
-            icerik = get_val(mix, ['icerik_ozeti', 'silo_detaylari', 'karisim'])
-            # Eğer içerik listeyse stringe çevir
-            if isinstance(icerik, list):
-                icerik_str = "\n".join([str(x) for x in icerik])
-            else:
-                icerik_str = str(icerik)
+            story.append(Paragraph(f"<b>Paçal Kodu:</b> {get_val(mix, ['batch_id'])}", styles['Normal']))
+            story.append(Paragraph(f"<b>Ürün:</b> {get_val(mix, ['urun_adi'])}", styles['Normal']))
+            story.append(Paragraph(f"<b>Maliyet:</b> {get_val(mix, ['maliyet'])} TL", styles['Normal']))
+            story.append(Spacer(1, 3*mm))
             
-            # İçeriği tablo yerine Paragraf olarak basalım çünkü uzun olabilir
-            story.append(Paragraph(f"<b>Paçal Kodu:</b> {get_val(mix, ['pacal_kodu', 'kod'])}", styles['Normal']))
-            story.append(Spacer(1, 2*mm))
-            story.append(Paragraph(f"<b>Karışım Detayı:</b>", styles['Normal']))
-            story.append(Paragraph(fix_txt(icerik_str), styles['Normal']))
+            try:
+                import json
+                snapshot_json = get_val(mix, ['silo_snapshot_json'])
+                if snapshot_json and snapshot_json != '-':
+                    snapshot = json.loads(snapshot_json) if isinstance(snapshot_json, str) else snapshot_json
+                    story.append(Paragraph("<b>Karışım Detayı:</b>", styles['Normal']))
+                    for silo, data in snapshot.items():
+                        if isinstance(data, dict):
+                            oran = data.get('oran', 0)
+                            kuru = data.get('kuru_analiz', {})
+                            cins = kuru.get('cins', '-')
+                            protein = kuru.get('protein', '-')
+                            story.append(Paragraph(f"  • {silo}: %{oran} - {cins} (Protein: {protein}%)", styles['Normal']))
+            except:
+                story.append(Paragraph("Karışım detayı okunamadı", styles['Normal']))
         else:
             story.append(Paragraph("Pacal (Hammadde) verisi bulunamadi.", styles['Normal']))
 
@@ -1557,6 +1571,7 @@ def create_traceability_pdf_report(chain_data):
         st.error(f"❌ PDF OLUŞTURMA HATASI: {str(e)}")
         st.code(traceback.format_exc()) # Detaylı hata raporunu ekrana basar
         return None
+
 
 
 
