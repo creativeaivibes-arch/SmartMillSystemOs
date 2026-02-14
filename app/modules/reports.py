@@ -949,15 +949,39 @@ def download_styled_excel(df, filename, sheet_name="Rapor"):
 # =============================================================================
 # İZLENEBİLİRLİK (TRACEABILITY) RAPORU - CERRAHİ EKLEME
 # =============================================================================
+# =============================================================================
+# İZLENEBİLİRLİK (TRACEABILITY) RAPORU - FİNAL (PANDAS FIX)
+# =============================================================================
 def create_traceability_pdf_report(chain_data):
     """
     Traceability zincir verisini alır ve profesyonel PDF üretir.
-    Args:
-        chain_data (dict): traceability.py'dan gelen 'chain' sözlüğü
+    Pandas Series/DataFrame hatalarını otomatik düzeltir.
     """
-    # PDF kütüphanesi yüklü değilse hata vermesin, sessizce çıksın
     if not PDF_AVAILABLE:
         return None
+
+    # --- PANDAS DÜZELTİCİ (BU KISIM HATAYI ÇÖZER) ---
+    def safe_extract(data_obj):
+        """Pandas nesnelerini güvenli sözlüğe (dict) çevirir"""
+        if data_obj is None:
+            return None
+        
+        # Eğer veri Pandas Serisi veya DataFrame ise:
+        if hasattr(data_obj, 'empty'): # Pandas kontrolü
+            if data_obj.empty:
+                return None
+            try:
+                # Seriyi sözlüğe çevir
+                return data_obj.to_dict()
+            except:
+                return None
+                
+        # Zaten sözlük ise ve içi doluysa
+        if isinstance(data_obj, dict) and data_obj:
+            return data_obj
+            
+        return None
+    # ------------------------------------------------
 
     try:
         buffer = io.BytesIO()
@@ -972,28 +996,30 @@ def create_traceability_pdf_report(chain_data):
         story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#0B4F6C')))
         story.append(Spacer(1, 10*mm))
 
-        # YARDIMCI: Bölüm Başlığı Oluşturucu
+        # YARDIMCI: Bölüm Başlığı
         def add_section_header(title):
             story.append(Paragraph(f"<b>{title}</b>", styles['Heading2']))
             story.append(Spacer(1, 2*mm))
 
-        # YARDIMCI: Veri Tablosu Oluşturucu
+        # YARDIMCI: Tablo Oluşturucu
         def create_info_table(data_dict, headers=("Parametre", "Değer")):
             if not data_dict:
                 return Paragraph("<i>Bu aşama için veri bulunamadı.</i>", styles['Normal'])
             
-            table_data = [headers] # Başlık satırı
+            table_data = [headers]
             for k, v in data_dict.items():
-                # Tuple kontrolü (Etiket, Değer) formatındaysa
+                # Veriyi temizle (Tuple gelirse ayır, değilse direkt al)
                 if isinstance(v, tuple):
                     label, val = v
                 else:
                     label, val = k, v
+                
+                # Her şeyi string yap (Hata önleyici)
                 table_data.append([str(label), str(val)])
                 
             t = Table(table_data, colWidths=[60*mm, 100*mm])
             t.setStyle(TableStyle([
-                ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#E6F3F7')), # Başlık rengi
+                ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#E6F3F7')),
                 ('TEXTCOLOR', (0,0), (-1,0), colors.HexColor('#0B4F6C')),
                 ('ALIGN', (0,0), (-1,-1), 'LEFT'),
                 ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
@@ -1002,11 +1028,12 @@ def create_traceability_pdf_report(chain_data):
             ]))
             return t
 
-        # 1. SEVKİYAT BİLGİLERİ (SHIP)
+        # --- 1. SEVKİYAT (SHIP) ---
         add_section_header("1. SEVKİYAT & MÜŞTERİ BİLGİSİ")
-        if chain_data.get('SHIP'):
-            ship = chain_data['SHIP']
-            # Veriyi tablo formatına hazırlayalım
+        # BURADA safe_extract KULLANIYORUZ (HATA ÇÖZÜMÜ)
+        ship = safe_extract(chain_data.get('SHIP'))
+        
+        if ship:
             ship_table_data = {
                 '1': ('Müşteri', ship.get('musteri', '-')),
                 '2': ('Lot No (İrsaliye)', ship.get('lot_no', '-')),
@@ -1018,11 +1045,11 @@ def create_traceability_pdf_report(chain_data):
             story.append(Paragraph("Sevkiyat kaydı bulunamadı.", styles['Normal']))
         story.append(Spacer(1, 10*mm))
 
-        # 2. KALİTE ANALİZ SONUÇLARI (LAB)
+        # --- 2. LABORATUVAR (LAB) ---
         add_section_header("2. LABORATUVAR ANALİZ DEĞERLERİ")
-        if chain_data.get('LAB'):
-            lab = chain_data['LAB']
-            # Önemli analiz parametrelerini seçelim
+        lab = safe_extract(chain_data.get('LAB'))
+        
+        if lab:
             lab_table_data = {
                 '1': ('Ürün Cinsi', lab.get('urun_cinsi', '-')),
                 '2': ('Protein', f"% {lab.get('protein', '-')}" if lab.get('protein') else '-'),
@@ -1035,10 +1062,11 @@ def create_traceability_pdf_report(chain_data):
             story.append(Paragraph("Analiz verisi bulunamadı.", styles['Normal']))
         story.append(Spacer(1, 10*mm))
 
-        # 3. ÜRETİM PARAMETRELERİ (PRD)
+        # --- 3. ÜRETİM (PRD) ---
         add_section_header("3. ÜRETİM & DEĞİRMEN VERİLERİ")
-        if chain_data.get('PRD'):
-            prd = chain_data['PRD']
+        prd = safe_extract(chain_data.get('PRD'))
+        
+        if prd:
             prd_table_data = {
                 '1': ('Üretim Tarihi', str(prd.get('tarih', '-'))),
                 '2': ('Vardiya Amiri', prd.get('vardiya_amiri', '-')),
@@ -1050,28 +1078,33 @@ def create_traceability_pdf_report(chain_data):
             story.append(Paragraph("Üretim kaydı bulunamadı.", styles['Normal']))
         story.append(Spacer(1, 10*mm))
 
-        # 4. PAÇAL (HAMMADDE) İÇERİĞİ (MIX)
+        # --- 4. PAÇAL (MIX) ---
         add_section_header("4. KULLANILAN BUĞDAYLAR (PAÇAL)")
-        if chain_data.get('MIX'):
-            mix = chain_data['MIX']
-            # Paçal biraz farklı, içinde bir liste olabilir veya özet string olabilir.
-            # Burada 'icerik_ozeti' veya 'silo_detaylari' bekliyoruz.
+        mix = safe_extract(chain_data.get('MIX'))
+        
+        if mix:
             mix_content = mix.get('icerik_ozeti', 'Detay yok')
-            
-            # Eğer string ise Paragraph olarak ekle
             story.append(Paragraph(f"<b>Paçal Kodu:</b> {mix.get('pacal_kodu', '-')}", styles['Normal']))
             story.append(Spacer(1, 2*mm))
-            story.append(Paragraph(f"<b>Karışım Oranları:</b><br/>{mix_content}", styles['Normal']))
+            
+            # İçerik listesi kontrolü
+            if isinstance(mix_content, list):
+                mix_str = ", ".join([str(x) for x in mix_content])
+                story.append(Paragraph(f"<b>Karışım:</b> {mix_str}", styles['Normal']))
+            else:
+                story.append(Paragraph(f"<b>Karışım Detayı:</b><br/>{str(mix_content)}", styles['Normal']))
         else:
             story.append(Paragraph("Paçal reçetesi bulunamadı.", styles['Normal']))
 
-        # PDF Oluştur
+        # PDF BİTİR
         doc.build(story)
         buffer.seek(0)
         return buffer
-    except Exception as e:
-        return None
 
+    except Exception as e:
+        # Debug için hatayı yazdır (Streamlit loguna düşer)
+        print(f"PDF ERROR: {e}")
+        return None
         # ==========================================
         # HALKA 1: SEVKİYAT
         # ==========================================
@@ -1382,6 +1415,7 @@ def create_traceability_pdf_report(chain_data):
         st.error(f"❌ PDF OLUŞTURMA HATASI: {str(e)}")
         st.code(traceback.format_exc()) # Detaylı hata raporunu ekrana basar
         return None
+
 
 
 
