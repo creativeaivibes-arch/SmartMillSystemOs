@@ -370,20 +370,29 @@ def show_traceability_dashboard():
 
         
         # ======================================================================
-        # 5. HALKA: PAÇAL (MIX) - SEKMELİ YENİ TASARIM
+        # 5. HALKA: PAÇAL (MIX) - FULL DETAY VE ALT SEKMELİ YAPI
         # ======================================================================
         if chain["MIX"] is not None:
             mix = chain["MIX"]
-            with st.expander("🌾 5. PAÇAL VE HAMMADDE İÇERİĞİ", expanded=True):
+            with st.expander("🌾 5. PAÇAL VE HAMMADDE İÇERİĞİ (MIX)", expanded=True):
                 st.info(f"🔗 **Reçete:** `{mix.get('urun_adi')}` | **ID:** `{mix.get('batch_id')}`")
                 
                 try:
                     snapshot = json.loads(mix.get('silo_snapshot_json', '{}'))
                     analiz = json.loads(mix.get('analiz_snapshot_json', '{}'))
                     
+                    # --- AKILLI KURTARMA (FALLBACK) ---
+                    # Eğer kuru protein veya maliyet 0.00 gelirse, oranlardan canlı hesapla
+                    k_prot = float(analiz.get('kuru_protein_ort') or analiz.get('teorik_kuru_protein') or 0.0)
+                    if k_prot == 0.0:
+                        for s_isim, s_data in snapshot.items():
+                            if isinstance(s_data, dict):
+                                o = float(s_data.get('oran', 0))
+                                p = float(s_data.get('kuru_analiz', {}).get('protein', 0) or 0)
+                                k_prot += p * (o / 100)
+
                     # --- 1. PAÇAL HEDEFLERİ ---
                     k1, k2, k3 = st.columns(3)
-                    k_prot = analiz.get('kuru_protein_ort', analiz.get('teorik_kuru_protein', 0))
                     k1.metric("Hedef Kuru Protein", fmt(k_prot))
                     k2.metric("Hedef Tavlı Protein", fmt(analiz.get('protein', 0)))
                     k3.metric("Ortalama Maliyet", f"{float(mix.get('maliyet', 0)):.2f} TL")
@@ -394,7 +403,7 @@ def show_traceability_dashboard():
                     st.markdown("##### 🏗️ Kullanılan Silolar (Reçete Özeti)")
                     
                     rows = []
-                    gecerli_silolar = {} # Detay sekmeleri için siloları ayıklıyoruz
+                    gecerli_silolar = {}
                     for silo, data in snapshot.items():
                         if isinstance(data, dict):
                             oran = float(data.get('oran', 0))
@@ -402,13 +411,15 @@ def show_traceability_dashboard():
                                 meta = data.get('meta', {})
                                 kuru = data.get('kuru_analiz', {})
                                 cins = meta.get('cins') or kuru.get('cins') or "-"
-                                maliyet = meta.get('maliyet') or kuru.get('maliyet') or 0
+                                
+                                # Akıllı Maliyet Çekimi
+                                maliyet = float(meta.get('maliyet') or kuru.get('maliyet') or 0.0)
                                 
                                 rows.append({
                                     "Silo": silo,
                                     "Oran": f"%{oran}",
                                     "Cins": cins,
-                                    "Maliyet": f"{float(maliyet):.2f} TL"
+                                    "Maliyet": f"{maliyet:.2f} TL"
                                 })
                                 gecerli_silolar[silo] = data
                         else:
@@ -421,47 +432,89 @@ def show_traceability_dashboard():
                         st.divider()
                         st.markdown("##### 🔬 Silo Analiz Detayları (O Günkü Ağırlıklı Ortalamalar)")
                         
-                        # Sekme isimlerini oluştur (Örn: "🏭 SİLO 1 (%30)")
                         silo_isimleri = [f"🏭 {s} (%{d.get('oran')})" for s, d in gecerli_silolar.items()]
                         silo_tablari = st.tabs(silo_isimleri)
                         
-                        # Her bir sekmenin içini doldur
                         for idx, (silo, data) in enumerate(gecerli_silolar.items()):
                             with silo_tablari[idx]:
                                 kuru = data.get('kuru_analiz', {})
                                 tavli = data.get('tavli_analiz', {})
                                 
-                                col_kuru, col_bosluk, col_tavli = st.columns([1, 0.05, 1])
+                                col_kuru, col_tavli = st.columns([1, 1.4], gap="medium")
                                 
-                                # KURU BUĞDAY KUTUSU
+                                # ==========================================
+                                # SOL KUTU: KURU BUĞDAY (3 Sütunlu Liste)
+                                # ==========================================
                                 with col_kuru:
                                     st.markdown("<h6 style='color:#b45309;'>🌾 KURU BUĞDAY ANALİZLERİ</h6>", unsafe_allow_html=True)
                                     with st.container(border=True):
-                                        c1, c2 = st.columns(2)
-                                        c1.markdown(f"**Protein:** {fmt(kuru.get('protein'))}")
-                                        c1.markdown(f"**Rutubet:** {fmt(kuru.get('rutubet'))}")
-                                        c1.markdown(f"**Hektolitre:** {fmt(kuru.get('hektolitre'))}")
-                                        c1.markdown(f"**Gluten:** {fmt(kuru.get('gluten'))}")
+                                        ck1, ck2, ck3 = st.columns(3)
                                         
-                                        c2.markdown(f"**İndeks:** {fmt(kuru.get('gluten_index'), 0)}")
-                                        c2.markdown(f"**Sedim:** {fmt(kuru.get('sedim'), 0)}")
-                                        c2.markdown(f"**G. Sedim:** {fmt(kuru.get('g_sedim'), 0)}")
-                                        c2.markdown(f"**Süne:** {fmt(kuru.get('sune'))}")
+                                        # 1. Sütun
+                                        ck1.markdown(f"**Hektolitre:** {fmt(kuru.get('hektolitre'))}")
+                                        ck1.markdown(f"**Gluten:** {fmt(kuru.get('gluten'))}")
+                                        ck1.markdown(f"**G. Sedim:** {fmt(kuru.get('gecikmeli_sedim') or kuru.get('g_sedim'), 0)}")
+                                        ck1.markdown(f"**Yabancı T.:** {fmt(kuru.get('yabanci_madde') or kuru.get('yabanci'))}")
+                                        
+                                        # 2. Sütun
+                                        ck2.markdown(f"**Protein:** {fmt(kuru.get('protein'))}")
+                                        ck2.markdown(f"**G. İndeks:** {fmt(kuru.get('gluten_index'), 0)}")
+                                        ck2.markdown(f"**Süne:** {fmt(kuru.get('sune'))}")
+                                        
+                                        # 3. Sütun
+                                        ck3.markdown(f"**Rutubet:** {fmt(kuru.get('rutubet'))}")
+                                        ck3.markdown(f"**Sedim:** {fmt(kuru.get('sedim'), 0)}")
+                                        ck3.markdown(f"**Kırık/Cılız:** {fmt(kuru.get('kirik_ciliz') or kuru.get('kirik'))}")
                                 
-                                # TAVLI BUĞDAY KUTUSU
+                                # ==========================================
+                                # SAĞ KUTU: TAVLI BUĞDAY (Alt Sekmeli)
+                                # ==========================================
                                 with col_tavli:
                                     st.markdown("<h6 style='color:#0369a1;'>💧 TAVLI BUĞDAY ANALİZLERİ</h6>", unsafe_allow_html=True)
                                     with st.container(border=True):
-                                        c3, c4 = st.columns(2)
-                                        c3.markdown(f"**Protein:** {fmt(tavli.get('protein'))}")
-                                        c3.markdown(f"**Kül:** {fmt(tavli.get('kul'), 3)}")
-                                        c3.markdown(f"**FN:** {fmt(tavli.get('fn'), 0)}")
-                                        c3.markdown(f"**Su Kal.(F):** {fmt(tavli.get('su_kaldirma_f'))}")
+                                        t_kimya, t_farino, t_extenso = st.tabs(["⚗️ Kimyasal", "📈 Farinograph", "📊 Extensograph"])
                                         
-                                        c4.markdown(f"**Stabilite:** {fmt(tavli.get('stabilite'))}")
-                                        c4.markdown(f"**Enerji(135):** {fmt(tavli.get('enerji135') or tavli.get('enerji'), 0)}")
-                                        c4.markdown(f"**Direnç(135):** {fmt(tavli.get('direnc135') or tavli.get('direnc'), 0)}")
-                                        c4.markdown(f"**Uzama(135):** {fmt(tavli.get('uzama135') or tavli.get('uzama'), 0)}")
+                                        with t_kimya:
+                                            ct1, ct2, ct3 = st.columns(3)
+                                            ct1.markdown(f"**Protein:** {fmt(tavli.get('protein'))}")
+                                            ct2.markdown(f"**Rutubet:** {fmt(tavli.get('rutubet'))}")
+                                            ct3.markdown(f"**Gluten:** {fmt(tavli.get('gluten'))}")
+                                            
+                                            ct1.markdown(f"**G. İndeks:** {fmt(tavli.get('gluten_index'), 0)}")
+                                            ct2.markdown(f"**Sedim:** {fmt(tavli.get('sedim'), 0)}")
+                                            ct3.markdown(f"**G. Sedim:** {fmt(tavli.get('gecikmeli_sedim') or tavli.get('g_sedim'), 0)}")
+                                            
+                                            ct1.markdown(f"**FN:** {fmt(tavli.get('fn'), 0)}")
+                                            ct2.markdown(f"**FFN:** {fmt(tavli.get('ffn'), 0)}")
+                                            ct3.markdown(f"**Amilograph:** {fmt(tavli.get('amilograph'), 0)}")
+
+                                        with t_farino:
+                                            cf1, cf2 = st.columns(2)
+                                            cf1.markdown(f"**Su Kaldırma:** {fmt(tavli.get('su_kaldirma_f'))}")
+                                            cf1.markdown(f"**Gelişme Süresi:** {fmt(tavli.get('gelisme_suresi'))}")
+                                            
+                                            cf2.markdown(f"**Stabilite:** {fmt(tavli.get('stabilite'))}")
+                                            cf2.markdown(f"**Yumuşama:** {fmt(tavli.get('yumusama'), 0)}")
+
+                                        with t_extenso:
+                                            st.markdown(f"**Su Kaldırma (E):** {fmt(tavli.get('su_kaldirma_e'))}")
+                                            st.markdown("---")
+                                            ce1, ce2, ce3 = st.columns(3)
+                                            
+                                            ce1.caption("45. Dakika")
+                                            ce1.markdown(f"Direnç: {fmt(tavli.get('direnc45'), 0)}")
+                                            ce1.markdown(f"Taban: {fmt(tavli.get('taban45'), 0)}")
+                                            ce1.markdown(f"Enerji: {fmt(tavli.get('enerji45'), 0)}")
+                                            
+                                            ce2.caption("90. Dakika")
+                                            ce2.markdown(f"Direnç: {fmt(tavli.get('direnc90'), 0)}")
+                                            ce2.markdown(f"Taban: {fmt(tavli.get('taban90'), 0)}")
+                                            ce2.markdown(f"Enerji: {fmt(tavli.get('enerji90'), 0)}")
+                                            
+                                            ce3.caption("135. Dakika")
+                                            ce3.markdown(f"Direnç: {fmt(tavli.get('direnc135'), 0)}")
+                                            ce3.markdown(f"Taban: {fmt(tavli.get('taban135'), 0)}")
+                                            ce3.markdown(f"Enerji: {fmt(tavli.get('enerji135'), 0)}")
                                 
                 except Exception as e:
                     st.error(f"Paçal verisi okunamadı: {e}")
