@@ -430,7 +430,7 @@ def show_traceability_dashboard():
                     # --- 3. SİLO DETAYLARI (SEKMELİ / TAB YAPI) ---
                     if gecerli_silolar:
                         st.divider()
-                        st.markdown("##### 🔬 Silo Analiz Detayları (O Günkü Ağırlıklı Ortalamalar)")
+                        st.markdown("##### 🔬 Silo Analiz Detayları)")
                         
                         silo_isimleri = [f"🏭 {s} (%{d.get('oran')})" for s, d in gecerli_silolar.items()]
                         silo_tablari = st.tabs(silo_isimleri)
@@ -521,3 +521,4 @@ def show_traceability_dashboard():
 
         elif chain["PRD"] is not None:
             st.warning("⚠️ Bu üretime bağlı Paçal kaydı bulunamadı (Mix ID eksik veya eşleşmiyor).")
+
