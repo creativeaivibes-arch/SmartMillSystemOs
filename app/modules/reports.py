@@ -1,6 +1,7 @@
 import io
 from datetime import datetime
 from typing import Dict, Any, Optional, List, Tuple
+import json
 
 import pandas as pd
 import streamlit as st
@@ -1196,6 +1197,7 @@ def create_traceability_pdf_report(chain: Dict[str, Any], query: str) -> Optiona
     except Exception as e:
         st.error(f"İzlenebilirlik PDF oluşturma hatası: {e}")
         return None
+
 
 
 
