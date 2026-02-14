@@ -254,10 +254,7 @@ with st.sidebar:
         
     elif ana_menu == opt_finance:
         selected_page = "FINANCE_DASHBOARD"
-        
-    elif ana_menu == opt_trace:
-        selected_page = "TRACEABILITY"
-        
+                
     elif ana_menu == opt_admin:
         selected_page = "ADMIN"
     
@@ -445,6 +442,7 @@ with st.sidebar:
     # En Alt Footer
     st.caption(f"🏢 {LICENSE_CONFIG.get('CLIENT_NAME', 'Client')}")
     st.caption("v2.0 Enterprise")
+
 
 
 
