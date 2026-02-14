@@ -415,7 +415,7 @@ def show_katki_maliyeti_modulu():
         else: st.info("Henüz arşiv kaydı yok.")
             
 def show_enzim_dozajlama():
-    """Un Geliştirici Enzim Dozajlama - SIKI KONTROL (PRD YOKSA KAYIT YOK)"""
+    """Un Geliştirici Enzim Dozajlama - PAÇAL (MIX) REFERANSLI"""
     
     st.markdown("""
     <div style="text-align: center; margin-bottom: 20px;">
@@ -423,29 +423,20 @@ def show_enzim_dozajlama():
     </div>
     """, unsafe_allow_html=True)
 
-    # --- SEKMELİ YAPI ---
     tab_yeni, tab_gecmis = st.tabs(["📝 Yeni Reçete Oluştur", "📚 Reçete Geçmişi & Arşiv"])
 
     # ==========================================================================
     # SEKME 1: YENİ REÇETE OLUŞTURMA
     # ==========================================================================
     with tab_yeni:
-        # 1. Üretim Listesini Çek
-        uretim_listesi = get_active_production_lots_for_enzyme()
+        # 1. Paçal Listesini Çek (YENİ EKLENEN KISIM)
+        mix_listesi = get_active_mixing_batches_for_enzyme()
         
-        # --- [KRİTİK KONTROL] LİSTE BOŞ MU? ---
-        if not uretim_listesi:
-            st.warning("⚠️ **DİKKAT: Aktif Üretim Kaydı Bulunamadı!**")
-            st.info("👈 Reçete oluşturabilmek için önce **'Un Analiz Girişi'** sayfasından bir **ÜRETİM (PRD)** kaydı oluşturmalısınız.")
-            st.error("⛔ Referans üretim olmadan reçete kaydı yapılamaz.")
-            # st.stop() diyerek kodun geri kalanını (butonları vs) çalıştırmıyoruz.
-            # Ancak diğer sekmeyi bozmamak için return ile bu sekmeden çıkıyoruz.
+        if not mix_listesi:
+            st.warning("⚠️ **DİKKAT: Aktif Paçal (MIX) Kaydı Bulunamadı!**")
+            st.info("👈 Reçete oluşturabilmek için önce 'Paçal Hesaplayıcı' modülünden bir reçete kaydetmelisiniz.")
             st.write("---")
-        
         else:
-            # LİSTE DOLU İSE DEVAM ET
-            
-            # Session State Başlatma
             if 'enzim_last_data' not in st.session_state:
                 st.session_state.enzim_last_data = {
                     'un_ton': CALCULATIONS_CONFIG['DEFAULT_UN_TON'],
@@ -455,37 +446,34 @@ def show_enzim_dozajlama():
                     'enzim_rows': [{'name': '', 'doz': '', 'total': 0} for _ in range(CALCULATIONS_CONFIG['MAX_ENZIM_ROWS'])]
                 }
             
-            # Eğer session'da kayıtlı satırlar varsa yükle
             if 'enzim_rows' not in st.session_state:
                 st.session_state.enzim_rows = st.session_state.enzim_last_data['enzim_rows']
 
             col_left, col_right = st.columns([1, 1.5], gap="large")
             
-            # --- SOL: ÜRETİM VE KİMLİK SEÇİMİ ---
+            # --- SOL: KİMLİK VE PAÇAL SEÇİMİ ---
             with col_left:
-                st.markdown("### 🔗 1. Üretim Bağlantısı")
+                st.markdown("### 🔗 1. Paçal (Harman) Bağlantısı")
                 with st.container(border=True):
                     enzim_id = f"ENZ-{datetime.now().strftime('%y%m%d%H%M')}"
                     st.info(f"🆔 **Reçete Kimliği:** `{enzim_id}`")
                     
-                    # Üretim Seçimi (ZORUNLU)
-                    secilen_uretim = st.selectbox(
-                        "Hangi Üretime Uygulanacak? (PRD) *",
-                        uretim_listesi,
-                        key="sel_uretim_new",
-                        help="Sadece aktif üretimler listelenir."
+                    # Paçal Seçimi
+                    secilen_mix = st.selectbox(
+                        "Hangi Paçal Reçetesine Uygulanacak? (MIX) *",
+                        mix_listesi,
+                        key="sel_mix_new"
                     )
                     
                     try: 
-                        parts = secilen_uretim.split(' | ')
-                        uretim_kodu = parts[0].strip()
-                        uretim_adi_display = parts[1] if len(parts) > 1 else "-"
+                        parts = secilen_mix.split(' | ')
+                        mix_kodu = parts[0].strip()
+                        mix_adi_display = parts[1] if len(parts) > 1 else "-"
                     except: 
-                        uretim_kodu = secilen_uretim
-                        uretim_adi_display = "-"
+                        mix_kodu = secilen_mix
+                        mix_adi_display = "-"
                         
-                    st.caption(f"🔗 Bağlı Lot: **{uretim_kodu}**")
-
+                    st.caption(f"🔗 Bağlı Lot: **{mix_kodu}**")
                     st.divider()
                     
                     last_data = st.session_state.enzim_last_data
@@ -519,9 +507,7 @@ def show_enzim_dozajlama():
             # --- SAĞ: ENZİM LİSTESİ ---
             with col_right:
                 st.markdown("### 🧪 2. Reçete İçeriği (gr/çuval)")
-                
                 toplam_enzim_agirligi = 0
-                
                 c1, c2, c3 = st.columns([2, 1, 1])
                 c1.caption("Katkı Adı")
                 c2.caption("Doz (gr/50kg)")
@@ -553,7 +539,6 @@ def show_enzim_dozajlama():
             col_save, _ = st.columns([1, 2])
             
             with col_save:
-                # EĞER LİSTE DOLUYSA BUTON GÖRÜNÜR
                 if st.button("✅ REÇETEYİ KAYDET (ENZ-ID)", type="primary", use_container_width=True):
                     try:
                         enzim_verisi = [{'ad': r['name'], 'doz': r['doz'], 'toplam': r['total']} 
@@ -564,8 +549,8 @@ def show_enzim_dozajlama():
                         else:
                             data_to_save = {
                                 'enzim_id': enzim_id,
-                                'uretim_kodu': uretim_kodu,
-                                'uretim_adi': uretim_adi_display,
+                                'uretim_kodu': mix_kodu, # DB yapısı bozulmasın diye buraya MIX kodunu yazıyoruz
+                                'uretim_adi': mix_adi_display,
                                 'un_ton': un_ton,
                                 'bugday_hiz': bugday_hiz,
                                 'randiman': randiman,
@@ -580,13 +565,9 @@ def show_enzim_dozajlama():
                                 st.success(f"✅ Reçete Kaydedildi! Kimlik: {enzim_id}")
                                 st.balloons()
                                 
-                                # --- AKILLI HAFIZA ---
-                                # İsimleri tut, dozajları sıfırla
                                 for i in range(len(st.session_state.enzim_rows)):
                                     st.session_state.enzim_rows[i]['doz'] = "0"
-                                    # Name'e dokunmuyoruz, olduğu gibi kalıyor.
                                 
-                                # Veriyi güncelle
                                 st.session_state.enzim_last_data.update({
                                     'un_ton': un_ton, 'bugday_hiz': bugday_hiz,
                                     'enzim_rows': st.session_state.enzim_rows
@@ -632,7 +613,7 @@ def show_enzim_dozajlama():
             
             df_display = df_arsiv[final_cols].rename(columns={
                 'tarih': 'Tarih', 'enzim_id': 'Reçete ID',
-                'uretim_kodu': 'Referans (PRD)', 'uretim_adi': 'Üretim İsmi',
+                'uretim_kodu': 'Referans (MIX)', 'uretim_adi': 'Paçal İsmi',
                 'Reçete İçeriği (gr/çuval)': '🧪 Katkı ve Dozajlar (gr/çuval)'
             })
 
@@ -742,6 +723,7 @@ def show_fire_maliyet_hesaplama():
             <p style='color: #7f1d1d; margin:0;'>Bu fire olmasaydı (veya %0 olsaydı) cebinizde kalacak olan tutar.</p>
         </div>
         """, unsafe_allow_html=True)
+
 
 
 
