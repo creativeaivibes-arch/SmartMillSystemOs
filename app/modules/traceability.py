@@ -5,6 +5,12 @@ from datetime import datetime
 
 # Veritabanı Erişim
 from app.core.database import fetch_data
+# Raporlama modülünü güvenli içeri al (PDF için)
+try:
+    from app.modules.reports import create_traceability_pdf_report
+except ImportError:
+    def create_traceability_pdf_report(*args): return None
+        
 
 # ==============================================================================
 # 1. ZİNCİR KURMA MOTORU (BACKEND)
@@ -262,6 +268,20 @@ def show_traceability_dashboard():
             return
 
         st.success(f"✅ Kayıt Bulundu: {query}")
+        
+        # ======================================================================
+        # 📄 PDF RAPORU OLUŞTURMA VE İNDİRME BUTONU
+        # ======================================================================
+        pdf_bytes = create_traceability_pdf_report(chain, query)
+        if pdf_bytes:
+            st.download_button(
+                label="📄 İZLENEBİLİRLİK RAPORUNU İNDİR (PDF)",
+                data=pdf_bytes,
+                file_name=f"Kalite_Denetim_Raporu_{query}.pdf",
+                mime="application/pdf",
+                type="secondary"
+            )
+            st.write("") # Görsel boşluk
         
         # ======================================================================
         # 1. HALKA: SEVKİYAT BİLGİSİ (SHIP)
@@ -611,5 +631,6 @@ def show_traceability_dashboard():
 
         elif chain["PRD"] is not None:
             st.warning("⚠️ Bu üretime bağlı Paçal kaydı bulunamadı (Mix ID eksik veya eşleşmiyor).")
+
 
 
