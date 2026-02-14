@@ -1291,62 +1291,96 @@ def create_traceability_pdf_report(chain_data):
 # =============================================================================
 # İZLENEBİLİRLİK (TRACEABILITY) RAPORU - DEBUG MODU
 # =============================================================================
+# =============================================================================
+# İZLENEBİLİRLİK (TRACEABILITY) RAPORU - FİNAL V4 (TÜRKÇE FIX + AKILLI ARAMA)
+# =============================================================================
 def create_traceability_pdf_report(chain_data):
     """
     Traceability zincir verisini alır ve profesyonel PDF üretir.
-    Hata ayıklama modu aktiftir.
+    Türkçe karakter sorununu ve Veri Eşleşme sorununu çözer.
     """
-    # 1. PDF Kütüphanesi Kontrolü
     if not PDF_AVAILABLE:
-        st.error("HATA: ReportLab kütüphanesi yüklenemediği için PDF oluşturulamıyor.")
         return None
-    def safe_extract(data_obj):
-        if data_obj is None:
-            return None
-        if hasattr(data_obj, 'to_dict'):
-            try:
-                return data_obj.to_dict()
-            except:
-                return None
-        if isinstance(data_obj, dict):
-            return data_obj
-        return None
+
+    # --- 1. TÜRKÇE KARAKTER DÜZELTİCİ (PDF İÇİN ZORUNLU) ---
+    def fix_txt(text):
+        """ReportLab'in sevmediği Türkçe karakterleri İngilizce'ye çevirir"""
+        if text is None: return "-"
+        text = str(text)
+        
+        mapping = {
+            'İ': 'I', 'Ş': 'S', 'Ğ': 'G', 'Ü': 'U', 'Ö': 'O', 'Ç': 'C',
+            'ı': 'i', 'ş': 's', 'ğ': 'g', 'ü': 'u', 'ö': 'o', 'ç': 'c'
+        }
+        for tr, en in mapping.items():
+            text = text.replace(tr, en)
+        return text
+
+    # --- 2. AKILLI VERİ AVCISI (SMART LOOKUP) ---
+    def get_val(data_dict, keys_list):
+        """
+        Verilen anahtar kelimelerden hangisi varsa onun değerini getirir.
+        Örnek: Hem 'Müşteri' hem 'musteri' hem 'CARİ' diye arar.
+        """
+        if not data_dict or not isinstance(data_dict, dict):
+            return "-"
+            
+        # Tüm anahtarları küçük harfe çevirip bir eşleşme haritası çıkaralım
+        normalized_data = {k.lower().strip(): v for k, v in data_dict.items()}
+        
+        for key in keys_list:
+            # 1. Direkt eşleşme dene
+            if key in data_dict:
+                val = data_dict[key]
+                if val and str(val).lower() not in ['nan', 'none', '']:
+                    return val
+            
+            # 2. Küçük harf eşleşmesi dene
+            lower_key = key.lower().strip()
+            if lower_key in normalized_data:
+                val = normalized_data[lower_key]
+                if val and str(val).lower() not in ['nan', 'none', '']:
+                    return val
+                    
+        return "-"
+
+    # --- 3. TEMİZLİK ROBOTU ---
+    def clean_data(data):
+        """Pandas verisini temiz sözlüğe çevirir"""
+        try:
+            if hasattr(data, 'to_dict'):
+                if hasattr(data, 'empty') and data.empty: return None
+                if isinstance(data, pd.Series): return data.to_dict()
+                if isinstance(data, pd.DataFrame): return data.iloc[0].to_dict()
+            return data if isinstance(data, dict) else None
+        except: return None
 
     try:
         buffer = io.BytesIO()
-        # Sayfa yapısı
         doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=10*mm, bottomMargin=10*mm)
         story = []
         styles = getSampleStyleSheet()
         
         # --- Başlık ---
-        story.append(Paragraph("DİJİTAL İZLENEBİLİRLİK RAPORU", styles['Title']))
+        story.append(Paragraph("DIJITAL IZLENEBILIRLIK RAPORU", styles['Title'])) # Türkçe karakter kullanmadık
         story.append(Spacer(1, 5*mm))
         story.append(Paragraph(f"Rapor Tarihi: {datetime.now().strftime('%d.%m.%Y %H:%M')}", styles['Normal']))
         story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#0B4F6C')))
         story.append(Spacer(1, 10*mm))
 
-        # YARDIMCI: Bölüm Başlığı Oluşturucu
-        def add_section_header(title):
-            story.append(Paragraph(f"<b>{title}</b>", styles['Heading2']))
+        # Helper: Bölüm Başlığı
+        def add_section(title):
+            story.append(Paragraph(f"<b>{fix_txt(title)}</b>", styles['Heading2']))
             story.append(Spacer(1, 2*mm))
 
-        # YARDIMCI: Veri Tablosu Oluşturucu
-        def create_info_table(data_dict, headers=("Parametre", "Değer")):
-            if not data_dict:
-                return Paragraph("<i>Bu aşama için veri bulunamadı.</i>", styles['Normal'])
+        # Helper: Tablo Yapıcı
+        def make_table(rows):
+            # Rows format: [("Etiket", "Değer"), ("Etiket", "Değer")]
+            data = [["Parametre", "Deger"]] # Başlık
+            for label, val in rows:
+                data.append([fix_txt(label), fix_txt(val)])
             
-            table_data = [headers] # Başlık satırı
-            for k, v in data_dict.items():
-                # Tuple kontrolü (Etiket, Değer) formatındaysa
-                if isinstance(v, tuple):
-                    label, val = v
-                else:
-                    label, val = k, v
-                # Her şeyi stringe çeviriyoruz ki hata çıkmasın
-                table_data.append([str(label), str(val)])
-                
-            t = Table(table_data, colWidths=[60*mm, 100*mm])
+            t = Table(data, colWidths=[70*mm, 90*mm])
             t.setStyle(TableStyle([
                 ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#E6F3F7')),
                 ('TEXTCOLOR', (0,0), (-1,0), colors.HexColor('#0B4F6C')),
@@ -1355,8 +1389,110 @@ def create_traceability_pdf_report(chain_data):
                 ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
                 ('PADDING', (0,0), (-1,-1), 6),
             ]))
-            return t
+            story.append(t)
+            story.append(Spacer(1, 8*mm))
 
+        # VERİLERİ HAZIRLA
+        ship = clean_data(chain_data.get('SHIP'))
+        lab  = clean_data(chain_data.get('LAB'))
+        prd  = clean_data(chain_data.get('PRD'))
+        mix  = clean_data(chain_data.get('MIX'))
+        enz  = clean_data(chain_data.get('ENZ')) # Enzim eklendi
+
+        # --- 1. SEVKİYAT BİLGİSİ ---
+        add_section("1. SEVKİYAT & MÜŞTERİ BİLGİSİ")
+        if ship:
+            make_table([
+                ("Müşteri",       get_val(ship, ['musteri', 'Müşteri', 'Musteri', 'Unvan'])),
+                ("Lot No",        get_val(ship, ['lot_no', 'Lot No', 'lot', 'irsaliye_no'])),
+                ("Araç Plaka",    get_val(ship, ['plaka', 'Plaka', 'Arac'])),
+                ("Sevk Tarihi",   get_val(ship, ['tarih', 'Sevk Tarihi', 'Zaman'])),
+                ("Sipariş No",    get_val(ship, ['siparis_no', 'Sipariş No', 'ref_no'])),
+                ("Ürün Cinsi",    get_val(ship, ['urun_cinsi', 'Ürün', 'Urun Cinsi']))
+            ])
+        else:
+            story.append(Paragraph("Sevkiyat verisi bulunamadi.", styles['Normal']))
+            story.append(Spacer(1, 8*mm))
+
+        # --- 2. LABORATUVAR ANALİZ ---
+        add_section("2. LABORATUVAR KALİTE DEĞERLERİ")
+        if lab:
+            # Buradaki anahtar kelimeleri artırdım ki kesin bulsun
+            make_table([
+                ("Protein",       f"% {get_val(lab, ['protein', 'Protein', 'prot'])}"),
+                ("Rutubet",       f"% {get_val(lab, ['rutubet', 'Rutubet', 'nem'])}"),
+                ("Kül",           f"% {get_val(lab, ['kul', 'Kül', 'Kul'])}"),
+                ("Sedim",         get_val(lab, ['sedim', 'Sedim', 'sedimantasyon'])),
+                ("Gluten",        get_val(lab, ['gluten', 'Gluten', 'oz'])),
+                ("İndeks",        get_val(lab, ['gluten_index', 'Index', 'İndeks'])),
+                ("Hektolitre",    get_val(lab, ['hektolitre', 'Hektolitre', 'hl'])),
+                ("Alveo W",       get_val(lab, ['energy', 'Enerji', 'W', 'w_degeri'])),
+                ("Alveo P/L",     get_val(lab, ['pl_degeri', 'PL', 'P/L']))
+            ])
+        else:
+            story.append(Paragraph("Analiz verisi bulunamadi.", styles['Normal']))
+            story.append(Spacer(1, 8*mm))
+
+        # --- 3. ÜRETİM & DEĞİRMEN ---
+        add_section("3. ÜRETİM & DEĞİRMEN PARAMETRELERİ")
+        if prd:
+            make_table([
+                ("Üretim Tarihi", get_val(prd, ['tarih', 'Tarih', 'uretim_tarihi'])),
+                ("Vardiya Amiri", get_val(prd, ['vardiya_amiri', 'Amir', 'sorumlu'])),
+                ("Kullanılan Çuval", get_val(prd, ['cuval_turu', 'Çuval', 'Paket'])),
+                ("Hava Durumu",   get_val(prd, ['hava_durumu', 'Hava', 'sicaklik'])),
+                ("B1 Vals Akım",  get_val(prd, ['b1_akim', 'B1 Akım', 'Vals B1'])),
+                ("Randıman",      get_val(prd, ['randiman', 'Randıman', 'verim']))
+            ])
+        else:
+            story.append(Paragraph("Uretim kaydi bulunamadi.", styles['Normal']))
+            story.append(Spacer(1, 8*mm))
+
+        # --- 4. ENZİM VE KATKI (YENİ EKLENDİ) ---
+        add_section("4. KULLANILAN KATKI & ENZİM REÇETESİ")
+        if enz:
+            # Enzim verisi genelde JSON string içinde olabilir, kontrol edelim
+            recete = get_val(enz, ['recete', 'icerik', 'dozajlar'])
+            if isinstance(recete, list):
+                recete_str = ", ".join([str(x) for x in recete])
+            else:
+                recete_str = str(recete)
+                
+            make_table([
+                ("Reçete Adı",    get_val(enz, ['recete_adi', 'Reçete', 'isim'])),
+                ("Toplam Maliyet",f"{get_val(enz, ['toplam_maliyet', 'Maliyet'])} TL"),
+                ("İçerik Detayı", recete_str[:50] + "..." if len(recete_str)>50 else recete_str)
+            ])
+        else:
+            story.append(Paragraph("Enzim/Katki verisi bulunamadi.", styles['Normal']))
+            story.append(Spacer(1, 8*mm))
+
+        # --- 5. PAÇAL (BUĞDAY KARIŞIMI) ---
+        add_section("5. BUĞDAY PAÇAL İÇERİĞİ")
+        if mix:
+            icerik = get_val(mix, ['icerik_ozeti', 'silo_detaylari', 'karisim'])
+            # Eğer içerik listeyse stringe çevir
+            if isinstance(icerik, list):
+                icerik_str = "\n".join([str(x) for x in icerik])
+            else:
+                icerik_str = str(icerik)
+            
+            # İçeriği tablo yerine Paragraf olarak basalım çünkü uzun olabilir
+            story.append(Paragraph(f"<b>Paçal Kodu:</b> {get_val(mix, ['pacal_kodu', 'kod'])}", styles['Normal']))
+            story.append(Spacer(1, 2*mm))
+            story.append(Paragraph(f"<b>Karışım Detayı:</b>", styles['Normal']))
+            story.append(Paragraph(fix_txt(icerik_str), styles['Normal']))
+        else:
+            story.append(Paragraph("Pacal (Hammadde) verisi bulunamadi.", styles['Normal']))
+
+        # PDF BİTİR
+        doc.build(story)
+        buffer.seek(0)
+        return buffer
+
+    except Exception as e:
+        print(f"PDF ERROR: {str(e)}")
+        return None
         # 1. SEVKİYAT BİLGİLERİ (SHIP)
         add_section_header("1. SEVKİYAT & MÜŞTERİ BİLGİSİ")
         ship = safe_extract(chain_data.get('SHIP'))
@@ -1431,6 +1567,7 @@ def create_traceability_pdf_report(chain_data):
         st.error(f"❌ PDF OLUŞTURMA HATASI: {str(e)}")
         st.code(traceback.format_exc()) # Detaylı hata raporunu ekrana basar
         return None
+
 
 
 
