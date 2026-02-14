@@ -197,23 +197,23 @@ with st.sidebar:
     opt_mill = t("menu_mill")
     opt_finance = t("menu_finance")
     opt_admin = t("menu_admin")
-    opt_trace = "🔍 İzlenebilirlik"
+    
     
     # 2. Rol Bazlı Menü Listesi (Değişkenleri kullanıyoruz)
     if user_role == "admin":
         # opt_trace'i buraya ekledik
-        menu_secenekleri = [opt_dashboard, opt_quality, opt_mill, opt_finance, opt_trace, opt_admin]
+        menu_secenekleri = [opt_dashboard, opt_quality, opt_mill, opt_finance,  opt_admin]
         
     elif user_role == "quality":
         # opt_trace'i buraya ekledik
-        menu_secenekleri = [opt_dashboard, opt_quality, opt_mill, opt_trace]
+        menu_secenekleri = [opt_dashboard, opt_quality, opt_mill,]
         
     elif user_role == "operations":
         # opt_trace'i buraya ekledik
-        menu_secenekleri = [opt_dashboard, opt_mill, opt_trace]
+        menu_secenekleri = [opt_dashboard, opt_mill,]
         
     elif user_role == "management":
-        menu_secenekleri = [opt_dashboard, opt_quality, opt_finance, opt_trace]
+        menu_secenekleri = [opt_dashboard, opt_quality, opt_finance,]
     else:
         menu_secenekleri = [opt_dashboard]
 
@@ -242,7 +242,7 @@ with st.sidebar:
         # İleride bunları da t('submenu_wheat') gibi yapabiliriz
         kk_bolum = st.sidebar.radio(
             "Bölüm Seçiniz", 
-            ["🌾 Buğday Yönetimi", "🍞 Un Yönetimi"]
+            ["🌾 Buğday Yönetimi", "🍞 Un Yönetimi","🔍 Geri İzlenebilirlik"]
         )
         if kk_bolum == "🌾 Buğday Yönetimi":
             selected_page = "KK_BUGDAY"
@@ -445,6 +445,7 @@ with st.sidebar:
     # En Alt Footer
     st.caption(f"🏢 {LICENSE_CONFIG.get('CLIENT_NAME', 'Client')}")
     st.caption("v2.0 Enterprise")
+
 
 
 
