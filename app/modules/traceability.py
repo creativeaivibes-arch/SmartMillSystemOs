@@ -568,7 +568,7 @@ def show_traceability_dashboard():
                         else:
                             rows.append({"Silo": silo, "Oran": f"%{data}", "Cins": "-", "Maliyet": "-"})
                             
-                    st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+                    st.dataframe(pd.DataFrame(rows), hide_index=True, width='stretch')
                     
                     # --- 3. SİLO DETAYLARI (SEKMELİ / TAB YAPI) ---
                     if gecerli_silolar:
@@ -664,16 +664,4 @@ def show_traceability_dashboard():
 
         elif chain["PRD"] is not None:
             st.warning("⚠️ Bu üretime bağlı Paçal kaydı bulunamadı (Mix ID eksik veya eşleşmiyor).")
-
-
-
-
-
-
-
-
-
-
-
-
 
