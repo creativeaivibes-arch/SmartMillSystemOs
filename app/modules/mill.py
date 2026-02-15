@@ -439,19 +439,6 @@ def show_yonetim_dashboard():
                     <p style='color: #28a745; font-size: 15px; margin: 0;'>▲ %{en_iyi_vardiya_rand:.2f}</p>
                 </div>
                 """, unsafe_allow_html=True)
-```
-
----
-
-## 🎨 **GÖRÜNÜM:**
-```
-┌─────────────────────┐
-│ 🏭 En Verimli Hat   │
-│                     │
-│   1. ÜNİTE          │  ← TAM GÖRÜNÜR
-│                     │
-│   ▲ %78.84          │
-└─────────────────────┘
     st.divider()
     
     # ========== GRAFİK PANELİ ==========
@@ -990,6 +977,7 @@ def show_production_yonetimi():
         with st.container(border=True): show_uretim_arsivi()
     elif secim == "📊 Üretim Performans Analizi":
         with st.container(border=True): show_yonetim_dashboard()
+
 
 
 
