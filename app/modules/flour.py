@@ -1051,6 +1051,19 @@ def show_un_maliyet_hesaplama():
             g_katki = st.number_input("Katkı Gider", min_value=0.0, value=9.00, step=0.5, label_visibility="collapsed", key="g_katki")
 
     st.divider()
+    toplam_oran = randiman + r_un2 + r_bon + r_kep + r_raz
+    fire_yuzdesi = 100 - toplam_oran
+    
+    col_check1, col_check2 = st.columns([3, 1])
+    with col_check1:
+        if toplam_oran > 102:
+            st.error(f"❌ UYARI: Toplam Oran **{toplam_oran:.1f}%** (100%'den fazla olamaz!)")
+        elif toplam_oran < 95:
+            st.warning(f"⚠️ DİKKAT: Toplam Oran **{toplam_oran:.1f}%** (Fire çok yüksek: %{fire_yuzdesi:.1f})")
+        else:
+            st.success(f"✅ Toplam Oran: **{toplam_oran:.1f}%** (Normal)")
+    with col_check2:
+        st.metric("Fire/Kayıp", f"{fire_yuzdesi:.1f}%")
     if st.button("🧮 HESAPLA VE KAYDET", type="primary", use_container_width=True):
         un_tonaj = aylik_kirilan * (randiman / 100)
         cuval_sayisi = (un_tonaj * 1000) / 50
@@ -1278,6 +1291,7 @@ def show_flour_yonetimi():
                 st.error("⚠️ Enzim modülü (calculations.py) bulunamadı.")
             except Exception as e:
                 st.error(f"⚠️ Modül yüklenirken hata oluştu: {e}")
+
 
 
 
