@@ -608,6 +608,265 @@ def show_yonetim_dashboard():
         st.warning("📊 Grafik görüntüleme için `plotly` kütüphanesi gereklidir.")
     except Exception as e:
         st.error(f"Grafik oluşturulurken hata: {str(e)}")
+# --- EXCEL RAPOR OLUŞTURMA FONKSİYONU ---
+def create_excel_performance_report(df_filtered, period_name):
+    """
+    Profesyonel Excel Performans Raporu Oluşturur
+    5 Sheet: Özet, Randıman, Üretim, Karşılaştırma, Ham Veri
+    """
+    try:
+        from io import BytesIO
+        import xlsxwriter
+        from datetime import datetime
+        
+        # Excel dosyası için buffer
+        output = BytesIO()
+        workbook = xlsxwriter.Workbook(output, {'in_memory': True})
+        
+        # ============= FORMATLAR =============
+        # Başlık formatı
+        header_format = workbook.add_format({
+            'bold': True,
+            'font_size': 14,
+            'bg_color': '#0D47A1',
+            'font_color': 'white',
+            'align': 'center',
+            'valign': 'vcenter',
+            'border': 1
+        })
+        
+        # Alt başlık
+        subheader_format = workbook.add_format({
+            'bold': True,
+            'font_size': 11,
+            'bg_color': '#E3F2FD',
+            'align': 'center',
+            'border': 1
+        })
+        
+        # Tablo başlığı
+        table_header_format = workbook.add_format({
+            'bold': True,
+            'bg_color': '#BDBDBD',
+            'align': 'center',
+            'valign': 'vcenter',
+            'border': 1
+        })
+        
+        # Normal veri
+        data_format = workbook.add_format({
+            'align': 'center',
+            'border': 1
+        })
+        
+        # Sayı formatı
+        number_format = workbook.add_format({
+            'align': 'center',
+            'border': 1,
+            'num_format': '#,##0.00'
+        })
+        
+        # Yüzde formatı
+        percent_format = workbook.add_format({
+            'align': 'center',
+            'border': 1,
+            'num_format': '0.00%'
+        })
+        
+        # Pozitif değer (yeşil)
+        positive_format = workbook.add_format({
+            'align': 'center',
+            'border': 1,
+            'bg_color': '#C8E6C9',
+            'num_format': '#,##0.00'
+        })
+        
+        # Negatif değer (kırmızı)
+        negative_format = workbook.add_format({
+            'align': 'center',
+            'border': 1,
+            'bg_color': '#FFCDD2',
+            'num_format': '#,##0.00'
+        })
+        
+        # ============= HESAPLAMALAR =============
+        toplam_bugday_ton = df_filtered['kirilan_bugday'].sum() / 1000
+        toplam_un_ton = (df_filtered['un_1'].sum() + df_filtered['un_2'].sum()) / 1000
+        ort_randiman = df_filtered['toplam_randiman'].mean()
+        ort_kayip = df_filtered['kayip'].mean()
+        uretim_sayisi = len(df_filtered)
+        toplam_kepek_ton = df_filtered['kepek'].sum() / 1000
+        toplam_razmol_ton = df_filtered['razmol'].sum() / 1000
+        ort_tav = df_filtered['tav_suresi'].mean()
+        
+        # ============= SHEET 1: ÖZET RAPOR =============
+        ws1 = workbook.add_worksheet('ÖZET RAPOR')
+        ws1.set_column('A:A', 25)
+        ws1.set_column('B:C', 15)
+        ws1.set_column('D:D', 10)
+        
+        # Başlık
+        ws1.merge_range('A1:D1', '🏭 ÜRETİM PERFORMANS RAPORU', header_format)
+        ws1.merge_range('A2:D2', f'Dönem: {period_name} | Oluşturulma: {datetime.now().strftime("%d.%m.%Y %H:%M")}', subheader_format)
+        
+        # Boşluk
+        ws1.write('A3', '')
+        
+        # Temel Göstergeler Başlık
+        ws1.merge_range('A4:D4', '📈 TEMEL GÖSTERGELER', subheader_format)
+        
+        # Tablo başlıkları
+        ws1.write('A5', 'Metrik', table_header_format)
+        ws1.write('B5', 'Değer', table_header_format)
+        ws1.write('C5', 'Hedef', table_header_format)
+        ws1.write('D5', 'Durum', table_header_format)
+        
+        # Veriler
+        metrics = [
+            ('🌾 Toplam Buğday (Ton)', toplam_bugday_ton, 3000, '✅' if toplam_bugday_ton >= 3000 else '⚠️'),
+            ('🍞 Toplam Un (Ton)', toplam_un_ton, 2100, '✅' if toplam_un_ton >= 2100 else '⚠️'),
+            ('📊 Ort. Randıman (%)', ort_randiman, 70, '✅' if ort_randiman >= 70 else '⚠️'),
+            ('📉 Ort. Kayıp (%)', ort_kayip, 2, '✅' if ort_kayip <= 2 else '⚠️'),
+            ('🟤 Toplam Kepek (Ton)', toplam_kepek_ton, None, '-'),
+            ('⚪ Toplam Razmol (Ton)', toplam_razmol_ton, None, '-'),
+            ('⏱️ Ort. Tav Süresi (Saat)', ort_tav, 12, '✅' if 10 <= ort_tav <= 14 else '⚠️'),
+            ('🏭 Üretim Sayısı', uretim_sayisi, None, '-'),
+        ]
+        
+        row = 5
+        for metric, value, target, status in metrics:
+            ws1.write(row, 0, metric, data_format)
+            ws1.write(row, 1, value, number_format)
+            ws1.write(row, 2, target if target else '-', data_format)
+            ws1.write(row, 3, status, data_format)
+            row += 1
+        
+        # Performans Puanı
+        ws1.write(row + 1, 0, '')
+        ws1.merge_range(row + 2, 0, row + 2, 3, f'🏆 PERFORMANS PUANI: {ort_randiman/10:.1f}/10', header_format)
+        
+        # ============= SHEET 2: RANDIMAN ANALİZİ =============
+        ws2 = workbook.add_worksheet('RANDIMAN ANALİZİ')
+        ws2.set_column('A:A', 20)
+        ws2.set_column('B:F', 15)
+        
+        # Başlık
+        ws2.merge_range('A1:F1', '📈 RANDIMAN ANALİZİ', header_format)
+        
+        # Günlük Randıman Tablosu
+        ws2.merge_range('A3:F3', 'Günlük Randıman Detayı', subheader_format)
+        ws2.write('A4', 'Tarih', table_header_format)
+        ws2.write('B4', 'Üretim Hattı', table_header_format)
+        ws2.write('C4', 'Ürün', table_header_format)
+        ws2.write('D4', 'Buğday (kg)', table_header_format)
+        ws2.write('E4', 'Randıman (%)', table_header_format)
+        ws2.write('F4', 'Kayıp (%)', table_header_format)
+        
+        df_sorted = df_filtered.sort_values('tarih', ascending=False)
+        row = 4
+        for _, r in df_sorted.iterrows():
+            ws2.write(row, 0, r['tarih'].strftime('%d.%m.%Y'), data_format)
+            ws2.write(row, 1, r.get('uretim_hatti', '-'), data_format)
+            ws2.write(row, 2, r.get('degirmen_uretim_adi', '-'), data_format)
+            ws2.write(row, 3, r['kirilan_bugday'], number_format)
+            
+            # Randıman renkli
+            rand_val = r['toplam_randiman'] / 100
+            if rand_val >= 0.70:
+                ws2.write(row, 4, rand_val, positive_format)
+            else:
+                ws2.write(row, 4, rand_val, negative_format)
+            
+            # Kayıp renkli
+            kayip_val = r['kayip'] / 100
+            if kayip_val <= 0.02:
+                ws2.write(row, 5, kayip_val, positive_format)
+            else:
+                ws2.write(row, 5, kayip_val, negative_format)
+            
+            row += 1
+        
+        # ============= SHEET 3: ÜRETİM DETAY =============
+        ws3 = workbook.add_worksheet('ÜRETİM DETAY')
+        ws3.set_column('A:A', 20)
+        ws3.set_column('B:J', 12)
+        
+        ws3.merge_range('A1:J1', '📦 ÜRETİM DETAYI', header_format)
+        
+        # Başlıklar
+        headers = ['Tarih', 'Hat', 'Ürün', 'Vardiya', 'Buğday (kg)', 'Un-1 (kg)', 'Un-2 (kg)', 
+                   'Kepek (kg)', 'Razmol (kg)', 'Randıman (%)']
+        for col, header in enumerate(headers):
+            ws3.write(2, col, header, table_header_format)
+        
+        row = 3
+        for _, r in df_sorted.iterrows():
+            ws3.write(row, 0, r['tarih'].strftime('%d.%m.%Y'), data_format)
+            ws3.write(row, 1, r.get('uretim_hatti', '-'), data_format)
+            ws3.write(row, 2, r.get('degirmen_uretim_adi', '-'), data_format)
+            ws3.write(row, 3, r.get('vardiya', '-'), data_format)
+            ws3.write(row, 4, r['kirilan_bugday'], number_format)
+            ws3.write(row, 5, r['un_1'], number_format)
+            ws3.write(row, 6, r['un_2'], number_format)
+            ws3.write(row, 7, r['kepek'], number_format)
+            ws3.write(row, 8, r['razmol'], number_format)
+            ws3.write(row, 9, r['toplam_randiman'], number_format)
+            row += 1
+        
+        # ============= SHEET 4: KARŞILAŞTIRMA =============
+        ws4 = workbook.add_worksheet('KARŞILAŞTIRMA')
+        ws4.set_column('A:A', 20)
+        ws4.set_column('B:F', 15)
+        
+        ws4.merge_range('A1:F1', '📊 KARŞILAŞTIRMA ANALİZİ', header_format)
+        
+        # Hat Bazında
+        ws4.merge_range('A3:F3', '🏭 Hat Bazında Performans', subheader_format)
+        hat_analiz = df_filtered.groupby('uretim_hatti').agg({
+            'kirilan_bugday': 'sum',
+            'toplam_randiman': 'mean',
+            'kayip': 'mean',
+            'parti_no': 'count'
+        }).reset_index()
+        
+        ws4.write('A4', 'Üretim Hattı', table_header_format)
+        ws4.write('B4', 'Toplam Buğday (Ton)', table_header_format)
+        ws4.write('C4', 'Ort. Randıman (%)', table_header_format)
+        ws4.write('D4', 'Ort. Kayıp (%)', table_header_format)
+        ws4.write('E4', 'Üretim Sayısı', table_header_format)
+        
+        row = 4
+        for _, r in hat_analiz.iterrows():
+            ws4.write(row, 0, r['uretim_hatti'], data_format)
+            ws4.write(row, 1, r['kirilan_bugday'] / 1000, number_format)
+            ws4.write(row, 2, r['toplam_randiman'], number_format)
+            ws4.write(row, 3, r['kayip'], number_format)
+            ws4.write(row, 4, r['parti_no'], data_format)
+            row += 1
+        
+        # ============= SHEET 5: HAM VERİ =============
+        ws5 = workbook.add_worksheet('HAM VERİ')
+        
+        # Tüm kolonları yaz
+        for col_num, col_name in enumerate(df_filtered.columns):
+            ws5.write(0, col_num, col_name, table_header_format)
+        
+        for row_num, row_data in enumerate(df_filtered.itertuples(index=False), start=1):
+            for col_num, value in enumerate(row_data):
+                if isinstance(value, pd.Timestamp):
+                    ws5.write(row_num, col_num, value.strftime('%d.%m.%Y %H:%M'), data_format)
+                else:
+                    ws5.write(row_num, col_num, value, data_format)
+        
+        # ============= KAYDET =============
+        workbook.close()
+        output.seek(0)
+        
+        return output
+        
+    except Exception as e:
+        st.error(f"Excel rapor oluşturulurken hata: {str(e)}")
+        return None
 # --- EKRAN 3: ÜRETİM ARŞİVİ (YENİLENMİŞ) ---
 def show_uretim_arsivi():
     if st.session_state.get('user_role') not in ["admin", "operations", "quality"]:
@@ -823,6 +1082,7 @@ def show_production_yonetimi():
         with st.container(border=True): show_uretim_arsivi()
     elif secim == "📊 Üretim Performans Analizi":
         with st.container(border=True): show_yonetim_dashboard()
+
 
 
 
