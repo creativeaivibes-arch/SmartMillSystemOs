@@ -120,6 +120,53 @@ def get_uretim_kayitlari():
     except Exception as e:
         return pd.DataFrame()
 # --- EKRAN 1: ÜRETİM GİRİŞİ (PAÇAL SEÇİMLİ) ---
+# --- SİLME FONKSİYONU ---
+def delete_uretim_record(parti_no):
+    """Üretim kaydını siler"""
+    try:
+        from app.core.database import get_conn
+        conn = get_conn()
+        df = fetch_data("uretim_kaydi")
+        if df.empty:
+            return False, "Kayıt bulunamadı"
+        
+        # Parti No'ya göre filtrele (silmek istediğimiz hariç)
+        df_new = df[df['parti_no'] != parti_no]
+        
+        if len(df_new) < len(df):
+            conn.update(worksheet="uretim_kaydi", data=df_new)
+            st.cache_data.clear()
+            return True, "✅ Kayıt silindi!"
+        else:
+            return False, "Kayıt bulunamadı"
+    except Exception as e:
+        return False, f"Hata: {str(e)}"
+
+# --- GÜNCELLEME FONKSİYONU ---
+def update_uretim_record(parti_no, updated_data):
+    """Üretim kaydını günceller"""
+    try:
+        from app.core.database import get_conn
+        conn = get_conn()
+        df = fetch_data("uretim_kaydi")
+        if df.empty:
+            return False, "Kayıt bulunamadı"
+        
+        # Parti No'yu bul
+        mask = df['parti_no'] == parti_no
+        if not mask.any():
+            return False, "Kayıt bulunamadı"
+        
+        # Güncelle
+        for key, value in updated_data.items():
+            if key in df.columns:
+                df.loc[mask, key] = value
+        
+        conn.update(worksheet="uretim_kaydi", data=df)
+        st.cache_data.clear()
+        return True, "✅ Kayıt güncellendi!"
+    except Exception as e:
+        return False, f"Hata: {str(e)}"
 def show_uretim_kaydi():
     
     if st.session_state.get('user_role') not in ["admin", "operations"]:
@@ -300,22 +347,202 @@ def show_yonetim_dashboard():
         st.warning("Grafik için plotly gereklidir.")
 
 # --- EKRAN 3: ÜRETİM ARŞİVİ ---
+# --- EKRAN 3: ÜRETİM ARŞİVİ (YENİLENMİŞ) ---
 def show_uretim_arsivi():
     if st.session_state.get('user_role') not in ["admin", "operations", "quality"]:
         st.warning("⛔ Bu modüle erişim izniniz yok!")
         return
+    
     st.header("🗄️ Üretim Arşivi")
+    
     df = get_uretim_kayitlari()
-    if not df.empty:
-        # Tabloyu göster
-        st.dataframe(
-            df.sort_values('tarih', ascending=False), 
-            use_container_width=True, 
-            hide_index=True
-        )
-    else:
-        st.info("Kayıt yok.")
-
+    
+    if df.empty:
+        st.info("📭 Henüz üretim kaydı bulunmamaktadır.")
+        return
+    
+    # Tarih formatını düzelt
+    if 'tarih' in df.columns:
+        df['tarih_str'] = df['tarih'].dt.strftime('%d.%m.%Y %H:%M')
+    
+    st.divider()
+    st.subheader("📋 Tüm Üretim Kayıtları")
+    
+    # Gösterilecek kolonları seç
+    display_cols = ['tarih_str', 'parti_no', 'degirmen_uretim_adi', 'uretim_hatti', 
+                    'vardiya', 'kirilan_bugday', 'un_1', 'un_2', 'toplam_randiman', 'kullanilan_pacal']
+    display_cols = [c for c in display_cols if c in df.columns]
+    
+    df_display = df[display_cols].copy()
+    
+    # Kolon isimlerini Türkçeleştir
+    rename_dict = {
+        'tarih_str': 'Tarih',
+        'parti_no': 'Parti No',
+        'degirmen_uretim_adi': 'Üretim Adı',
+        'uretim_hatti': 'Hat',
+        'vardiya': 'Vardiya',
+        'kirilan_bugday': 'Buğday (kg)',
+        'un_1': 'Un-1 (kg)',
+        'un_2': 'Un-2 (kg)',
+        'toplam_randiman': 'Randıman (%)',
+        'kullanilan_pacal': 'Paçal ID'
+    }
+    df_display = df_display.rename(columns=rename_dict)
+    
+    st.dataframe(df_display, use_container_width=True, hide_index=True, height=400)
+    
+    st.divider()
+    
+    # İşlem Paneli (Sadece Admin ve Operations)
+    if st.session_state.get('user_role') in ['admin', 'operations']:
+        st.subheader("⚙️ Kayıt İşlemleri")
+        
+        tab_edit, tab_delete = st.tabs(["✏️ Düzenle", "🗑️ Sil"])
+        
+        # --- DÜZENLEME TAB'I ---
+        with tab_edit:
+            st.markdown("#### Düzenlenecek Kaydı Seçin")
+            
+            # Kayıt seçimi için liste
+            kayit_listesi = df.to_dict('records')
+            
+            def format_kayit(row):
+                tarih = row.get('tarih_str', str(row.get('tarih', '')))[:16]
+                parti = row.get('parti_no', 'Bilinmiyor')
+                isim = row.get('degirmen_uretim_adi', '-')
+                return f"{tarih} | {parti} | {isim}"
+            
+            secili_kayit = st.selectbox(
+                "Kayıt Seçin:",
+                kayit_listesi,
+                format_func=format_kayit,
+                key="edit_select"
+            )
+            
+            if secili_kayit:
+                st.info(f"**Düzenlenen Kayıt:** {secili_kayit.get('parti_no')}")
+                
+                # 3 TAB'LI DÜZENLEME FORMU
+                edit_tab1, edit_tab2, edit_tab3 = st.tabs([
+                    "📋 Üretim Bilgileri",
+                    "🌾 Hammadde Girişi",
+                    "📦 Üretim Çıktıları"
+                ])
+                
+                with edit_tab1:
+                    st.markdown("### 📋 ÜRETİM BİLGİLERİ")
+                    edit_uretim_adi = st.text_input("Üretim Adı", value=secili_kayit.get('degirmen_uretim_adi', ''), key="edit_uretim_adi")
+                    edit_uretim_hatti = st.text_input("Üretim Hattı", value=secili_kayit.get('uretim_hatti', ''), key="edit_hat")
+                    edit_vardiya = st.text_input("Vardiya", value=secili_kayit.get('vardiya', ''), key="edit_vardiya")
+                    edit_sorumlu = st.text_input("Sorumlu", value=secili_kayit.get('sorumlu', ''), key="edit_sorumlu")
+                
+                with edit_tab2:
+                    st.markdown("### 🌾 HAMMADDE GİRİŞİ")
+                    edit_kirilan = st.number_input("Kırılan Buğday (kg)", value=float(secili_kayit.get('kirilan_bugday', 0)), step=100.0, format="%.0f", key="edit_kirilan")
+                    edit_nem = st.number_input("Nem Oranı (%)", value=float(secili_kayit.get('nem_orani', 0)), step=0.1, key="edit_nem")
+                    edit_tav = st.number_input("Tav Süresi (saat)", value=float(secili_kayit.get('tav_suresi', 0)), step=0.5, key="edit_tav")
+                
+                with edit_tab3:
+                    st.markdown("### 📦 ÜRETİM ÇIKTILARI (KG)")
+                    edit_un1 = st.number_input("Un-1 (kg)", value=float(secili_kayit.get('un_1', 0)), step=50.0, format="%.0f", key="edit_un1")
+                    edit_un2 = st.number_input("Un-2 (kg)", value=float(secili_kayit.get('un_2', 0)), step=50.0, format="%.0f", key="edit_un2")
+                    edit_razmol = st.number_input("Razmol (kg)", value=float(secili_kayit.get('razmol', 0)), step=50.0, format="%.0f", key="edit_razmol")
+                    edit_kepek = st.number_input("Kepek (kg)", value=float(secili_kayit.get('kepek', 0)), step=50.0, format="%.0f", key="edit_kepek")
+                    edit_bongalite = st.number_input("Bongalite (kg)", value=float(secili_kayit.get('bongalite', 0)), step=50.0, format="%.0f", key="edit_bongalite")
+                    edit_kirik = st.number_input("Kırık (kg)", value=float(secili_kayit.get('kirik_bugday', 0)), step=50.0, format="%.0f", key="edit_kirik")
+                
+                st.divider()
+                
+                # Randımanları yeniden hesapla
+                if edit_kirilan > 0:
+                    yeni_rand1 = (edit_un1 / edit_kirilan) * 100
+                    yeni_toplam_rand = ((edit_un1 + edit_un2) / edit_kirilan) * 100
+                    toplam_cikan = edit_un1 + edit_un2 + edit_razmol + edit_kepek + edit_bongalite + edit_kirik
+                    yeni_kayip = ((edit_kirilan - toplam_cikan) / edit_kirilan) * 100
+                else:
+                    yeni_rand1 = yeni_toplam_rand = yeni_kayip = 0
+                
+                col_m1, col_m2, col_m3 = st.columns(3)
+                col_m1.metric("Yeni Un-1 Randıman", f"%{yeni_rand1:.2f}")
+                col_m2.metric("Yeni Toplam Randıman", f"%{yeni_toplam_rand:.2f}")
+                col_m3.metric("Yeni Kayıp", f"%{yeni_kayip:.2f}", delta_color="inverse")
+                
+                st.divider()
+                
+                if st.button("💾 DEĞİŞİKLİKLERİ KAYDET", type="primary", key="btn_update"):
+                    updated_data = {
+                        'degirmen_uretim_adi': edit_uretim_adi,
+                        'uretim_hatti': edit_uretim_hatti,
+                        'vardiya': edit_vardiya,
+                        'sorumlu': edit_sorumlu,
+                        'kirilan_bugday': edit_kirilan,
+                        'nem_orani': edit_nem,
+                        'tav_suresi': edit_tav,
+                        'un_1': edit_un1,
+                        'un_2': edit_un2,
+                        'razmol': edit_razmol,
+                        'kepek': edit_kepek,
+                        'bongalite': edit_bongalite,
+                        'kirik_bugday': edit_kirik,
+                        'randiman_1': yeni_rand1,
+                        'toplam_randiman': yeni_toplam_rand,
+                        'kayip': yeni_kayip
+                    }
+                    
+                    success, msg = update_uretim_record(secili_kayit['parti_no'], updated_data)
+                    if success:
+                        st.success("✅ Kayıt başarıyla güncellendi!")
+                        time.sleep(1.5)
+                        st.rerun()
+                    else:
+                        st.error(f"❌ {msg}")
+        
+        # --- SİLME TAB'I ---
+        with tab_delete:
+            st.markdown("#### Silinecek Kaydı Seçin")
+            st.warning("⚠️ DİKKAT: Bu işlem geri alınamaz!")
+            
+            secili_kayit_sil = st.selectbox(
+                "Kayıt Seçin:",
+                kayit_listesi,
+                format_func=format_kayit,
+                key="delete_select"
+            )
+            
+            if secili_kayit_sil:
+                # Kayıt detaylarını göster
+                st.error(f"**Silinecek Kayıt:** {secili_kayit_sil.get('parti_no')}")
+                
+                col_info1, col_info2 = st.columns(2)
+                with col_info1:
+                    st.write(f"📅 **Tarih:** {secili_kayit_sil.get('tarih_str', 'Bilinmiyor')}")
+                    st.write(f"🏭 **Hat:** {secili_kayit_sil.get('uretim_hatti', '-')}")
+                    st.write(f"📦 **Üretim:** {secili_kayit_sil.get('degirmen_uretim_adi', '-')}")
+                with col_info2:
+                    st.write(f"⏰ **Vardiya:** {secili_kayit_sil.get('vardiya', '-')}")
+                    st.write(f"🌾 **Buğday:** {secili_kayit_sil.get('kirilan_bugday', 0):,.0f} kg")
+                    st.write(f"📊 **Randıman:** %{secili_kayit_sil.get('toplam_randiman', 0):.2f}")
+                
+                st.divider()
+                
+                # Onay Mekanizması
+                onay = st.checkbox(
+                    "✅ Riskleri anladım, bu kaydı kalıcı olarak silmek istiyorum.",
+                    key="delete_confirm_check"
+                )
+                
+                if onay:
+                    if st.button("🔥 KAYDI KALİCİ OLARAK SİL", type="primary", key="btn_delete"):
+                        success, msg = delete_uretim_record(secili_kayit_sil['parti_no'])
+                        if success:
+                            st.success("✅ Kayıt başarıyla silindi!")
+                            time.sleep(1.5)
+                            st.rerun()
+                        else:
+                            st.error(f"❌ {msg}")
+                else:
+                    st.info("💡 Silme işlemi için yukarıdaki onay kutusunu işaretleyin.")
 # --- ANA YÖNLENDİRİCİ ---
 def show_production_yonetimi():
     """Değirmen Bölümü Ana Kontrol Paneli"""
@@ -335,6 +562,7 @@ def show_production_yonetimi():
         with st.container(border=True): show_uretim_arsivi()
     elif secim == "📊 Üretim Performans Analizi":
         with st.container(border=True): show_yonetim_dashboard()
+
 
 
 
