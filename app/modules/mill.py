@@ -408,27 +408,50 @@ def show_yonetim_dashboard():
                  delta=f"{min_rand_row['tarih'].strftime('%d.%m')}",
                  delta_color="inverse")
     
-    # En Verimli Hat
+    # En Verimli Hat (Markdown ile)
     if 'uretim_hatti' in df_filtered.columns:
         hat_randiman = df_filtered.groupby('uretim_hatti')['toplam_randiman'].mean()
         if not hat_randiman.empty:
             en_iyi_hat = hat_randiman.idxmax()
             en_iyi_hat_rand = hat_randiman.max()
-            # Başlığa hat adını ekle
-            kpi11.metric("🏭 En Verimli Hat", 
-                        f"%{en_iyi_hat_rand:.2f}",  # Randımanı value olarak göster
-                        delta=f"{en_iyi_hat}")
+            with kpi11:
+                st.markdown(f"""
+                <div style='background-color: #f0f2f6; padding: 12px; border-radius: 8px; text-align: center;'>
+                    <p style='color: #666; font-size: 13px; margin: 0;'>🏭 En Verimli Hat</p>
+                    <p style='font-size: 22px; font-weight: bold; margin: 8px 0; color: #0D47A1;'>{en_iyi_hat}</p>
+                    <p style='color: #28a745; font-size: 15px; margin: 0;'>▲ %{en_iyi_hat_rand:.2f}</p>
+                </div>
+                """, unsafe_allow_html=True)
     
-    # En Verimli Vardiya
+    # En Verimli Vardiya (Markdown ile)
     if 'vardiya' in df_filtered.columns:
         vardiya_randiman = df_filtered.groupby('vardiya')['toplam_randiman'].mean()
         if not vardiya_randiman.empty:
             en_iyi_vardiya = vardiya_randiman.idxmax()
             en_iyi_vardiya_rand = vardiya_randiman.max()
-            kpi12.metric("⏰ En Verimli Vardiya", 
-                        f"{en_iyi_vardiya[:8]}...",
-                        delta=f"%{en_iyi_vardiya_rand:.2f}")
-    
+            # Vardiya çok uzunsa kısalt
+            vardiya_display = en_iyi_vardiya if len(en_iyi_vardiya) <= 15 else f"{en_iyi_vardiya[:15]}..."
+            with kpi12:
+                st.markdown(f"""
+                <div style='background-color: #f0f2f6; padding: 12px; border-radius: 8px; text-align: center;'>
+                    <p style='color: #666; font-size: 13px; margin: 0;'>⏰ En Verimli Vardiya</p>
+                    <p style='font-size: 22px; font-weight: bold; margin: 8px 0; color: #0D47A1;'>{vardiya_display}</p>
+                    <p style='color: #28a745; font-size: 15px; margin: 0;'>▲ %{en_iyi_vardiya_rand:.2f}</p>
+                </div>
+                """, unsafe_allow_html=True)
+```
+
+---
+
+## 🎨 **GÖRÜNÜM:**
+```
+┌─────────────────────┐
+│ 🏭 En Verimli Hat   │
+│                     │
+│   1. ÜNİTE          │  ← TAM GÖRÜNÜR
+│                     │
+│   ▲ %78.84          │
+└─────────────────────┘
     st.divider()
     
     # ========== GRAFİK PANELİ ==========
@@ -967,6 +990,7 @@ def show_production_yonetimi():
         with st.container(border=True): show_uretim_arsivi()
     elif secim == "📊 Üretim Performans Analizi":
         with st.container(border=True): show_yonetim_dashboard()
+
 
 
 
