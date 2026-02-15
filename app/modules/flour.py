@@ -1002,15 +1002,15 @@ def show_un_maliyet_hesaplama():
         st.markdown("#### 🌾 EK GELİRLER")
         col_ek1, col_ek2 = st.columns(2)
         with col_ek1:
-            st.caption("Satılan Kırık (Kg)")
-            kirik_tonaj = st.number_input("Kırık Kg", min_value=0.0, value=0.0, step=10.0, label_visibility="collapsed", key="kirik_tonaj")
-            st.caption("Satılan Başak (Kg)")
-            basak_tonaj = st.number_input("Başak Kg", min_value=0.0, value=0.0, step=10.0, label_visibility="collapsed", key="basak_tonaj")
+            st.caption("Satılan Kırık (Ton)")
+            kirik_tonaj = st.number_input("Kırık Ton", min_value=0.0, value=0.0, step=0.5, format="%.1f", label_visibility="collapsed", key="kirik_tonaj")
+            st.caption("Satılan Başak (Ton)")
+            basak_tonaj = st.number_input("Başak Ton", min_value=0.0, value=0.0, step=0.5, format="%.1f", label_visibility="collapsed", key="basak_tonaj")
         with col_ek2:
-            st.caption("Kırık Fiyat (TL)")
-            kirik_fiyat = st.number_input("Kırık TL", min_value=0.0, value=0.0, step=0.01, label_visibility="collapsed", key="kirik_fiyat")
-            st.caption("Başak Fiyat (TL)")
-            basak_fiyat = st.number_input("Başak TL", min_value=0.0, value=0.0, step=0.01, label_visibility="collapsed", key="basak_fiyat")
+            st.caption("Kırık Fiyat (TL/KG)")
+            kirik_fiyat = st.number_input("Kırık TL/KG", min_value=0.0, value=0.0, step=0.01, format="%.2f", label_visibility="collapsed", key="kirik_fiyat")
+            st.caption("Başak Fiyat (TL/KG)")
+            basak_fiyat = st.number_input("Başak TL/KG", min_value=0.0, value=0.0, step=0.01, format="%.2f", label_visibility="collapsed", key="basak_fiyat")
 
     with col3:
         st.markdown("#### 🏢 AYLIK SABİT GİDERLER")
@@ -1266,6 +1266,7 @@ def show_flour_yonetimi():
                 st.error("⚠️ Enzim modülü (calculations.py) bulunamadı.")
             except Exception as e:
                 st.error(f"⚠️ Modül yüklenirken hata oluştu: {e}")
+
 
 
 
