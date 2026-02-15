@@ -1154,10 +1154,10 @@ def create_traceability_pdf_report(chain_data):
                 ("Vardiya",           vardiya_text),
                 ("Kırılan Buğday",    f"{get_val(prd, ['kirilan_bugday'])} Kg"),
                 ("Tav Süresi",        f"{get_val(prd, ['tav_suresi'])} Saat"),
-                ("Toplam Randıman",   f"% {float(get_val(prd, ['toplam_randiman'])):,.2f}" if get_val(prd, ['toplam_randiman']) != '-' else '-'),
+                ("Toplam Randıman",   f"% {float(get_val(prd, ['toplam_randiman'])):,.2f}" if get_val(prd, ['toplam_randiman']) not in ['-', '', 'nan', None] and str(get_val(prd, ['toplam_randiman'])).replace('.','').replace(',','').isdigit() else '-'),
                 ("Un-1",              f"{get_val(prd, ['un_1'])} Kg"),
                 ("Kepek",             f"{get_val(prd, ['kepek'])} Kg"),
-                ("Kayıp Oranı",       f"% {float(get_val(prd, ['kayip'])):,.2f}" if get_val(prd, ['kayip']) != '-' else '-')
+                ("Kayıp Oranı",       f"% {float(get_val(prd, ['kayip'])):,.2f}" if get_val(prd, ['kayip']) not in ['-', '', 'nan', None] and str(get_val(prd, ['kayip'])).replace('.','').replace(',','').isdigit() else '-')
             ])
         else:
             story.append(Paragraph("Uretim kaydi bulunamadi.", styles['Normal']))
@@ -1195,7 +1195,7 @@ def create_traceability_pdf_report(chain_data):
             story.append(Spacer(1, 3*mm))
             
             try:
-                import json
+                
                 snapshot_json = get_val(mix, ['silo_snapshot_json'])
                 if snapshot_json and snapshot_json != '-':
                     snapshot = json.loads(snapshot_json) if isinstance(snapshot_json, str) else snapshot_json
@@ -1207,8 +1207,8 @@ def create_traceability_pdf_report(chain_data):
                             cins = kuru.get('cins', '-')
                             protein = kuru.get('protein', '-')
                             story.append(Paragraph(f"  • {silo}: %{oran} - {cins} (Protein: {protein}%)", styles['Normal']))
-            except:
-                story.append(Paragraph("Karışım detayı okunamadı", styles['Normal']))
+            except Exception as e:
+                story.append(Paragraph(f"Karışım detayı okunamadı: {str(e)}", styles['Normal']))
         else:
             story.append(Paragraph("Pacal (Hammadde) verisi bulunamadi.", styles['Normal']))
 
@@ -1218,9 +1218,13 @@ def create_traceability_pdf_report(chain_data):
         return buffer
 
     except Exception as e:
-        print(f"PDF ERROR: {str(e)}")
+        import traceback
+        st.error(f"❌ PDF OLUŞTURMA HATASI: {str(e)}")
+        with st.expander("🔧 Teknik Detaylar"):
+            st.code(traceback.format_exc())
         return None
         
+
 
 
 
