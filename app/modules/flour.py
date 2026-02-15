@@ -961,10 +961,18 @@ def show_un_maliyet_hesaplama():
     st.divider()
     st.subheader(f"Un Maliyeti Hesapla - {secilen_ay} {secilen_yil}")
     
-    col1, col2, col3 = st.columns(3, gap="medium")
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+        "📋 Temel Bilgiler",
+        "📊 Yan Ürün Oranları", 
+        "💰 Yan Ürün Fiyatları",
+        "🌾 Ek Gelirler",
+        "🏢 Sabit Giderler",
+        "⚡ Elektrik",
+        "🛒 Çuval Başı Giderler"
+    ])
     
-    with col1:
-        st.markdown("#### 📋 TEMEL BİLGİLER")
+    with tab1:
+        st.markdown("### 📋 TEMEL BİLGİLER")
         un_cesidi = st.text_input("Un Çeşidi *", value="Ekmeklik", placeholder="Örn: Ekmeklik, Pizza")
         bugday_maliyet = st.number_input("Buğday Paçal (TL/KG) *", min_value=0.0, value=14.60, step=0.01, format="%.2f")
         aylik_kirilan = st.number_input("Aylık Kırılan (Ton) *", min_value=0.0, value=3000.0, step=0.1, format="%.1f")
@@ -972,8 +980,8 @@ def show_un_maliyet_hesaplama():
         satis_fiyati = st.number_input("Satış Fiyatı (50 KG) *", min_value=0.0, value=980.00, step=0.01, format="%.2f")
         belge = st.number_input("Belge Geliri (50 KG)", min_value=0.0, value=0.00, step=0.01, format="%.2f")
 
-    with col2:
-        st.markdown("#### 📊 YAN ÜRÜN ORANLARI (%)")
+    with tab2:
+        st.markdown("### 📊 YAN ÜRÜN ORANLARI (%)")
         col_oran1, col_oran2 = st.columns(2)
         with col_oran1:
             st.caption("Un Oranı")
@@ -985,8 +993,9 @@ def show_un_maliyet_hesaplama():
             r_kep = st.number_input("Kepek", min_value=0.0, value=9.0, step=0.1, format="%.1f", label_visibility="collapsed", key="r_kep")
             st.caption("Razmol Oranı")
             r_raz = st.number_input("Razmol", min_value=0.0, value=11.0, step=0.1, format="%.1f", label_visibility="collapsed", key="r_raz")
-        
-        st.markdown("#### 💰 YAN ÜRÜN FİYATLARI")
+    
+    with tab3:
+        st.markdown("### 💰 YAN ÜRÜN FİYATLARI")
         col_fiyat1, col_fiyat2 = st.columns(2)
         with col_fiyat1:
             st.caption("Un Fiyat")
@@ -998,8 +1007,9 @@ def show_un_maliyet_hesaplama():
             p_kep = st.number_input("Kepek TL", min_value=0.0, value=8.90, step=0.01, format="%.2f", label_visibility="collapsed", key="p_kep")
             st.caption("Razmol Fiyat")
             p_raz = st.number_input("Razmol TL", min_value=0.0, value=9.10, step=0.01, format="%.2f", label_visibility="collapsed", key="p_raz")
-        
-        st.markdown("#### 🌾 EK GELİRLER")
+    
+    with tab4:
+        st.markdown("### 🌾 EK GELİRLER")
         col_ek1, col_ek2 = st.columns(2)
         with col_ek1:
             st.caption("Satılan Kırık (Ton)")
@@ -1012,20 +1022,22 @@ def show_un_maliyet_hesaplama():
             st.caption("Başak Fiyat (TL/KG)")
             basak_fiyat = st.number_input("Başak TL/KG", min_value=0.0, value=0.0, step=0.01, format="%.2f", label_visibility="collapsed", key="basak_fiyat")
 
-    with col3:
-        st.markdown("#### 🏢 AYLIK SABİT GİDERLER")
+    with tab5:
+        st.markdown("### 🏢 AYLIK SABİT GİDERLER")
         g_personel = st.number_input("Personel Maaşı", min_value=0.0, value=1200000.0, step=1000.0, format="%.2f")
         g_bakim = st.number_input("Bakım Maliyeti", min_value=0.0, value=100000.0, step=1000.0, format="%.2f")
         g_mutfak = st.number_input("Mutfak (Kantin)", min_value=0.0, value=50000.0, step=1000.0, format="%.2f")
         g_finans = st.number_input("Finans (Banka)", min_value=0.0, value=0.0, step=1000.0, format="%.2f")
         g_diger = st.number_input("Diğer Giderler", min_value=0.0, value=0.0, step=1000.0, format="%.2f")
-        
-        st.markdown("#### ⚡ ELEKTRİK")
+    
+    with tab6:
+        st.markdown("### ⚡ ELEKTRİK")
         g_elektrik_birim = st.number_input("1 Ton Buğday Elektrik (TL)", min_value=0.0, value=500.00, step=0.01)
         elektrik_aylik = g_elektrik_birim * aylik_kirilan
         st.caption(f"Aylık Elektrik: {elektrik_aylik:,.0f} {currency}")
-        
-        st.markdown("#### 🛒 ÇUVAL BAŞI GİDERLER")
+    
+    with tab7:
+        st.markdown("### 🛒 ÇUVAL BAŞI GİDERLER")
         col_cg1, col_cg2 = st.columns(2)
         with col_cg1:
             st.caption("Nakliye")
@@ -1266,6 +1278,7 @@ def show_flour_yonetimi():
                 st.error("⚠️ Enzim modülü (calculations.py) bulunamadı.")
             except Exception as e:
                 st.error(f"⚠️ Modül yüklenirken hata oluştu: {e}")
+
 
 
 
