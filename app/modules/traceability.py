@@ -16,6 +16,27 @@ except ImportError:
 # ==============================================================================
 # 1. ZİNCİR KURMA MOTORU (BACKEND)
 # ==============================================================================
+@st.cache_data(ttl=300) 
+def load_traceability_databases():
+    """Veritabanlarını 5 dakikalığına hafızaya alır, sistemi hızlandırır."""
+    df_analiz = pd.DataFrame()
+    df_uretim = pd.DataFrame()
+    df_mix = pd.DataFrame()
+    df_ship = pd.DataFrame() # Sevkiyat tablosu eklendi
+    df_enz = pd.DataFrame()  # Enzim tablosu eklendi
+    
+    try: df_analiz = fetch_data("un_analiz")
+    except: pass
+    try: df_uretim = fetch_data("uretim_kaydi")
+    except: pass
+    try: df_mix = fetch_data("mixing_batches")
+    except: pass
+    try: df_ship = fetch_data("sevkiyat_listesi")
+    except: pass
+    try: df_enz = fetch_data("enzim_receteleri")
+    except: pass
+    
+    return df_analiz, df_uretim, df_mix, df_ship, df_enz
 def get_trace_chain(search_query):
     """
     Girilen Lot/ID'den başlayıp SAHA GERÇEKLİĞİNE göre tüm zinciri kurar.
@@ -642,6 +663,7 @@ def show_traceability_dashboard():
 
         elif chain["PRD"] is not None:
             st.warning("⚠️ Bu üretime bağlı Paçal kaydı bulunamadı (Mix ID eksik veya eşleşmiyor).")
+
 
 
 
