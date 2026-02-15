@@ -60,12 +60,9 @@ def get_trace_chain(search_query):
     # A) Analiz Tablosunda Ara (Sevkiyat veya Lab)
     if not df_analiz.empty:
         # Sadece ilgili sütunlarda ara (3x daha hızlı)
-        search_columns = ['lot_no', 'parti_no', 'musteri_adi', 'urun_cinsi']
-        match = df_analiz[
-            df_analiz[search_columns].astype(str).apply(
-                lambda x: x.str.contains(search_query, case=False, regex=False)
-            ).any(axis=1)
-        ]
+        match = df_analiz[df_analiz.astype(str).apply(
+            lambda x: x.str.contains(search_query, case=False, regex=False)
+        ).any(axis=1)]
         if not match.empty:
             record = match.iloc[0]
             chain["found"] = True
@@ -664,4 +661,5 @@ def show_traceability_dashboard():
 
         elif chain["PRD"] is not None:
             st.warning("⚠️ Bu üretime bağlı Paçal kaydı bulunamadı (Mix ID eksik veya eşleşmiyor).")
+
 
