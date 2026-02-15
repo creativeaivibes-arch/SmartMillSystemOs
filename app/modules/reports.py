@@ -1173,8 +1173,8 @@ def create_traceability_pdf_report(chain_data):
                     enz_str = ", ".join([f"{e.get('ad')}: {e.get('doz')}gr" for e in enz_list])
                 else:
                     enz_str = "-"
-            except:
-                enz_str = "-"
+            except Exception as e:
+                enz_str = f"Hata: {str(e)}"
             
             make_table([
                 ("Reçete ID",      get_val(enz, ['enzim_id'])),
