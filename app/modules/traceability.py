@@ -49,7 +49,7 @@ def get_trace_chain(search_query):
     }
     
     # Güvenli arama için regex karakterlerini escape et
-    search_query = re.escape(str(search_query).strip())
+    search_query = str(search_query).strip()
     
     # Cache'li database'leri kullan (5 dakika hafızada kalır)
     df_analiz, df_uretim, df_mix, df_ship, df_enz = load_traceability_databases()
@@ -661,5 +661,6 @@ def show_traceability_dashboard():
 
         elif chain["PRD"] is not None:
             st.warning("⚠️ Bu üretime bağlı Paçal kaydı bulunamadı (Mix ID eksik veya eşleşmiyor).")
+
 
 
