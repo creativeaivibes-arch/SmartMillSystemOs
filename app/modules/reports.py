@@ -967,32 +967,31 @@ def create_traceability_pdf_report(chain_data):
             text = text.replace(tr, en)
         return text
 
-    # --- 2. AKILLI VERİ AVCISI (SMART LOOKUP) ---
-    def get_val(data_dict, keys_list):
+       # --- YARDIMCI: AKILLI VERİ AVCISI (DÜZELTİLMİŞ) ---
+    def get_val(data_dict, keys_list, suffix=""):
         """
-        Verilen anahtar kelimelerden hangisi varsa onun değerini getirir.
-        Örnek: Hem 'Müşteri' hem 'musteri' hem 'CARİ' diye arar.
+        Excel'deki 'Enerji (45)', 'Enerji_45' veya 'enerji 45' 
+        yazımlarını otomatik olarak birbirine bağlar.
         """
         if not data_dict or not isinstance(data_dict, dict):
             return "-"
-            
-        # Tüm anahtarları küçük harfe çevirip bir eşleşme haritası çıkaralım
-        normalized_data = {k.lower().strip(): v for k, v in data_dict.items()}
         
-        for key in keys_list:
-            # 1. Direkt eşleşme dene
-            if key in data_dict:
-                val = data_dict[key]
-                if val and str(val).lower() not in ['nan', 'none', '']:
-                    return val
+        # 1. Sözlükteki tüm anahtarları temizle (küçük harf, boşluksuz, sembolsüz)
+        # Örn: "Enerji (45)" -> "enerji45" yapar
+        pool = {}
+        for k, v in data_dict.items():
+            clean_key = str(k).lower().replace(" ", "").replace("_", "").replace("(", "").replace(")", "").replace(".", "")
+            pool[clean_key] = v
             
-            # 2. Küçük harf eşleşmesi dene
-            lower_key = key.lower().strip()
-            if lower_key in normalized_data:
-                val = normalized_data[lower_key]
-                if val and str(val).lower() not in ['nan', 'none', '']:
-                    return val
-                    
+        # 2. Aranan kelimeyi de aynı şekilde temizleyip havuzda ara
+        for key in keys_list:
+            search_key = key.lower().replace(" ", "").replace("_", "").replace("(", "").replace(")", "").replace(".", "")
+            if search_key in pool:
+                val = pool[search_key]
+                if val is None or str(val).lower() in ['nan', 'none', '', '0', '0.0']:
+                    return "-"
+                return f"{val} {suffix}".strip()
+                
         return "-"
 
     # --- 3. TEMİZLİK ROBOTU ---
@@ -1222,6 +1221,7 @@ def create_traceability_pdf_report(chain_data):
         print(f"PDF ERROR: {str(e)}")
         return None
         
+
 
 
 
