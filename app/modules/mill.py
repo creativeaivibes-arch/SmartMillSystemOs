@@ -414,9 +414,10 @@ def show_yonetim_dashboard():
         if not hat_randiman.empty:
             en_iyi_hat = hat_randiman.idxmax()
             en_iyi_hat_rand = hat_randiman.max()
+            # Başlığa hat adını ekle
             kpi11.metric("🏭 En Verimli Hat", 
-                        f"{en_iyi_hat}",
-                        delta=f"%{en_iyi_hat_rand:.2f}")
+                        f"%{en_iyi_hat_rand:.2f}",  # Randımanı value olarak göster
+                        delta=f"{en_iyi_hat}")
     
     # En Verimli Vardiya
     if 'vardiya' in df_filtered.columns:
@@ -966,6 +967,7 @@ def show_production_yonetimi():
         with st.container(border=True): show_uretim_arsivi()
     elif secim == "📊 Üretim Performans Analizi":
         with st.container(border=True): show_yonetim_dashboard()
+
 
 
 
