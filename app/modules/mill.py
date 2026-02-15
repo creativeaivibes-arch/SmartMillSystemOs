@@ -608,6 +608,33 @@ def show_yonetim_dashboard():
         st.warning("📊 Grafik görüntüleme için `plotly` kütüphanesi gereklidir.")
     except Exception as e:
         st.error(f"Grafik oluşturulurken hata: {str(e)}")
+        st.divider()
+    
+    # ========== RAPOR İNDİRME ==========
+    st.subheader("📥 Rapor İndir")
+    
+    col_r1, col_r2 = st.columns(2)
+    
+    with col_r1:
+        if st.button("📊 Excel Rapor İndir", type="primary", use_container_width=True):
+            with st.spinner("📊 Excel raporu hazırlanıyor..."):
+                excel_file = create_excel_performance_report(df_filtered, f"{period}")
+                
+                if excel_file:
+                    # Dosya adı
+                    filename = f"Uretim_Performans_{period.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.xlsx"
+                    
+                    st.download_button(
+                        label="💾 Excel Dosyasını İndir",
+                        data=excel_file,
+                        file_name=filename,
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True
+                    )
+                    st.success("✅ Excel rapor hazır!")
+    
+    with col_r2:
+        st.info("📄 PDF Rapor yakında eklenecek...")
 # --- EXCEL RAPOR OLUŞTURMA FONKSİYONU ---
 def create_excel_performance_report(df_filtered, period_name):
     """
@@ -1082,6 +1109,7 @@ def show_production_yonetimi():
         with st.container(border=True): show_uretim_arsivi()
     elif secim == "📊 Üretim Performans Analizi":
         with st.container(border=True): show_yonetim_dashboard()
+
 
 
 
