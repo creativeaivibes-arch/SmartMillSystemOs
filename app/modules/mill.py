@@ -309,15 +309,37 @@ def show_uretim_kaydi():
 
 # --- EKRAN 2: YÖNETİM DASHBOARD ---
 def show_yonetim_dashboard():
+    st.header("📊 Üretim Performans Analizi")
+    
     df = get_uretim_kayitlari()
     if df.empty:
         st.info("📭 Henüz üretim kaydı bulunmamaktadır.")
         return
     
-    col_period1, col_period2 = st.columns([1, 3])
-    with col_period1:
-        period = st.selectbox("Dönem Seçin", ["Son 7 Gün", "Son 30 Gün", "Son 3 Ay", "Son 6 Ay", "Tümü"], index=1)
+    # ========== FİLTRELEME PANELİ ==========
+    st.subheader("🔍 Filtreler")
     
+    col_f1, col_f2, col_f3, col_f4 = st.columns(4)
+    
+    with col_f1:
+        period = st.selectbox("📅 Dönem", ["Son 7 Gün", "Son 30 Gün", "Son 3 Ay", "Son 6 Ay", "Tümü"], index=1)
+    
+    with col_f2:
+        # Üretim Hattı Filtresi
+        hat_listesi = ["Tümü"] + sorted(df['uretim_hatti'].dropna().unique().tolist())
+        secili_hat = st.selectbox("🏭 Üretim Hattı", hat_listesi)
+    
+    with col_f3:
+        # Ürün Adı Filtresi
+        urun_listesi = ["Tümü"] + sorted(df['degirmen_uretim_adi'].dropna().unique().tolist())
+        secili_urun = st.selectbox("📦 Ürün Adı", urun_listesi)
+    
+    with col_f4:
+        # Vardiya Filtresi
+        vardiya_listesi = ["Tümü"] + sorted(df['vardiya'].dropna().unique().tolist())
+        secili_vardiya = st.selectbox("⏰ Vardiya", vardiya_listesi)
+    
+    # Dönem Filtreleme
     today = datetime.now().date()
     if period == "Son 7 Gün": start_date = today - timedelta(days=7)
     elif period == "Son 30 Gün": start_date = today - timedelta(days=30)
@@ -325,28 +347,204 @@ def show_yonetim_dashboard():
     elif period == "Son 6 Ay": start_date = today - timedelta(days=180)
     else: start_date = None
     
-    if start_date: df_filtered = df[df['tarih'].dt.date >= start_date].copy()
-    else: df_filtered = df.copy()
+    # Filtreleri Uygula
+    df_filtered = df.copy()
+    if start_date:
+        df_filtered = df_filtered[df_filtered['tarih'].dt.date >= start_date]
+    if secili_hat != "Tümü":
+        df_filtered = df_filtered[df_filtered['uretim_hatti'] == secili_hat]
+    if secili_urun != "Tümü":
+        df_filtered = df_filtered[df_filtered['degirmen_uretim_adi'] == secili_urun]
+    if secili_vardiya != "Tümü":
+        df_filtered = df_filtered[df_filtered['vardiya'] == secili_vardiya]
+    
+    if df_filtered.empty:
+        st.warning("⚠️ Seçili filtrelere uygun kayıt bulunamadı.")
+        return
     
     st.divider()
     
-    # KPI
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Toplam Buğday", f"{df_filtered['kirilan_bugday'].sum()/1000:,.1f} Ton")
-    c2.metric("Toplam Un", f"{(df_filtered['un_1'].sum() + df_filtered['un_2'].sum())/1000:,.1f} Ton")
-    c3.metric("Ort. Randıman", f"%{df_filtered['toplam_randiman'].mean():.2f}")
-    c4.metric("Üretim Sayısı", f"{len(df_filtered)}")
+    # ========== ÖZET KPI'LAR ==========
+    st.subheader("📈 Özet Göstergeler")
+    
+    # SATIR 1: Temel KPI'lar
+    kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+    
+    toplam_bugday_ton = df_filtered['kirilan_bugday'].sum() / 1000
+    toplam_un_ton = (df_filtered['un_1'].sum() + df_filtered['un_2'].sum()) / 1000
+    ort_randiman = df_filtered['toplam_randiman'].mean()
+    uretim_sayisi = len(df_filtered)
+    
+    kpi1.metric("🌾 Toplam Buğday", f"{toplam_bugday_ton:,.1f} Ton")
+    kpi2.metric("🍞 Toplam Un", f"{toplam_un_ton:,.1f} Ton")
+    kpi3.metric("📊 Ort. Randıman", f"%{ort_randiman:.2f}")
+    kpi4.metric("🏭 Üretim Sayısı", f"{uretim_sayisi}")
+    
+    # SATIR 2: Yan Ürün & Verimlilik
+    kpi5, kpi6, kpi7, kpi8 = st.columns(4)
+    
+    toplam_kepek_ton = df_filtered['kepek'].sum() / 1000
+    toplam_razmol_ton = df_filtered['razmol'].sum() / 1000
+    ort_kayip = df_filtered['kayip'].mean()
+    ort_tav = df_filtered['tav_suresi'].mean()
+    
+    kpi5.metric("🟤 Toplam Kepek", f"{toplam_kepek_ton:,.1f} Ton")
+    kpi6.metric("⚪ Toplam Razmol", f"{toplam_razmol_ton:,.1f} Ton")
+    kpi7.metric("📉 Ort. Kayıp", f"%{ort_kayip:.2f}", delta_color="inverse")
+    kpi8.metric("⏱️ Ort. Tav Süresi", f"{ort_tav:.1f} Saat")
+    
+    # SATIR 3: Max/Min Performans
+    kpi9, kpi10, kpi11, kpi12 = st.columns(4)
+    
+    max_rand_row = df_filtered.loc[df_filtered['toplam_randiman'].idxmax()]
+    min_rand_row = df_filtered.loc[df_filtered['toplam_randiman'].idxmin()]
+    
+    kpi9.metric("🏆 En Yüksek Randıman", 
+                f"%{max_rand_row['toplam_randiman']:.2f}",
+                delta=f"{max_rand_row['tarih'].strftime('%d.%m')}")
+    
+    kpi10.metric("⚠️ En Düşük Randıman", 
+                 f"%{min_rand_row['toplam_randiman']:.2f}",
+                 delta=f"{min_rand_row['tarih'].strftime('%d.%m')}",
+                 delta_color="inverse")
+    
+    # En Verimli Hat
+    if 'uretim_hatti' in df_filtered.columns:
+        hat_randiman = df_filtered.groupby('uretim_hatti')['toplam_randiman'].mean()
+        if not hat_randiman.empty:
+            en_iyi_hat = hat_randiman.idxmax()
+            en_iyi_hat_rand = hat_randiman.max()
+            kpi11.metric("🏭 En Verimli Hat", 
+                        f"{en_iyi_hat}",
+                        delta=f"%{en_iyi_hat_rand:.2f}")
+    
+    # En Verimli Vardiya
+    if 'vardiya' in df_filtered.columns:
+        vardiya_randiman = df_filtered.groupby('vardiya')['toplam_randiman'].mean()
+        if not vardiya_randiman.empty:
+            en_iyi_vardiya = vardiya_randiman.idxmax()
+            en_iyi_vardiya_rand = vardiya_randiman.max()
+            kpi12.metric("⏰ En Verimli Vardiya", 
+                        f"{en_iyi_vardiya[:8]}...",
+                        delta=f"%{en_iyi_vardiya_rand:.2f}")
     
     st.divider()
+    
+    # ========== GRAFİK PANELİ ==========
+    st.subheader("📊 Grafiksel Analizler")
     
     try:
         import plotly.express as px
-        fig = px.bar(df_filtered, x='tarih', y='toplam_randiman', title='Günlük Randıman Trendi')
-        st.plotly_chart(fig, use_container_width=True)
-    except:
-        st.warning("Grafik için plotly gereklidir.")
-
-# --- EKRAN 3: ÜRETİM ARŞİVİ ---
+        import plotly.graph_objects as go
+        
+        tab1, tab2, tab3 = st.tabs(["📈 Randıman Analizleri", "📊 Üretim Analizleri", "🥧 Yan Ürün Analizleri"])
+        
+        # --- TAB 1: RANDIMAN ANALİZLERİ ---
+        with tab1:
+            col_g1, col_g2 = st.columns(2)
+            
+            with col_g1:
+                # Günlük Randıman Trendi
+                fig1 = px.line(df_filtered.sort_values('tarih'), 
+                              x='tarih', y='toplam_randiman',
+                              title='📈 Günlük Randıman Trendi',
+                              labels={'tarih': 'Tarih', 'toplam_randiman': 'Randıman (%)'},
+                              markers=True)
+                fig1.update_traces(line_color='#2E7D32')
+                st.plotly_chart(fig1, use_container_width=True)
+            
+            with col_g2:
+                # Hat Bazında Ortalama Randıman
+                if 'uretim_hatti' in df_filtered.columns:
+                    hat_data = df_filtered.groupby('uretim_hatti')['toplam_randiman'].mean().reset_index()
+                    fig2 = px.bar(hat_data, 
+                                 x='uretim_hatti', y='toplam_randiman',
+                                 title='🏭 Hat Bazında Ortalama Randıman',
+                                 labels={'uretim_hatti': 'Üretim Hattı', 'toplam_randiman': 'Ort. Randıman (%)'},
+                                 color='toplam_randiman',
+                                 color_continuous_scale='Greens')
+                    st.plotly_chart(fig2, use_container_width=True)
+            
+            # Kayıp Trendi
+            fig3 = px.line(df_filtered.sort_values('tarih'),
+                          x='tarih', y='kayip',
+                          title='📉 Kayıp Oranı Trendi',
+                          labels={'tarih': 'Tarih', 'kayip': 'Kayıp (%)'},
+                          markers=True)
+            fig3.update_traces(line_color='#C62828')
+            st.plotly_chart(fig3, use_container_width=True)
+        
+        # --- TAB 2: ÜRETİM ANALİZLERİ ---
+        with tab2:
+            col_g3, col_g4 = st.columns(2)
+            
+            with col_g3:
+                # Ürün Dağılımı (Pie Chart)
+                if 'degirmen_uretim_adi' in df_filtered.columns:
+                    urun_data = df_filtered.groupby('degirmen_uretim_adi')['kirilan_bugday'].sum().reset_index()
+                    fig4 = px.pie(urun_data, 
+                                 values='kirilan_bugday', names='degirmen_uretim_adi',
+                                 title='🥧 Ürün Bazında Üretim Dağılımı')
+                    st.plotly_chart(fig4, use_container_width=True)
+            
+            with col_g4:
+                # Hat Bazında Üretim Hacmi
+                if 'uretim_hatti' in df_filtered.columns:
+                    hat_uretim = df_filtered.groupby('uretim_hatti')['kirilan_bugday'].sum().reset_index()
+                    hat_uretim['kirilan_bugday'] = hat_uretim['kirilan_bugday'] / 1000  # Ton'a çevir
+                    fig5 = px.bar(hat_uretim,
+                                 x='uretim_hatti', y='kirilan_bugday',
+                                 title='🏭 Hat Bazında Toplam Üretim (Ton)',
+                                 labels={'uretim_hatti': 'Üretim Hattı', 'kirilan_bugday': 'Toplam Buğday (Ton)'},
+                                 color='kirilan_bugday',
+                                 color_continuous_scale='Blues')
+                    st.plotly_chart(fig5, use_container_width=True)
+            
+            # Hammadde Kullanım Trendi
+            df_gunluk = df_filtered.groupby(df_filtered['tarih'].dt.date)['kirilan_bugday'].sum().reset_index()
+            df_gunluk['kirilan_bugday'] = df_gunluk['kirilan_bugday'] / 1000
+            fig6 = px.area(df_gunluk,
+                          x='tarih', y='kirilan_bugday',
+                          title='🌾 Günlük Buğday Tüketimi Trendi (Ton)',
+                          labels={'tarih': 'Tarih', 'kirilan_bugday': 'Buğday (Ton)'})
+            fig6.update_traces(fill='tozeroy', line_color='#F57C00')
+            st.plotly_chart(fig6, use_container_width=True)
+        
+        # --- TAB 3: YAN ÜRÜN ANALİZLERİ ---
+        with tab3:
+            # Yan Ürün Dağılımı
+            yan_urun_data = {
+                'Ürün': ['Un-2', 'Kepek', 'Razmol', 'Bongalite', 'Kırık'],
+                'Miktar (Ton)': [
+                    df_filtered['un_2'].sum() / 1000,
+                    df_filtered['kepek'].sum() / 1000,
+                    df_filtered['razmol'].sum() / 1000,
+                    df_filtered['bongalite'].sum() / 1000,
+                    df_filtered['kirik_bugday'].sum() / 1000
+                ]
+            }
+            df_yan_urun = pd.DataFrame(yan_urun_data)
+            
+            col_g5, col_g6 = st.columns(2)
+            
+            with col_g5:
+                fig7 = px.bar(df_yan_urun,
+                             x='Ürün', y='Miktar (Ton)',
+                             title='📊 Yan Ürün Toplam Miktarları',
+                             color='Miktar (Ton)',
+                             color_continuous_scale='Oranges')
+                st.plotly_chart(fig7, use_container_width=True)
+            
+            with col_g6:
+                fig8 = px.pie(df_yan_urun,
+                             values='Miktar (Ton)', names='Ürün',
+                             title='🥧 Yan Ürün Oransal Dağılımı')
+                st.plotly_chart(fig8, use_container_width=True)
+    
+    except ImportError:
+        st.warning("📊 Grafik görüntüleme için `plotly` kütüphanesi gereklidir.")
+    except Exception as e:
+        st.error(f"Grafik oluşturulurken hata: {str(e)}")
 # --- EKRAN 3: ÜRETİM ARŞİVİ (YENİLENMİŞ) ---
 def show_uretim_arsivi():
     if st.session_state.get('user_role') not in ["admin", "operations", "quality"]:
@@ -562,6 +760,7 @@ def show_production_yonetimi():
         with st.container(border=True): show_uretim_arsivi()
     elif secim == "📊 Üretim Performans Analizi":
         with st.container(border=True): show_yonetim_dashboard()
+
 
 
 
