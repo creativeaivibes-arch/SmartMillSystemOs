@@ -131,10 +131,14 @@ def show_uretim_kaydi():
     # Veritabanından Paçalları Çek
     pacal_listesi = get_active_mixing_batches()
     
-    col1, col2, col3 = st.columns([1, 1, 1], gap="medium")
+    tab1, tab2, tab3 = st.tabs([
+        "📋 Üretim Bilgileri",
+        "🌾 Hammadde Girişi", 
+        "📦 Üretim Çıktıları"
+    ])
     
-    with col1:
-        st.subheader("📋 Üretim Bilgileri")
+    with tab1:
+        st.markdown("### 📋 ÜRETİM BİLGİLERİ")
         uretim_tarihi = st.date_input("Üretim Tarihi *", value=datetime.now())
         
         # --- YENİ: PAÇAL SEÇİM KUTUSU ---
@@ -148,15 +152,15 @@ def show_uretim_kaydi():
         uretim_adi = st.text_input("Üretim Adı", placeholder="Lüks Ekmeklik (Otomatik Parti No için boş bırakın)")
         vardiya = st.text_input("Vardiya *", placeholder="08:00 - 18:00")
         sorumlu = st.text_input("Vardiya Sorumlusu")
-        
-    with col2:
-        st.subheader("🌾 Hammadde Girişi")
+    
+    with tab2:
+        st.markdown("### 🌾 HAMMADDE GİRİŞİ")
         kirilan_bugday = st.number_input("Kırılan Buğday (Kg)", min_value=0.0, step=100.0, format="%.0f")
         b1_rutubet = st.number_input("B1 Buğday Rutubeti (%)", min_value=0.0, max_value=20.0, step=0.1)
         tav_suresi = st.number_input("Tav Süresi (Saat)", min_value=0.0, step=0.5)
-        
-    with col3:
-        st.subheader("📦 Üretim Çıktıları (KG)")
+    
+    with tab3:
+        st.markdown("### 📦 ÜRETİM ÇIKTILARI (KG)")
         un_1 = st.number_input("UN (1) (KG)", min_value=0.0, step=50.0)
         un_2 = st.number_input("UN (2) (KG)", min_value=0.0, step=50.0)
         razmol = st.number_input("RAZMOL (KG)", min_value=0.0, step=50.0)
@@ -331,5 +335,6 @@ def show_production_yonetimi():
         with st.container(border=True): show_uretim_arsivi()
     elif secim == "📊 Üretim Performans Analizi":
         with st.container(border=True): show_yonetim_dashboard()
+
 
 
