@@ -325,17 +325,14 @@ def show_yonetim_dashboard():
         period = st.selectbox("📅 Dönem", ["Son 7 Gün", "Son 30 Gün", "Son 3 Ay", "Son 6 Ay", "Tümü"], index=1)
     
     with col_f2:
-        # Üretim Hattı Filtresi
         hat_listesi = ["Tümü"] + sorted(df['uretim_hatti'].dropna().unique().tolist())
         secili_hat = st.selectbox("🏭 Üretim Hattı", hat_listesi)
     
     with col_f3:
-        # Ürün Adı Filtresi
         urun_listesi = ["Tümü"] + sorted(df['degirmen_uretim_adi'].dropna().unique().tolist())
         secili_urun = st.selectbox("📦 Ürün Adı", urun_listesi)
     
     with col_f4:
-        # Vardiya Filtresi
         vardiya_listesi = ["Tümü"] + sorted(df['vardiya'].dropna().unique().tolist())
         secili_vardiya = st.selectbox("⏰ Vardiya", vardiya_listesi)
     
@@ -364,51 +361,113 @@ def show_yonetim_dashboard():
     
     st.divider()
     
-    # ========== ÖZET KPI'LAR ==========
+    # ========== ÖZET KPI'LAR (HEPSİ GRİ ARKA PLAN) ==========
     st.subheader("📈 Özet Göstergeler")
     
-    # SATIR 1: Temel KPI'lar
-    kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-    
+    # Hesaplamalar
     toplam_bugday_ton = df_filtered['kirilan_bugday'].sum() / 1000
     toplam_un_ton = (df_filtered['un_1'].sum() + df_filtered['un_2'].sum()) / 1000
     ort_randiman = df_filtered['toplam_randiman'].mean()
     uretim_sayisi = len(df_filtered)
-    
-    kpi1.metric("🌾 Toplam Buğday", f"{toplam_bugday_ton:,.1f} Ton")
-    kpi2.metric("🍞 Toplam Un", f"{toplam_un_ton:,.1f} Ton")
-    kpi3.metric("📊 Ort. Randıman", f"%{ort_randiman:.2f}")
-    kpi4.metric("🏭 Üretim Sayısı", f"{uretim_sayisi}")
-    
-    # SATIR 2: Yan Ürün & Verimlilik
-    kpi5, kpi6, kpi7, kpi8 = st.columns(4)
-    
     toplam_kepek_ton = df_filtered['kepek'].sum() / 1000
     toplam_razmol_ton = df_filtered['razmol'].sum() / 1000
     ort_kayip = df_filtered['kayip'].mean()
     ort_tav = df_filtered['tav_suresi'].mean()
+    max_rand_row = df_filtered.loc[df_filtered['toplam_randiman'].idxmax()]
+    min_rand_row = df_filtered.loc[df_filtered['toplam_randiman'].idxmin()]
     
-    kpi5.metric("🟤 Toplam Kepek", f"{toplam_kepek_ton:,.1f} Ton")
-    kpi6.metric("⚪ Toplam Razmol", f"{toplam_razmol_ton:,.1f} Ton")
-    kpi7.metric("📉 Ort. Kayıp", f"%{ort_kayip:.2f}", delta_color="inverse")
-    kpi8.metric("⏱️ Ort. Tav Süresi", f"{ort_tav:.1f} Saat")
+    # SATIR 1: Temel KPI'lar
+    kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+    
+    with kpi1:
+        st.markdown(f"""
+        <div style='background-color: #f0f2f6; padding: 12px; border-radius: 8px; text-align: center;'>
+            <p style='color: #666; font-size: 13px; margin: 0;'>🌾 Toplam Buğday</p>
+            <p style='font-size: 24px; font-weight: bold; margin: 8px 0; color: #0D47A1;'>{toplam_bugday_ton:,.1f} Ton</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with kpi2:
+        st.markdown(f"""
+        <div style='background-color: #f0f2f6; padding: 12px; border-radius: 8px; text-align: center;'>
+            <p style='color: #666; font-size: 13px; margin: 0;'>🍞 Toplam Un</p>
+            <p style='font-size: 24px; font-weight: bold; margin: 8px 0; color: #0D47A1;'>{toplam_un_ton:,.1f} Ton</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with kpi3:
+        st.markdown(f"""
+        <div style='background-color: #f0f2f6; padding: 12px; border-radius: 8px; text-align: center;'>
+            <p style='color: #666; font-size: 13px; margin: 0;'>📊 Ort. Randıman</p>
+            <p style='font-size: 24px; font-weight: bold; margin: 8px 0; color: #0D47A1;'>%{ort_randiman:.2f}</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with kpi4:
+        st.markdown(f"""
+        <div style='background-color: #f0f2f6; padding: 12px; border-radius: 8px; text-align: center;'>
+            <p style='color: #666; font-size: 13px; margin: 0;'>🏭 Üretim Sayısı</p>
+            <p style='font-size: 24px; font-weight: bold; margin: 8px 0; color: #0D47A1;'>{uretim_sayisi}</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # SATIR 2: Yan Ürün & Verimlilik
+    kpi5, kpi6, kpi7, kpi8 = st.columns(4)
+    
+    with kpi5:
+        st.markdown(f"""
+        <div style='background-color: #f0f2f6; padding: 12px; border-radius: 8px; text-align: center;'>
+            <p style='color: #666; font-size: 13px; margin: 0;'>🟤 Toplam Kepek</p>
+            <p style='font-size: 24px; font-weight: bold; margin: 8px 0; color: #0D47A1;'>{toplam_kepek_ton:,.1f} Ton</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with kpi6:
+        st.markdown(f"""
+        <div style='background-color: #f0f2f6; padding: 12px; border-radius: 8px; text-align: center;'>
+            <p style='color: #666; font-size: 13px; margin: 0;'>⚪ Toplam Razmol</p>
+            <p style='font-size: 24px; font-weight: bold; margin: 8px 0; color: #0D47A1;'>{toplam_razmol_ton:,.1f} Ton</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with kpi7:
+        st.markdown(f"""
+        <div style='background-color: #f0f2f6; padding: 12px; border-radius: 8px; text-align: center;'>
+            <p style='color: #666; font-size: 13px; margin: 0;'>📉 Ort. Kayıp</p>
+            <p style='font-size: 24px; font-weight: bold; margin: 8px 0; color: #C62828;'>%{ort_kayip:.2f}</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with kpi8:
+        st.markdown(f"""
+        <div style='background-color: #f0f2f6; padding: 12px; border-radius: 8px; text-align: center;'>
+            <p style='color: #666; font-size: 13px; margin: 0;'>⏱️ Ort. Tav Süresi</p>
+            <p style='font-size: 24px; font-weight: bold; margin: 8px 0; color: #0D47A1;'>{ort_tav:.1f} Saat</p>
+        </div>
+        """, unsafe_allow_html=True)
     
     # SATIR 3: Max/Min Performans
     kpi9, kpi10, kpi11, kpi12 = st.columns(4)
     
-    max_rand_row = df_filtered.loc[df_filtered['toplam_randiman'].idxmax()]
-    min_rand_row = df_filtered.loc[df_filtered['toplam_randiman'].idxmin()]
+    with kpi9:
+        st.markdown(f"""
+        <div style='background-color: #f0f2f6; padding: 12px; border-radius: 8px; text-align: center;'>
+            <p style='color: #666; font-size: 13px; margin: 0;'>🏆 En Yüksek Randıman</p>
+            <p style='font-size: 24px; font-weight: bold; margin: 8px 0; color: #0D47A1;'>%{max_rand_row['toplam_randiman']:.2f}</p>
+            <p style='color: #28a745; font-size: 14px; margin: 0;'>▲ {max_rand_row['tarih'].strftime('%d.%m')}</p>
+        </div>
+        """, unsafe_allow_html=True)
     
-    kpi9.metric("🏆 En Yüksek Randıman", 
-                f"%{max_rand_row['toplam_randiman']:.2f}",
-                delta=f"{max_rand_row['tarih'].strftime('%d.%m')}")
+    with kpi10:
+        st.markdown(f"""
+        <div style='background-color: #f0f2f6; padding: 12px; border-radius: 8px; text-align: center;'>
+            <p style='color: #666; font-size: 13px; margin: 0;'>⚠️ En Düşük Randıman</p>
+            <p style='font-size: 24px; font-weight: bold; margin: 8px 0; color: #C62828;'>%{min_rand_row['toplam_randiman']:.2f}</p>
+            <p style='color: #dc3545; font-size: 14px; margin: 0;'>▼ {min_rand_row['tarih'].strftime('%d.%m')}</p>
+        </div>
+        """, unsafe_allow_html=True)
     
-    kpi10.metric("⚠️ En Düşük Randıman", 
-                 f"%{min_rand_row['toplam_randiman']:.2f}",
-                 delta=f"{min_rand_row['tarih'].strftime('%d.%m')}",
-                 delta_color="inverse")
-    
-    # En Verimli Hat (Markdown ile)
+    # En Verimli Hat
     if 'uretim_hatti' in df_filtered.columns:
         hat_randiman = df_filtered.groupby('uretim_hatti')['toplam_randiman'].mean()
         if not hat_randiman.empty:
@@ -423,13 +482,12 @@ def show_yonetim_dashboard():
                 </div>
                 """, unsafe_allow_html=True)
     
-    # En Verimli Vardiya (Markdown ile)
+    # En Verimli Vardiya
     if 'vardiya' in df_filtered.columns:
         vardiya_randiman = df_filtered.groupby('vardiya')['toplam_randiman'].mean()
         if not vardiya_randiman.empty:
             en_iyi_vardiya = vardiya_randiman.idxmax()
             en_iyi_vardiya_rand = vardiya_randiman.max()
-            # Vardiya çok uzunsa kısalt
             vardiya_display = en_iyi_vardiya if len(en_iyi_vardiya) <= 15 else f"{en_iyi_vardiya[:15]}..."
             with kpi12:
                 st.markdown(f"""
@@ -439,6 +497,7 @@ def show_yonetim_dashboard():
                     <p style='color: #28a745; font-size: 15px; margin: 0;'>▲ %{en_iyi_vardiya_rand:.2f}</p>
                 </div>
                 """, unsafe_allow_html=True)
+    
     st.divider()
     
     # ========== GRAFİK PANELİ ==========
@@ -455,7 +514,6 @@ def show_yonetim_dashboard():
             col_g1, col_g2 = st.columns(2)
             
             with col_g1:
-                # Günlük Randıman Trendi
                 fig1 = px.line(df_filtered.sort_values('tarih'), 
                               x='tarih', y='toplam_randiman',
                               title='📈 Günlük Randıman Trendi',
@@ -465,7 +523,6 @@ def show_yonetim_dashboard():
                 st.plotly_chart(fig1, use_container_width=True)
             
             with col_g2:
-                # Hat Bazında Ortalama Randıman
                 if 'uretim_hatti' in df_filtered.columns:
                     hat_data = df_filtered.groupby('uretim_hatti')['toplam_randiman'].mean().reset_index()
                     fig2 = px.bar(hat_data, 
@@ -476,7 +533,6 @@ def show_yonetim_dashboard():
                                  color_continuous_scale='Greens')
                     st.plotly_chart(fig2, use_container_width=True)
             
-            # Kayıp Trendi
             fig3 = px.line(df_filtered.sort_values('tarih'),
                           x='tarih', y='kayip',
                           title='📉 Kayıp Oranı Trendi',
@@ -490,7 +546,6 @@ def show_yonetim_dashboard():
             col_g3, col_g4 = st.columns(2)
             
             with col_g3:
-                # Ürün Dağılımı (Pie Chart)
                 if 'degirmen_uretim_adi' in df_filtered.columns:
                     urun_data = df_filtered.groupby('degirmen_uretim_adi')['kirilan_bugday'].sum().reset_index()
                     fig4 = px.pie(urun_data, 
@@ -499,10 +554,9 @@ def show_yonetim_dashboard():
                     st.plotly_chart(fig4, use_container_width=True)
             
             with col_g4:
-                # Hat Bazında Üretim Hacmi
                 if 'uretim_hatti' in df_filtered.columns:
                     hat_uretim = df_filtered.groupby('uretim_hatti')['kirilan_bugday'].sum().reset_index()
-                    hat_uretim['kirilan_bugday'] = hat_uretim['kirilan_bugday'] / 1000  # Ton'a çevir
+                    hat_uretim['kirilan_bugday'] = hat_uretim['kirilan_bugday'] / 1000
                     fig5 = px.bar(hat_uretim,
                                  x='uretim_hatti', y='kirilan_bugday',
                                  title='🏭 Hat Bazında Toplam Üretim (Ton)',
@@ -511,7 +565,6 @@ def show_yonetim_dashboard():
                                  color_continuous_scale='Blues')
                     st.plotly_chart(fig5, use_container_width=True)
             
-            # Hammadde Kullanım Trendi
             df_gunluk = df_filtered.groupby(df_filtered['tarih'].dt.date)['kirilan_bugday'].sum().reset_index()
             df_gunluk['kirilan_bugday'] = df_gunluk['kirilan_bugday'] / 1000
             fig6 = px.area(df_gunluk,
@@ -523,7 +576,6 @@ def show_yonetim_dashboard():
         
         # --- TAB 3: YAN ÜRÜN ANALİZLERİ ---
         with tab3:
-            # Yan Ürün Dağılımı
             yan_urun_data = {
                 'Ürün': ['Un-2', 'Kepek', 'Razmol', 'Bongalite', 'Kırık'],
                 'Miktar (Ton)': [
@@ -556,212 +608,6 @@ def show_yonetim_dashboard():
         st.warning("📊 Grafik görüntüleme için `plotly` kütüphanesi gereklidir.")
     except Exception as e:
         st.error(f"Grafik oluşturulurken hata: {str(e)}")
-    
-    st.divider()
-    
-    # ========== KARŞILAŞTIRMA TABLOLARI ==========
-    st.subheader("📋 Detaylı Karşılaştırma Tabloları")
-    
-    with st.expander("🏭 Hat Bazında Performans Karşılaştırması", expanded=False):
-        if 'uretim_hatti' in df_filtered.columns:
-            hat_analiz = df_filtered.groupby('uretim_hatti').agg({
-                'kirilan_bugday': 'sum',
-                'un_1': 'sum',
-                'un_2': 'sum',
-                'toplam_randiman': 'mean',
-                'kayip': 'mean',
-                'tav_suresi': 'mean',
-                'parti_no': 'count'
-            }).reset_index()
-            
-            hat_analiz.columns = ['Üretim Hattı', 'Toplam Buğday (kg)', 'Toplam Un-1 (kg)', 
-                                  'Toplam Un-2 (kg)', 'Ort. Randıman (%)', 'Ort. Kayıp (%)', 
-                                  'Ort. Tav (saat)', 'Üretim Sayısı']
-            
-            hat_analiz['Toplam Buğday (Ton)'] = (hat_analiz['Toplam Buğday (kg)'] / 1000).round(1)
-            hat_analiz['Toplam Un-1 (Ton)'] = (hat_analiz['Toplam Un-1 (kg)'] / 1000).round(1)
-            hat_analiz['Toplam Un-2 (Ton)'] = (hat_analiz['Toplam Un-2 (kg)'] / 1000).round(1)
-            
-            hat_analiz = hat_analiz.drop(['Toplam Buğday (kg)', 'Toplam Un-1 (kg)', 'Toplam Un-2 (kg)'], axis=1)
-            
-            hat_analiz['Ort. Randıman (%)'] = hat_analiz['Ort. Randıman (%)'].round(2)
-            hat_analiz['Ort. Kayıp (%)'] = hat_analiz['Ort. Kayıp (%)'].round(2)
-            hat_analiz['Ort. Tav (saat)'] = hat_analiz['Ort. Tav (saat)'].round(1)
-            
-            hat_analiz = hat_analiz.sort_values('Ort. Randıman (%)', ascending=False)
-            
-            st.dataframe(hat_analiz, use_container_width=True, hide_index=True)
-            
-            en_iyi = hat_analiz.iloc[0]
-            st.success(f"🏆 **En Verimli Hat:** {en_iyi['Üretim Hattı']} - Ort. Randıman: %{en_iyi['Ort. Randıman (%)']:.2f}")
-    
-    with st.expander("⏰ Vardiya Bazında Performans Karşılaştırması", expanded=False):
-        if 'vardiya' in df_filtered.columns:
-            vardiya_analiz = df_filtered.groupby('vardiya').agg({
-                'kirilan_bugday': 'sum',
-                'toplam_randiman': 'mean',
-                'kayip': 'mean',
-                'un_1': 'sum',
-                'un_2': 'sum',
-                'parti_no': 'count'
-            }).reset_index()
-            
-            vardiya_analiz.columns = ['Vardiya', 'Toplam Buğday (kg)', 'Ort. Randıman (%)', 
-                                     'Ort. Kayıp (%)', 'Toplam Un-1 (kg)', 'Toplam Un-2 (kg)', 
-                                     'Üretim Sayısı']
-            
-            vardiya_analiz['Toplam Buğday (Ton)'] = (vardiya_analiz['Toplam Buğday (kg)'] / 1000).round(1)
-            vardiya_analiz['Toplam Un (Ton)'] = ((vardiya_analiz['Toplam Un-1 (kg)'] + vardiya_analiz['Toplam Un-2 (kg)']) / 1000).round(1)
-            
-            vardiya_analiz = vardiya_analiz.drop(['Toplam Buğday (kg)', 'Toplam Un-1 (kg)', 'Toplam Un-2 (kg)'], axis=1)
-            
-            vardiya_analiz['Ort. Randıman (%)'] = vardiya_analiz['Ort. Randıman (%)'].round(2)
-            vardiya_analiz['Ort. Kayıp (%)'] = vardiya_analiz['Ort. Kayıp (%)'].round(2)
-            
-            vardiya_analiz = vardiya_analiz.sort_values('Ort. Randıman (%)', ascending=False)
-            
-            st.dataframe(vardiya_analiz, use_container_width=True, hide_index=True)
-            
-            en_iyi_vardiya = vardiya_analiz.iloc[0]
-            st.success(f"🏆 **En Verimli Vardiya:** {en_iyi_vardiya['Vardiya']} - Ort. Randıman: %{en_iyi_vardiya['Ort. Randıman (%)']:.2f}")
-    
-    with st.expander("📦 Ürün Bazında Performans Karşılaştırması", expanded=False):
-        if 'degirmen_uretim_adi' in df_filtered.columns:
-            urun_analiz = df_filtered.groupby('degirmen_uretim_adi').agg({
-                'kirilan_bugday': 'sum',
-                'toplam_randiman': 'mean',
-                'kayip': 'mean',
-                'parti_no': 'count'
-            }).reset_index()
-            
-            urun_analiz.columns = ['Ürün Adı', 'Toplam Buğday (kg)', 'Ort. Randıman (%)', 
-                                  'Ort. Kayıp (%)', 'Üretim Sayısı']
-            
-            urun_analiz['Toplam Buğday (Ton)'] = (urun_analiz['Toplam Buğday (kg)'] / 1000).round(1)
-            urun_analiz = urun_analiz.drop(['Toplam Buğday (kg)'], axis=1)
-            
-            urun_analiz['Ort. Randıman (%)'] = urun_analiz['Ort. Randıman (%)'].round(2)
-            urun_analiz['Ort. Kayıp (%)'] = urun_analiz['Ort. Kayıp (%)'].round(2)
-            
-            urun_analiz = urun_analiz.sort_values('Ort. Randıman (%)', ascending=False)
-            
-            st.dataframe(urun_analiz, use_container_width=True, hide_index=True)
-            
-            en_iyi_urun = urun_analiz.iloc[0]
-            st.success(f"🏆 **En Verimli Ürün:** {en_iyi_urun['Ürün Adı']} - Ort. Randıman: %{en_iyi_urun['Ort. Randıman (%)']:.2f}")
-    
-    with st.expander("📅 Aylık Özet Tablo", expanded=False):
-        df_filtered['ay'] = df_filtered['tarih'].dt.to_period('M').astype(str)
-        
-        aylik_analiz = df_filtered.groupby('ay').agg({
-            'kirilan_bugday': 'sum',
-            'un_1': 'sum',
-            'un_2': 'sum',
-            'toplam_randiman': 'mean',
-            'kayip': 'mean',
-            'parti_no': 'count'
-        }).reset_index()
-        
-        aylik_analiz.columns = ['Ay', 'Toplam Buğday (kg)', 'Toplam Un-1 (kg)', 
-                               'Toplam Un-2 (kg)', 'Ort. Randıman (%)', 'Ort. Kayıp (%)', 
-                               'Üretim Sayısı']
-        
-        aylik_analiz['Toplam Buğday (Ton)'] = (aylik_analiz['Toplam Buğday (kg)'] / 1000).round(1)
-        aylik_analiz['Toplam Un (Ton)'] = ((aylik_analiz['Toplam Un-1 (kg)'] + aylik_analiz['Toplam Un-2 (kg)']) / 1000).round(1)
-        
-        aylik_analiz = aylik_analiz.drop(['Toplam Buğday (kg)', 'Toplam Un-1 (kg)', 'Toplam Un-2 (kg)'], axis=1)
-        
-        aylik_analiz['Ort. Randıman (%)'] = aylik_analiz['Ort. Randıman (%)'].round(2)
-        aylik_analiz['Ort. Kayıp (%)'] = aylik_analiz['Ort. Kayıp (%)'].round(2)
-        
-        aylik_analiz = aylik_analiz.sort_values('Ay', ascending=False)
-        
-        st.dataframe(aylik_analiz, use_container_width=True, hide_index=True)
-    
-    st.divider()
-    
-    # ========== AKILLI ÖNERİLER & UYARILAR ==========
-    st.subheader("💡 Akıllı Öneriler & Uyarılar")
-    
-    with st.expander("🔔 Sistem Tavsiyeleri", expanded=True):
-        uyarilar = []
-        oneriler = []
-        
-        # UYARI 1: Düşük Randıman
-        if ort_randiman < 70:
-            uyarilar.append(f"⚠️ **Ortalama randıman düşük:** %{ort_randiman:.2f} (Hedef: %70+)")
-        
-        # UYARI 2: Yüksek Kayıp
-        if ort_kayip > 2:
-            uyarilar.append(f"⚠️ **Ortalama kayıp yüksek:** %{ort_kayip:.2f} (Hedef: %2 altı)")
-        
-        # UYARI 3: Tav Süresi Kontrolü
-        if ort_tav < 10:
-            uyarilar.append(f"⚠️ **Tav süresi kısa:** {ort_tav:.1f} saat (Önerilen: 10-14 saat)")
-        elif ort_tav > 16:
-            uyarilar.append(f"⚠️ **Tav süresi uzun:** {ort_tav:.1f} saat (Önerilen: 10-14 saat)")
-        
-        # ÖNERİ 1: Hat Karşılaştırması
-        if 'uretim_hatti' in df_filtered.columns:
-            hat_randiman = df_filtered.groupby('uretim_hatti')['toplam_randiman'].mean()
-            if len(hat_randiman) > 1:
-                en_iyi_hat = hat_randiman.idxmax()
-                en_kotu_hat = hat_randiman.idxmin()
-                fark = hat_randiman.max() - hat_randiman.min()
-                if fark > 3:
-                    oneriler.append(f"💡 **Hat optimizasyonu:** '{en_iyi_hat}' hattı '{en_kotu_hat}' hattından %{fark:.1f} daha verimli çalışıyor.")
-        
-        # ÖNERİ 2: Vardiya Karşılaştırması
-        if 'vardiya' in df_filtered.columns:
-            vardiya_randiman = df_filtered.groupby('vardiya')['toplam_randiman'].mean()
-            if len(vardiya_randiman) > 1:
-                en_iyi_vardiya = vardiya_randiman.idxmax()
-                en_kotu_vardiya = vardiya_randiman.idxmin()
-                fark_vardiya = vardiya_randiman.max() - vardiya_randiman.min()
-                if fark_vardiya > 2:
-                    oneriler.append(f"💡 **Vardiya optimizasyonu:** '{en_iyi_vardiya}' vardiyası '{en_kotu_vardiya}' vardiyasından %{fark_vardiya:.1f} daha verimli.")
-        
-        # ÖNERİ 3: Trend Analizi
-        if len(df_filtered) >= 7:
-            df_sorted = df_filtered.sort_values('tarih')
-            son_7 = df_sorted.tail(7)['toplam_randiman'].mean()
-            onceki = df_sorted.head(len(df_sorted) - 7)['toplam_randiman'].mean() if len(df_sorted) > 7 else son_7
-            
-            if son_7 > onceki + 2:
-                oneriler.append(f"📈 **Pozitif trend:** Son kayıtlarda randıman %{son_7 - onceki:.1f} artış gösteriyor! Sürdürün!")
-            elif son_7 < onceki - 2:
-                uyarilar.append(f"📉 **Negatif trend:** Son kayıtlarda randıman %{onceki - son_7:.1f} düşüş var. İnceleme gerekebilir.")
-        
-        # Uyarıları Göster
-        if uyarilar:
-            st.markdown("### ⚠️ Dikkat Gereken Noktalar:")
-            for uyari in uyarilar:
-                st.warning(uyari)
-        else:
-            st.success("✅ Tüm parametreler normal aralıkta!")
-        
-        # Önerileri Göster
-        if oneriler:
-            st.markdown("### 💡 İyileştirme Önerileri:")
-            for oneri in oneriler:
-                st.info(oneri)
-        else:
-            st.info("💡 Şu an için özel öneri bulunmuyor.")
-        
-        # Genel Değerlendirme
-        st.divider()
-        st.markdown("### 📊 Genel Değerlendirme:")
-        
-        if ort_randiman >= 72:
-            genel_durum = "🌟 **Mükemmel Performans!** Randıman hedefin üzerinde."
-        elif ort_randiman >= 70:
-            genel_durum = "✅ **İyi Performans!** Hedef seviyedesiniz."
-        elif ort_randiman >= 65:
-            genel_durum = "⚠️ **Orta Performans.** İyileştirme alanları mevcut."
-        else:
-            genel_durum = "🚨 **Düşük Performans!** Acil inceleme gerekiyor."
-        
-        st.markdown(genel_durum)
 # --- EKRAN 3: ÜRETİM ARŞİVİ (YENİLENMİŞ) ---
 def show_uretim_arsivi():
     if st.session_state.get('user_role') not in ["admin", "operations", "quality"]:
@@ -977,6 +823,7 @@ def show_production_yonetimi():
         with st.container(border=True): show_uretim_arsivi()
     elif secim == "📊 Üretim Performans Analizi":
         with st.container(border=True): show_yonetim_dashboard()
+
 
 
 
