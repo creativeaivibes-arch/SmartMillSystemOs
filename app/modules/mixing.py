@@ -423,6 +423,233 @@ def show_pacal_hesaplayici():
                 st.info("ℹ️ Toplam oranı %100 yapınız.")
         else:
             st.info("👈 Soldan oranları giriniz.")
+# ==============================================================================
+# MODÜL 2: PAÇAL GEÇMİŞİ
+# ==============================================================================
+def show_pacal_gecmisi():
+    """Paçal Geçmişi - Zengin Özet ve Traceability Bağlantısı"""
+    st.header("📜 Paçal Arşivi (Traceability)")
+    
+    # Güncel siloları çek (Eski kayıtlarda cins yoksa buradan bakmak için)
+    current_silos = get_silo_data_fresh()
+    
+    df = get_pacal_history()
+    
+    if df.empty:
+        st.info("📭 Henüz kayıtlı paçal bulunmamaktadır.")
+        return
+
+    for idx, row in df.iterrows():
+        batch_id = row.get('batch_id', '?')
+        
+        # Kart Başlığı
+        baslik = f"📦 {row.get('urun_adi','-')} | {row.get('tarih','-')} | ID: {batch_id}"
+        
+        with st.expander(baslik):
+            # JSON verilerini çözümle
+            try:
+                snapshot = json.loads(row.get('silo_snapshot_json', '{}'))
+                analiz = json.loads(row.get('analiz_snapshot_json', '{}'))
+            except:
+                st.error("Veri paketi bozuk.")
+                continue
+
+            # --- DÜZENLE VE SİL BUTONLARI (ÜST BÖLÜM) ---
+            if st.session_state.get('user_role') in ["admin", "operations"]:
+                btn_col1, btn_col2, btn_col3 = st.columns([1, 1, 6])
+                
+                with btn_col1:
+                    if st.button("✏️ Düzenle", key=f"edit_{batch_id}", use_container_width=True):
+                        st.session_state[f'editing_{batch_id}'] = True
+                        st.rerun()
+                
+                with btn_col2:
+                    if st.button("🗑️ Sil", key=f"del_{batch_id}", type="secondary", use_container_width=True):
+                        st.session_state[f'confirm_delete_{batch_id}'] = True
+                        st.rerun()
+                
+                # SİLME ONAYI
+                if st.session_state.get(f'confirm_delete_{batch_id}', False):
+                    st.warning(f"⚠️ **{row.get('urun_adi','-')}** kaydını silmek istediğinizden emin misiniz?")
+                    c1, c2 = st.columns(2)
+                    
+                    with c1:
+                        if st.button("✅ Evet, Sil", key=f"confirm_yes_{batch_id}", type="primary"):
+                            if delete_pacal_record(batch_id):
+                                st.success("✅ Kayıt silindi!")
+                                st.session_state.pop(f'confirm_delete_{batch_id}', None)
+                                time.sleep(1)
+                                st.rerun()
+                            else:
+                                st.error("❌ Silme işlemi başarısız!")
+                    
+                    with c2:
+                        if st.button("❌ İptal", key=f"confirm_no_{batch_id}"):
+                            st.session_state.pop(f'confirm_delete_{batch_id}', None)
+                            st.rerun()
+                    
+                    st.stop()  # Diğer içeriği gösterme
+                
+                # DÜZENLEME MODU
+                if st.session_state.get(f'editing_{batch_id}', False):
+                    st.info("🔧 **Düzenleme Modu:** Silo oranlarını güncelleyebilirsiniz.")
+                    
+                    # Mevcut oranları al
+                    yeni_oranlar = {}
+                    toplam_yeni = 0.0
+                    
+                    st.markdown("##### 🧩 Silo Oranlarını Güncelle")
+                    
+                    for silo_adi, silo_data in snapshot.items():
+                        if isinstance(silo_data, dict):
+                            mevcut_oran = silo_data.get('oran', 0)
+                        else:
+                            mevcut_oran = silo_data
+                        
+                        yeni_oran = st.number_input(
+                            f"**{silo_adi}**",
+                            min_value=0.0,
+                            max_value=100.0,
+                            value=float(mevcut_oran),
+                            step=0.5,
+                            key=f"edit_oran_{batch_id}_{silo_adi}"
+                        )
+                        yeni_oranlar[silo_adi] = yeni_oran
+                        toplam_yeni += yeni_oran
+                    
+                    st.metric("Toplam Oran", f"%{toplam_yeni:.1f}", delta=f"{toplam_yeni - 100:.1f}" if toplam_yeni != 100 else "Tamam ✅")
+                    
+                    col_save, col_cancel = st.columns(2)
+                    
+                    with col_save:
+                        if st.button("💾 Kaydet", key=f"save_{batch_id}", type="primary", disabled=(toplam_yeni != 100)):
+                            # Snapshot'ı güncelle
+                            yeni_snapshot = {}
+                            for silo_adi, oran in yeni_oranlar.items():
+                                if oran > 0:
+                                    eski_data = snapshot.get(silo_adi, {})
+                                    if isinstance(eski_data, dict):
+                                        eski_data['oran'] = oran
+                                        yeni_snapshot[silo_adi] = eski_data
+                                    else:
+                                        yeni_snapshot[silo_adi] = oran
+                            
+                            # Veritabanını güncelle
+                            updated_data = {
+                                'silo_snapshot_json': json.dumps(yeni_snapshot, ensure_ascii=False)
+                            }
+                            
+                            if update_pacal_record(batch_id, updated_data):
+                                st.success("✅ Güncelleme başarılı!")
+                                st.session_state.pop(f'editing_{batch_id}', None)
+                                time.sleep(1)
+                                st.rerun()
+                            else:
+                                st.error("❌ Güncelleme başarısız!")
+                    
+                    with col_cancel:
+                        if st.button("❌ İptal", key=f"cancel_{batch_id}"):
+                            st.session_state.pop(f'editing_{batch_id}', None)
+                            st.rerun()
+                    
+                    st.divider()
+
+            # --- 1. KULLANILAN SİLOLAR (TABLO) ---
+            st.markdown("#### 🏗️ Kullanılan Silolar (Reçete)")
+            
+            silo_listesi = []
+            for silo_adi, data in snapshot.items():
+                if isinstance(data, dict):
+                    # VERİ AYIKLAMA
+                    meta = data.get('meta', {})
+                    kuru = data.get('kuru_analiz', {})
+                    
+                    # CİNS BULMA (AKILLI FALLBACK)
+                    cins = meta.get('cins') or kuru.get('cins')
+                    
+                    # Eğer arşivde cins yoksa veya '-' ise, GÜNCEL SİLO KARTINA BAK
+                    if not cins or cins in ["-", "nan", ""]:
+                        if not current_silos.empty:
+                            found = current_silos[current_silos['isim'] == silo_adi]
+                            if not found.empty:
+                                cins = str(found.iloc[0].get('bugday_cinsi', '-'))
+                    
+                    if not cins: cins = "-"
+                    
+                    silo_listesi.append({
+                        "Silo Adı": silo_adi,
+                        "Oran": f"%{data.get('oran', 0)}",
+                        "Buğday Cinsi": cins
+                    })
+                else:
+                    # Eski versiyon kayıtlar
+                    silo_listesi.append({"Silo Adı": silo_adi, "Oran": f"%{data}", "Buğday Cinsi": "-"})
+            
+            st.dataframe(pd.DataFrame(silo_listesi), hide_index=True, use_container_width=True)
+            
+            st.divider()
+
+            # --- 2. DETAYLI ANALİZLER (SEKMELİ YAPI) ---
+            st.markdown("#### 🧪 Paçal Özeti (Hesaplanan Ortalamalar)")
+            
+            # Üst Özet
+            kpi1, kpi2, kpi3 = st.columns(3)
+            k_prot = analiz.get('kuru_protein_ort', analiz.get('teorik_kuru_protein', 0))
+            
+            kpi1.metric("💰 Ort. Maliyet", f"{row.get('maliyet',0):.2f} TL")
+            kpi2.metric("🌾 Kuru Protein", f"{fmt(k_prot)}")
+            kpi3.metric("🧪 Tavlı Protein", f"{fmt(analiz.get('protein', 0))}")
+
+            # Detaylı Tablar
+            t_kimya, t_farino, t_extenso = st.tabs(["⚗️ Kimyasal Analizler", "📈 Farinograph", "📊 Extensograph"])
+            
+            with t_kimya:
+                c1, c2, c3 = st.columns(3)
+                c1.markdown(f"**Protein (Ort):** {fmt(analiz.get('protein', 0))}")
+                c2.markdown(f"**Rutubet (Ort):** {fmt(analiz.get('rutubet', 0))}")
+                c3.markdown(f"**Gluten (Ort):** {fmt(analiz.get('gluten', 0))}")
+                
+                c4, c5, c6 = st.columns(3)
+                c4.markdown(f"**G. İndeks:** {fmt(analiz.get('gluten_index', 0), 0)}")
+                c5.markdown(f"**Sedim (Ort):** {fmt(analiz.get('sedim', 0), 0)}")
+                c6.markdown(f"**G. Sedim:** {fmt(analiz.get('g_sedim', 0), 0)}")
+                
+                c7, c8, c9 = st.columns(3)
+                c7.markdown(f"**FN (Ort):** {fmt(analiz.get('fn', 0), 0)}")
+                c8.markdown(f"**FFN (Ort):** {fmt(analiz.get('ffn', 0), 0)}")
+                c9.markdown(f"**Amilograph:** {fmt(analiz.get('amilograph', 0), 0)}")
+
+            with t_farino:
+                f1, f2 = st.columns(2)
+                f1.markdown(f"**Su Kal. (F):** {fmt(analiz.get('su_kaldirma_f', 0))}")
+                f1.markdown(f"**Gelişme Süresi:** {fmt(analiz.get('gelisme_suresi', 0))}")
+                
+                f2.markdown(f"**Stabilite:** {fmt(analiz.get('stabilite', 0))}")
+                f2.markdown(f"**Yumuşama:** {fmt(analiz.get('yumusama', 0), 0)}")
+
+            with t_extenso:
+                st.markdown(f"**Su Kaldırma (E):** {fmt(analiz.get('su_kaldirma_e', 0))}")
+                st.markdown("---")
+                
+                ec1, ec2, ec3 = st.columns(3)
+                ec1.caption("45. Dakika")
+                ec1.markdown(f"Direnç: {fmt(analiz.get('direnc45', 0), 0)}")
+                ec1.markdown(f"Taban: {fmt(analiz.get('taban45', 0), 0)}")
+                ec1.markdown(f"Enerji: {fmt(analiz.get('enerji45', 0), 0)}")
+                
+                ec2.caption("90. Dakika")
+                ec2.markdown(f"Direnç: {fmt(analiz.get('direnc90', 0), 0)}")
+                ec2.markdown(f"Taban: {fmt(analiz.get('taban90', 0), 0)}")
+                ec2.markdown(f"Enerji: {fmt(analiz.get('enerji90', 0), 0)}")
+                
+                ec3.caption("135. Dakika")
+                ec3.markdown(f"Direnç: {fmt(analiz.get('direnc135', 0), 0)}")
+                ec3.markdown(f"Taban: {fmt(analiz.get('taban135', 0), 0)}")
+                ec3.markdown(f"Enerji: {fmt(analiz.get('enerji135', 0), 0)}")
+            
+            st.divider()
+            st.info(f"ℹ️ Bu paçalı oluşturan siloların detaylı analizleri **Traceability (Kara Kutu)** modülünde `{batch_id}` kodu ile saklanmaktadır.")
+
 
 
 
