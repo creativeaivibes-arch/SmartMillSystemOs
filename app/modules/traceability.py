@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import json
+import re
 from datetime import datetime
 
 # Veritabanı Erişim
@@ -124,6 +125,7 @@ def get_trace_chain(search_query):
                         chain["ENZ"] = e_match.sort_values('tarih', ascending=False).iloc[0]
             except: pass
     return chain
+    search_query = re.escape(str(search_query).strip())
 
 # ==============================================================================
 # 2. GÖRSELLEŞTİRME (FRONTEND)
@@ -640,6 +642,7 @@ def show_traceability_dashboard():
 
         elif chain["PRD"] is not None:
             st.warning("⚠️ Bu üretime bağlı Paçal kaydı bulunamadı (Mix ID eksik veya eşleşmiyor).")
+
 
 
 
