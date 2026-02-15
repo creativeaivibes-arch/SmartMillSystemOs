@@ -886,7 +886,6 @@ def create_un_maliyet_pdf_report(hesaplama_verileri: Dict[str, Any]) -> Optional
             table_style_cmds.append(('BACKGROUND', (0, i), (-1, i), colors.HexColor(bg_color)))
             
         sonuc_table.setStyle(TableStyle(table_style_cmds))
-        
         story.append(sonuc_table)
         story.append(Spacer(1, 20))
         
@@ -907,11 +906,9 @@ def create_un_maliyet_pdf_report(hesaplama_verileri: Dict[str, Any]) -> Optional
     except Exception as e:
         st.error(f"Un Maliyet PDF oluşturma hatası: {str(e)}")
         return None
-
 def download_styled_excel(df, filename, sheet_name="Rapor"):
     """Excel çıktısını profesyonel formatta hazırlar (Ortalı, Kenarlıklı, Renkli Başlık)"""
     import xlsxwriter  # Lazy import to avoid dependency issues if not used
-    
     output = io.BytesIO()
     writer = pd.ExcelWriter(output, engine='xlsxwriter')
     df.to_excel(writer, sheet_name=sheet_name, index=False)
@@ -1211,28 +1208,14 @@ def create_traceability_pdf_report(chain_data):
                 story.append(Paragraph(f"Karışım detayı okunamadı: {str(e)}", styles['Normal']))
         else:
             story.append(Paragraph("Pacal (Hammadde) verisi bulunamadi.", styles['Normal']))
-
         # PDF BİTİR
         doc.build(story)
         buffer.seek(0)
         return buffer
-
     except Exception as e:
         import traceback
         st.error(f"❌ PDF OLUŞTURMA HATASI: {str(e)}")
         with st.expander("🔧 Teknik Detaylar"):
             st.code(traceback.format_exc())
         return None
-        
-
-
-
-
-
-
-
-
-
-
-
-
+       
