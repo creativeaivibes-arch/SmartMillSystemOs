@@ -645,10 +645,21 @@ def create_excel_performance_report(df_filtered, period_name):
         from io import BytesIO
         import xlsxwriter
         from datetime import datetime
+        import numpy as np
         
-        # Excel dosyası için buffer
+        # ====== KRİTİK: NaN ve INF Temizliği ======
+        df_filtered = df_filtered.copy()
+        
+        # NaN ve INF değerlerini 0 ile değiştir
+        df_filtered = df_filtered.replace([np.inf, -np.inf], 0)
+        df_filtered = df_filtered.fillna(0)
+        
+        # Excel dosyası için buffer (nan_inf_to_errors eklendi)
         output = BytesIO()
-        workbook = xlsxwriter.Workbook(output, {'in_memory': True})
+        workbook = xlsxwriter.Workbook(output, {
+            'in_memory': True,
+            'nan_inf_to_errors': True  # NaN/INF hatalarını yakala
+        })
         
         # ============= FORMATLAR =============
         # Başlık formatı
@@ -792,28 +803,31 @@ def create_excel_performance_report(df_filtered, period_name):
         df_sorted = df_filtered.sort_values('tarih', ascending=False)
         row = 4
         for _, r in df_sorted.iterrows():
-            ws2.write(row, 0, r['tarih'].strftime('%d.%m.%Y'), data_format)
-            ws2.write(row, 1, r.get('uretim_hatti', '-'), data_format)
-            ws2.write(row, 2, r.get('degirmen_uretim_adi', '-'), data_format)
-            ws2.write(row, 3, r['kirilan_bugday'], number_format)
+            ws2.write(row, 0, r['tarih'].strftime('%d.%m.%Y') if pd.notnull(r['tarih']) else '-', data_format)
+            ws2.write(row, 1, str(r.get('uretim_hatti', '-')), data_format)
+            ws2.write(row, 2, str(r.get('degirmen_uretim_adi', '-')), data_format)
             
-            # Randıman renkli
-            rand_val = r['toplam_randiman'] / 100
+            # Güvenli sayı yazma
+            bugday_val = r['kirilan_bugday'] if pd.notnull(r['kirilan_bugday']) else 0
+            ws2.write(row, 3, float(bugday_val), number_format)
+            
+            # Randıman renkli (NaN kontrolü)
+            rand_val = r['toplam_randiman'] / 100 if pd.notnull(r['toplam_randiman']) else 0
             if rand_val >= 0.70:
-                ws2.write(row, 4, rand_val, positive_format)
+                ws2.write(row, 4, float(rand_val), positive_format)
             else:
-                ws2.write(row, 4, rand_val, negative_format)
+                ws2.write(row, 4, float(rand_val), negative_format)
             
-            # Kayıp renkli
-            kayip_val = r['kayip'] / 100
+            # Kayıp renkli (NaN kontrolü)
+            kayip_val = r['kayip'] / 100 if pd.notnull(r['kayip']) else 0
             if kayip_val <= 0.02:
-                ws2.write(row, 5, kayip_val, positive_format)
+                ws2.write(row, 5, float(kayip_val), positive_format)
             else:
-                ws2.write(row, 5, kayip_val, negative_format)
+                ws2.write(row, 5, float(kayip_val), negative_format)
             
             row += 1
         
-        # ============= SHEET 3: ÜRETİM DETAY =============
+        # ============= SHEET 3: ÜRETİM DETAY (GÜVENLİ) =============
         ws3 = workbook.add_worksheet('ÜRETİM DETAY')
         ws3.set_column('A:A', 20)
         ws3.set_column('B:J', 12)
@@ -828,16 +842,18 @@ def create_excel_performance_report(df_filtered, period_name):
         
         row = 3
         for _, r in df_sorted.iterrows():
-            ws3.write(row, 0, r['tarih'].strftime('%d.%m.%Y'), data_format)
-            ws3.write(row, 1, r.get('uretim_hatti', '-'), data_format)
-            ws3.write(row, 2, r.get('degirmen_uretim_adi', '-'), data_format)
-            ws3.write(row, 3, r.get('vardiya', '-'), data_format)
-            ws3.write(row, 4, r['kirilan_bugday'], number_format)
-            ws3.write(row, 5, r['un_1'], number_format)
-            ws3.write(row, 6, r['un_2'], number_format)
-            ws3.write(row, 7, r['kepek'], number_format)
-            ws3.write(row, 8, r['razmol'], number_format)
-            ws3.write(row, 9, r['toplam_randiman'], number_format)
+            ws3.write(row, 0, r['tarih'].strftime('%d.%m.%Y') if pd.notnull(r['tarih']) else '-', data_format)
+            ws3.write(row, 1, str(r.get('uretim_hatti', '-')), data_format)
+            ws3.write(row, 2, str(r.get('degirmen_uretim_adi', '-')), data_format)
+            ws3.write(row, 3, str(r.get('vardiya', '-')), data_format)
+            
+            # Güvenli sayı yazma
+            ws3.write(row, 4, float(r['kirilan_bugday']) if pd.notnull(r['kirilan_bugday']) else 0, number_format)
+            ws3.write(row, 5, float(r['un_1']) if pd.notnull(r['un_1']) else 0, number_format)
+            ws3.write(row, 6, float(r['un_2']) if pd.notnull(r['un_2']) else 0, number_format)
+            ws3.write(row, 7, float(r['kepek']) if pd.notnull(r['kepek']) else 0, number_format)
+            ws3.write(row, 8, float(r['razmol']) if pd.notnull(r['razmol']) else 0, number_format)
+            ws3.write(row, 9, float(r['toplam_randiman']) if pd.notnull(r['toplam_randiman']) else 0, number_format)
             row += 1
         
         # ============= SHEET 4: KARŞILAŞTIRMA =============
@@ -871,19 +887,30 @@ def create_excel_performance_report(df_filtered, period_name):
             ws4.write(row, 4, r['parti_no'], data_format)
             row += 1
         
-        # ============= SHEET 5: HAM VERİ =============
+        # ============= SHEET 5: HAM VERİ (GÜVENLİ) =============
         ws5 = workbook.add_worksheet('HAM VERİ')
         
         # Tüm kolonları yaz
         for col_num, col_name in enumerate(df_filtered.columns):
-            ws5.write(0, col_num, col_name, table_header_format)
+            ws5.write(0, col_num, str(col_name), table_header_format)
         
         for row_num, row_data in enumerate(df_filtered.itertuples(index=False), start=1):
             for col_num, value in enumerate(row_data):
-                if isinstance(value, pd.Timestamp):
-                    ws5.write(row_num, col_num, value.strftime('%d.%m.%Y %H:%M'), data_format)
-                else:
-                    ws5.write(row_num, col_num, value, data_format)
+                try:
+                    if pd.isnull(value):
+                        ws5.write(row_num, col_num, '-', data_format)
+                    elif isinstance(value, pd.Timestamp):
+                        ws5.write(row_num, col_num, value.strftime('%d.%m.%Y %H:%M'), data_format)
+                    elif isinstance(value, (int, float)):
+                        # NaN/INF kontrolü
+                        if np.isnan(value) or np.isinf(value):
+                            ws5.write(row_num, col_num, 0, data_format)
+                        else:
+                            ws5.write(row_num, col_num, float(value), data_format)
+                    else:
+                        ws5.write(row_num, col_num, str(value), data_format)
+                except:
+                    ws5.write(row_num, col_num, '-', data_format)
         
         # ============= KAYDET =============
         workbook.close()
@@ -1109,6 +1136,7 @@ def show_production_yonetimi():
         with st.container(border=True): show_uretim_arsivi()
     elif secim == "📊 Üretim Performans Analizi":
         with st.container(border=True): show_yonetim_dashboard()
+
 
 
 
