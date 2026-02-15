@@ -1049,8 +1049,8 @@ def show_un_maliyet_hesaplama():
         gelir_kep = (aylik_kirilan * 1000) * (r_kep / 100) * p_kep
         gelir_raz = (aylik_kirilan * 1000) * (r_raz / 100) * p_raz
         gelir_belge = belge * cuval_sayisi
-        gelir_kirik = kirik_tonaj * kirik_fiyat
-        gelir_basak = basak_tonaj * basak_fiyat
+        gelir_kirik = (kirik_tonaj * 1000) * kirik_fiyat  # Ton -> KG çevirimi
+        gelir_basak = (basak_tonaj * 1000) * basak_fiyat  # Ton -> KG çevirimi
         toplam_gelir = gelir_un + gelir_un2 + gelir_bon + gelir_kep + gelir_raz + gelir_belge + gelir_kirik + gelir_basak
         
         gider_bugday = bugday_maliyet * aylik_kirilan * 1000
@@ -1266,6 +1266,7 @@ def show_flour_yonetimi():
                 st.error("⚠️ Enzim modülü (calculations.py) bulunamadı.")
             except Exception as e:
                 st.error(f"⚠️ Modül yüklenirken hata oluştu: {e}")
+
 
 
 
