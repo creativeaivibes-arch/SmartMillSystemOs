@@ -424,38 +424,6 @@ def show_pacal_hesaplayici():
         else:
             st.info("👈 Soldan oranları giriniz.")
 
-# ==============================================================================
-# MODÜL 2: PAÇAL GEÇMİŞİ (PROFESYONEL GÖRÜNÜM)
-# ==============================================================================
-def update_pacal_record(batch_id, new_data):
-    """Paçal kaydını Google Sheets'te günceller"""
-    try:
-        conn = get_conn()
-        worksheet = conn.worksheet("mixing_batches")
-        df = pd.DataFrame(worksheet.get_all_records())
-        
-        if df.empty:
-            return False
-        
-        row_idx = df[df['batch_id'] == batch_id].index
-        if len(row_idx) == 0:
-            return False
-        
-        sheet_row = row_idx[0] + 2
-        headers = worksheet.row_values(1)
-        
-        for key, value in new_data.items():
-            if key in headers:
-                col_idx = headers.index(key) + 1
-                worksheet.update_cell(sheet_row, col_idx, value)
-        
-        st.cache_data.clear()
-        return True
-        
-    except Exception as e:
-        st.error(f"Güncelleme hatası: {e}")
-        return False
-
 def delete_pacal_record(batch_id):
     """Paçal kaydını Google Sheets'ten siler"""
     try:
@@ -479,4 +447,5 @@ def delete_pacal_record(batch_id):
     except Exception as e:
         st.error(f"Silme hatası: {e}")
         return False
+
 
