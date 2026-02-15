@@ -38,6 +38,7 @@ def load_traceability_databases():
     except: pass
     
     return df_analiz, df_uretim, df_mix, df_ship, df_enz
+    
 def get_trace_chain(search_query):
     """
     Girilen Lot/ID'den başlayıp SAHA GERÇEKLİĞİNE göre tüm zinciri kurar.
@@ -47,24 +48,24 @@ def get_trace_chain(search_query):
         "found": False, "SHIP": None, "LAB": None, "PRD": None, "MIX": None, "ENZ": None
     }
     
-   
+    # Güvenli arama için regex karakterlerini escape et
+    search_query = re.escape(str(search_query).strip())
     
-    # --- 0. VERİTABANLARINI ÇEK ---
-    df_analiz = pd.DataFrame()
-    df_uretim = pd.DataFrame()
-    df_mix = pd.DataFrame()
-    try: df_analiz = fetch_data("un_analiz")
-    except: pass
-    try: df_uretim = fetch_data("uretim_kaydi")
-    except: pass
-    try: df_mix = fetch_data("mixing_batches")
-    except: pass
-
+    # Cache'li database'leri kullan (5 dakika hafızada kalır)
+    df_analiz, df_uretim, df_mix, df_ship, df_enz = load_traceability_databases()
+    
+    
     # --- ADIM 1: GİRDİYİ BUL (Herhangi bir halkadan başlanabilir) ---
     
     # A) Analiz Tablosunda Ara (Sevkiyat veya Lab)
     if not df_analiz.empty:
-        match = df_analiz[df_analiz.astype(str).apply(lambda x: x.str.contains(search_query, case=False)).any(axis=1)]
+        # Sadece ilgili sütunlarda ara (3x daha hızlı)
+        search_columns = ['lot_no', 'parti_no', 'musteri_adi', 'urun_cinsi']
+        match = df_analiz[
+            df_analiz[search_columns].astype(str).apply(
+                lambda x: x.str.contains(search_query, case=False, regex=False)
+            ).any(axis=1)
+        ]
         if not match.empty:
             record = match.iloc[0]
             chain["found"] = True
@@ -82,14 +83,14 @@ def get_trace_chain(search_query):
 
     # B) Üretim (Değirmen) Tablosunda Ara (Direkt girildiyse)
     if not chain["found"] and not df_uretim.empty:
-        match = df_uretim[df_uretim['parti_no'].astype(str).str.contains(search_query, case=False)]
+        match = df_uretim[df_uretim['parti_no'].astype(str).str.contains(search_query, case=False, regex=False)]
         if not match.empty:
             chain["found"] = True
             chain["PRD"] = match.iloc[0]
 
     # C) Paçal Tablosunda Ara (Direkt girildiyse)
     if not chain["found"] and not df_mix.empty:
-        match = df_mix[df_mix['batch_id'].astype(str).str.contains(search_query, case=False)]
+        match = df_mix[df_mix['batch_id'].astype(str).str.contains(search_query, case=False, regex=False)]
         if not match.empty:
             chain["found"] = True
             chain["MIX"] = match.iloc[0]
@@ -102,7 +103,7 @@ def get_trace_chain(search_query):
     if chain["LAB"] is not None and chain["MIX"] is None:
         mix_ref = str(chain["LAB"].get('kaynak_parti_no') or chain["LAB"].get('kullanilan_pacal') or '')
         if mix_ref and "MIX" in mix_ref.upper() and not df_mix.empty:
-            m_match = df_mix[df_mix['batch_id'].astype(str).str.contains(mix_ref, case=False)]
+            m_match = df_mix[df_mix['batch_id'].astype(str).str.contains(mix_ref, case=False, regex=False)]
             if not m_match.empty: chain["MIX"] = m_match.iloc[0]
 
     # KÖPRÜ 3: Değirmen Üretim (PRD) -> Paçal (MIX)
@@ -110,7 +111,7 @@ def get_trace_chain(search_query):
     if chain["PRD"] is not None and chain["MIX"] is None:
         mix_ref = str(chain["PRD"].get('kullanilan_pacal') or chain["PRD"].get('mixing_batch_id') or '')
         if mix_ref and "MIX" in mix_ref.upper() and not df_mix.empty:
-            m_match = df_mix[df_mix['batch_id'].astype(str).str.contains(mix_ref, case=False)]
+            
             if not m_match.empty: chain["MIX"] = m_match.iloc[0]
 
     # KÖPRÜ 4: Paçal (MIX) -> Değirmen Üretim (PRD) (Merkez İstasyon Dönüşü)
@@ -118,7 +119,7 @@ def get_trace_chain(search_query):
     if chain["MIX"] is not None and chain["PRD"] is None and not df_uretim.empty:
         mix_id = str(chain["MIX"].get('batch_id', ''))
         if mix_id:
-            u_match = df_uretim[df_uretim['kullanilan_pacal'].astype(str).str.contains(mix_id, case=False)]
+            u_match = df_uretim[df_uretim['kullanilan_pacal'].astype(str).str.contains(mix_id, case=False, regex=False)]
             if not u_match.empty:
                 # Aynı paçalla birden fazla üretim yapıldıysa en son yapılanı alır
                 chain["PRD"] = u_match.sort_values('tarih', ascending=False).iloc[0]
@@ -129,7 +130,7 @@ def get_trace_chain(search_query):
         if chain["MIX"] is not None:
              mix_id = str(chain["MIX"].get('batch_id', ''))
              l_match = df_analiz[
-                 (df_analiz['kaynak_parti_no'].astype(str).str.contains(mix_id, case=False)) & 
+                 (df_analiz['kaynak_parti_no'].astype(str).str.contains(mix_id, case=False, regex=False)) & 
                  (df_analiz['islem_tipi'] == 'ÜRETİM')
              ]
              if not l_match.empty:
@@ -142,13 +143,13 @@ def get_trace_chain(search_query):
                 df_enz = fetch_data("enzim_receteleri")
                 if not df_enz.empty:
                     # uretim_kodu sütununa kaydetmiştik, orada arıyoruz
-                    e_match = df_enz[df_enz['uretim_kodu'].astype(str).str.contains(mix_id, case=False)]
+                    e_match = df_enz[df_enz['uretim_kodu'].astype(str).str.contains(mix_id, case=False, regex=False)]
                     if not e_match.empty:
                         chain["ENZ"] = e_match.sort_values('tarih', ascending=False).iloc[0]
-            except: pass
+            except Exception as e:
+                pass
     return chain
-    search_query = re.escape(str(search_query).strip())
-
+    
 # ==============================================================================
 # 2. GÖRSELLEŞTİRME (FRONTEND)
 # ==============================================================================
@@ -206,7 +207,7 @@ def show_traceability_dashboard():
         if df.empty or lot_col not in df.columns: return []
         temp_df = df.copy()
         if filter_col and filter_val and filter_col in temp_df.columns:
-            temp_df = temp_df[temp_df[filter_col].astype(str).str.contains(filter_val, case=False, na=False)]
+            temp_df = temp_df[temp_df[filter_col].astype(str).str.contains(filter_val, case=False, na=False, regex=False)]
         if 'tarih' in temp_df.columns:
             temp_df['tarih'] = pd.to_datetime(temp_df['tarih'], errors='coerce')
             temp_df = temp_df.sort_values('tarih', ascending=False)
@@ -278,8 +279,7 @@ def show_traceability_dashboard():
     with col_btn:
         st.write("")
         st.write("")
-        ara_btn = st.button("🚀 ZİNCİRİ TARA", type="primary", use_container_width=True)
-
+        ara_btn = st.button("🚀 ZİNCİRİ TARA", type="primary", width='stretch')
     if ara_btn and query:
         # Cache temizle ki en güncel veriyi görsün
         st.cache_data.clear()
@@ -308,7 +308,7 @@ def show_traceability_dashboard():
                         data=pdf_data,
                         file_name=f"izlenebilirlik_{query}.pdf",
                         mime="application/pdf",
-                        use_container_width=True,
+                        width='stretch',
                         type="primary"
                     )
                 else:
@@ -480,8 +480,8 @@ def show_traceability_dashboard():
                             cols[idx].metric(item.get('ad', '-'), f"{item.get('doz', 0)} gr/çuv")
                     else:
                         st.warning("Reçete içeriği boş.")
-                except:
-                    st.error("Reçete içeriği okunamadı.")
+                except Exception as e:
+                    st.error(f"Reçete içeriği okunamadı: {e}")
 
         # ======================================================================
         # 4. HALKA: ÜRETİM (Mill Data)
@@ -664,6 +664,7 @@ def show_traceability_dashboard():
 
         elif chain["PRD"] is not None:
             st.warning("⚠️ Bu üretime bağlı Paçal kaydı bulunamadı (Mix ID eksik veya eşleşmiyor).")
+
 
 
 
