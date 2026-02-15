@@ -1,8 +1,9 @@
 import streamlit as st
 import pandas as pd
 import json
-import re
 from datetime import datetime
+import re
+search_query = str(search_query).strip()
 
 # Veritabanı Erişim
 from app.core.database import fetch_data
@@ -46,7 +47,7 @@ def get_trace_chain(search_query):
         "found": False, "SHIP": None, "LAB": None, "PRD": None, "MIX": None, "ENZ": None
     }
     
-    search_query = str(search_query).strip()
+   
     
     # --- 0. VERİTABANLARINI ÇEK ---
     df_analiz = pd.DataFrame()
@@ -663,6 +664,7 @@ def show_traceability_dashboard():
 
         elif chain["PRD"] is not None:
             st.warning("⚠️ Bu üretime bağlı Paçal kaydı bulunamadı (Mix ID eksik veya eşleşmiyor).")
+
 
 
 
