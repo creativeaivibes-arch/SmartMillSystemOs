@@ -567,51 +567,213 @@ def show_silo_management():
 # ----------------------------------------------------------------
 def show_backup_restore():
     """Veritabanı yedekleme işlemleri"""
+
+    st.markdown("""
+    <style>
+    .yedek-kart {
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 24px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        height: 100%;
+    }
+    .yedek-baslik {
+        font-size: 16px;
+        font-weight: 700;
+        color: #1a202c;
+        margin-bottom: 6px;
+    }
+    .yedek-aciklama {
+        font-size: 12px;
+        color: #718096;
+        margin-bottom: 16px;
+        line-height: 1.5;
+    }
+    .tablo-satir {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 12px;
+        border-radius: 8px;
+        margin-bottom: 6px;
+        background: #f7fafc;
+        border-left: 3px solid #4299e1;
+        font-size: 13px;
+    }
+    .tablo-satir-kritik { border-left-color: #e53e3e; }
+    .tablo-satir-normal { border-left-color: #48bb78; }
+    .tablo-etiket {
+        font-weight: 600;
+        color: #2d3748;
+    }
+    .tablo-acik {
+        font-size: 11px;
+        color: #a0aec0;
+    }
+    .bilgi-kutu {
+        background: linear-gradient(135deg, #ebf8ff, #e6fffa);
+        border: 1px solid #bee3f8;
+        border-radius: 10px;
+        padding: 16px;
+        margin-bottom: 20px;
+    }
+    .bilgi-satir {
+        font-size: 13px;
+        color: #2c5282;
+        margin-bottom: 6px;
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
     st.markdown("### 💾 Yedekleme ve Veri Güvenliği")
-    
-    st.info("""
-    ℹ️ **Bilgi:** Sisteminiz **Google Sheets (Bulut)** altyapısı üzerinde çalışmaktadır.
-    
-    **Otomatik Koruma:**
-    1. ☁️ Verileriniz Google sunucularında anlık saklanır.
-    2. 🕒 Hata durumunda Google E-Tablolar'da **"Dosya > Sürüm Geçmişi"** menüsünden eski tarihe dönebilirsiniz.
-    """)
-    
-    st.divider()
-    
-    col1, col2 = st.columns(2)
-    
+
+    # --- BİLGİ KUTUSU ---
+    st.markdown("""
+    <div class="bilgi-kutu">
+        <div class="bilgi-satir">☁️ <span>Verileriniz <strong>Google Sheets (Bulut)</strong> üzerinde anlık olarak saklanmaktadır.</span></div>
+        <div class="bilgi-satir">🕒 <span>Hata durumunda Google E-Tablolar'da <strong>Dosya → Sürüm Geçmişi</strong> menüsünden eski tarihe dönebilirsiniz.</span></div>
+        <div class="bilgi-satir">💡 <span>Aşağıdaki <strong>Tam Sistem Yedeği</strong> ile tüm kritik verilerinizi tek seferde bilgisayarınıza indirin.</span></div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Kritik tablolar tanımı
+    KRITIK_TABLOLAR = [
+        {"isim": "bugday_giris_arsivi", "etiket": "Buğday Giriş Arşivi",  "aciklama": "Tüm mal kabul kayıtları",        "kritik": True},
+        {"isim": "hareketler",          "etiket": "Stok Hareketleri",      "aciklama": "Silo giriş/çıkış geçmişi",       "kritik": True},
+        {"isim": "tavli_analiz",        "etiket": "Tavlı Analiz Verileri", "aciklama": "Laboratuvar ölçüm kayıtları",     "kritik": True},
+        {"isim": "silolar",             "etiket": "Silo Tanımları",        "aciklama": "Kapasite ve stok bilgileri",      "kritik": False},
+        {"isim": "users",               "etiket": "Kullanıcılar",          "aciklama": "Sistem kullanıcı listesi",        "kritik": False},
+    ]
+
+    col1, col2 = st.columns([1.2, 1])
+
+    # ================================================================
+    # BÖLÜM 1 — TAM SİSTEM YEDEĞİ
+    # ================================================================
     with col1:
-        st.subheader("📥 Excel Yedeği Al")
-        tablolar = {
-            "Kullanıcılar": "users",
-            "Buğday Siloları": "silolar", 
-            "Buğday Giriş Arşivi": "bugday_giris_arsivi",
-            "Stok Hareketleri": "hareketler",
-            "Tavlı Analizler": "tavli_analiz"
-        }
-        selected_table = st.selectbox("İndirilecek Tablo", list(tablolar.keys()))
-        
-        if st.button("📥 Yedeği İndir", type="primary"):
+        st.markdown("""
+        <div class="yedek-kart">
+            <div class="yedek-baslik">📦 Tam Sistem Yedeği</div>
+            <div class="yedek-aciklama">
+                Tüm kritik tablolar tek bir Excel dosyasına, ayrı sayfalara yazılır.<br>
+                Önerilen yedekleme yöntemi budur.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown("**Yedeklenecek Tablolar:**")
+        for t in KRITIK_TABLOLAR:
+            renk = "tablo-satir-kritik" if t["kritik"] else "tablo-satir-normal"
+            etiket_ikon = "🔴" if t["kritik"] else "🟢"
+            st.markdown(f"""
+            <div class="tablo-satir {renk}">
+                <span class="tablo-etiket">{etiket_ikon} {t['etiket']}</span>
+                <span class="tablo-acik">{t['aciklama']}</span>
+            </div>
+            """, unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        if st.button("📦 Tam Sistem Yedeği Al", type="primary", use_container_width=True):
             try:
-                df = fetch_data(tablolar[selected_table])
-                csv = df.to_csv(index=False).encode('utf-8')
-                
-                st.download_button(
-                    label=f"📄 {selected_table} CSV İndir",
-                    data=csv,
-                    file_name=f"{tablolar[selected_table]}_backup_{datetime.now().strftime('%Y%m%d')}.csv",
-                    mime="text/csv"
-                )
+                with st.spinner("Tüm tablolar hazırlanıyor..."):
+                    import io
+                    output = io.BytesIO()
+
+                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                        basarili = []
+                        basarisiz = []
+
+                        for t in KRITIK_TABLOLAR:
+                            try:
+                                df = fetch_data(t["isim"])
+                                if not df.empty:
+                                    # Sheet ismi max 31 karakter (Excel limiti)
+                                    sheet_adi = t["etiket"][:31]
+                                    df.to_excel(writer, sheet_name=sheet_adi, index=False)
+                                    basarili.append(t["etiket"])
+                                else:
+                                    basarisiz.append(f"{t['etiket']} (boş)")
+                            except Exception:
+                                basarisiz.append(f"{t['etiket']} (hata)")
+
+                    output.seek(0)
+                    dosya_adi = f"SmartMill_Yedek_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+
+                    st.download_button(
+                        label=f"⬇️ {dosya_adi} İndir",
+                        data=output.getvalue(),
+                        file_name=dosya_adi,
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True
+                    )
+
+                    if basarili:
+                        st.success(f"✅ {len(basarili)} tablo hazırlandı: {', '.join(basarili)}")
+                    if basarisiz:
+                        st.warning(f"⚠️ Atlanılan tablolar: {', '.join(basarisiz)}")
+
+            except Exception as e:
+                st.error(f"Yedekleme hatası: {str(e)}")
+
+    # ================================================================
+    # BÖLÜM 2 — SEÇİLİ TABLO YEDEĞİ
+    # ================================================================
+    with col2:
+        st.markdown("""
+        <div class="yedek-kart">
+            <div class="yedek-baslik">📋 Seçili Tablo Yedeği</div>
+            <div class="yedek-aciklama">
+                Belirli bir tabloyu CSV olarak indirin.<br>
+                Detaylı inceleme veya filtreleme için uygundur.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        tablo_sec = {t["etiket"]: t["isim"] for t in KRITIK_TABLOLAR}
+        selected_label = st.selectbox("Tablo Seçin", list(tablo_sec.keys()), key="tekli_yedek_sec")
+
+        if st.button("📥 Seçili Tabloyu İndir", use_container_width=True):
+            try:
+                df = fetch_data(tablo_sec[selected_label])
+                if not df.empty:
+                    csv = df.to_csv(index=False).encode('utf-8')
+                    dosya_adi = f"{tablo_sec[selected_label]}_{datetime.now().strftime('%Y%m%d')}.csv"
+                    st.download_button(
+                        label=f"⬇️ {selected_label} CSV İndir",
+                        data=csv,
+                        file_name=dosya_adi,
+                        mime="text/csv",
+                        use_container_width=True
+                    )
+                    st.success(f"✅ {len(df)} satır hazırlandı.")
+                else:
+                    st.warning("Bu tablo henüz boş.")
             except Exception as e:
                 st.error(f"İndirme hatası: {e}")
-    
-    with col2:
-        st.subheader("📤 Geri Yükleme (Restore)")
-        st.warning("⚠️ Geri yükleme işlemi mevcut verilerin üzerine yazar. Sadece acil durumlarda kullanın.")
-        uploaded_file = st.file_uploader("Yedek Dosyası Seç", type=["csv", "xlsx"])
-        if uploaded_file:
-            st.error("Geri yükleme özelliği sistem güvenliği için bu panelden kapatılmıştır. Lütfen manuel yükleme yapın.")
+
+        st.divider()
+
+        # --- GERİ YÜKLEME — KAPALI ---
+        st.markdown("""
+        <div style="background:#fff5f5;border:1px solid #fed7d7;border-radius:10px;padding:16px;">
+            <div style="font-size:14px;font-weight:700;color:#c53030;margin-bottom:8px;">
+                🔒 Geri Yükleme (Restore)
+            </div>
+            <div style="font-size:12px;color:#742a2a;line-height:1.6;">
+                Geri yükleme özelliği veri güvenliği nedeniyle kapatılmıştır.<br><br>
+                <strong>Alternatif:</strong> Google E-Tablolar'da<br>
+                <strong>Dosya → Sürüm Geçmişi → Tarihe göre gözat</strong><br>
+                menüsünden istediğiniz tarihe dönebilirsiniz.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
 # ----------------------------------------------------------------
 # 4. SİSTEM LOGLARI
@@ -676,6 +838,7 @@ def show_debug_tools():
         st.write(f"**Backend:** Google Sheets API")
         st.write(f"**Aktif Kullanıcı:** {st.session_state.get('username', 'Bilinmiyor')}")
         st.write(f"**Rol:** {st.session_state.get('user_role', 'Bilinmiyor')}")
+
 
 
 
