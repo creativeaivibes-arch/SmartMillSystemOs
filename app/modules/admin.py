@@ -138,7 +138,7 @@ def show_silo_management():
                         else:
                             new_data = new_row.to_dict()
                             new_data['silo_tipi'] = silo_tipi
-                            defaults = {'protein': 0, 'gluten': 0, 'rutubet': 0, 'sedim': 0, 'maliyet': 0}
+                            defaults = {'protein': 0, 'gluten': 0, 'rutubet': 0, 'sedim': 0, 'maliyet': 0, 'mevcut_miktar': 0}
                             for k, v in defaults.items():
                                 if k not in new_data: new_data[k] = v
                             final_rows.append(new_data)
@@ -270,4 +270,5 @@ def show_debug_tools():
         st.write(f"**Backend:** Google Sheets API")
         st.write(f"**Aktif Kullanıcı:** {st.session_state.get('username', 'Bilinmiyor')}")
         st.write(f"**Rol:** {st.session_state.get('user_role', 'Bilinmiyor')}")
+
 
