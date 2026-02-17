@@ -66,6 +66,9 @@ def show_user_management():
 # ----------------------------------------------------------------
 # 2. SILO YÖNETİMİ
 # ----------------------------------------------------------------
+# ----------------------------------------------------------------
+# 2. SILO YÖNETİMİ
+# ----------------------------------------------------------------
 def show_silo_management():
     """Silo Konfigürasyonu - TAB YAPISI VE CACHE FIX"""
     st.markdown("### 🏭 Silo Konfigürasyonu ve Tanımları")
@@ -96,10 +99,12 @@ def show_silo_management():
             df = pd.DataFrame(columns=['isim', 'kapasite', 'silo_tipi', 'mevcut_miktar', 'aciklama'])
 
         # --- DATA TİPİ DÜZELTME ---
-        if 'aciklama' not in df.columns: df['aciklama'] = ""
+        if 'aciklama' not in df.columns:
+            df['aciklama'] = ""
         df['aciklama'] = df['aciklama'].fillna("").astype(str)
 
-        if 'silo_tipi' not in df.columns: df['silo_tipi'] = "BUĞDAY"
+        if 'silo_tipi' not in df.columns:
+            df['silo_tipi'] = "BUĞDAY"
         df['silo_tipi'] = df['silo_tipi'].fillna("BUĞDAY").astype(str)
 
         config_cols = ['isim', 'kapasite', 'silo_tipi', 'mevcut_miktar', 'aciklama']
@@ -121,70 +126,69 @@ def show_silo_management():
             edited_un = render_silo_editor(df_un, "editor_un")
 
         if st.button("💾 Silo Değişikliklerini Kaydet", type="primary"):
-    try:
-        conn = get_conn()
-        original_df = fetch_data("silolar", force_refresh=True)
-        final_rows = []
+            try:
+                conn = get_conn()
+                original_df = fetch_data("silolar", force_refresh=True)
+                final_rows = []
 
-        # --- 1. DÜZENLEME / YENİ EKLEME MANTIĞI ---
-        for edited_df, silo_tipi in [(edited_bugday, "BUĞDAY"), (edited_un, "UN")]:
-            for _, new_row in edited_df.iterrows():
-                silo_name = new_row['isim']
-                if not silo_name or str(silo_name).strip() == "":
-                    continue
-                match = original_df[original_df['isim'] == silo_name] if not original_df.empty else pd.DataFrame()
+                # --- 1. DÜZENLEME / YENİ EKLEME MANTIĞI ---
+                for edited_df, silo_tipi in [(edited_bugday, "BUĞDAY"), (edited_un, "UN")]:
+                    for _, new_row in edited_df.iterrows():
+                        silo_name = new_row['isim']
+                        if not silo_name or str(silo_name).strip() == "":
+                            continue
+                        match = original_df[original_df['isim'] == silo_name] if not original_df.empty else pd.DataFrame()
 
-                if not match.empty:
-                    existing_data = match.iloc[0].to_dict()
-                    existing_data.update(new_row.to_dict())
-                    final_rows.append(existing_data)
-                else:
-                    new_data = new_row.to_dict()
-                    new_data['silo_tipi'] = silo_tipi
-                    defaults = {'protein': 0, 'gluten': 0, 'rutubet': 0, 'sedim': 0, 'maliyet': 0, 'mevcut_miktar': 0}
-                    for k, v in defaults.items():
-                        if k not in new_data: new_data[k] = v
-                    final_rows.append(new_data)
+                        if not match.empty:
+                            existing_data = match.iloc[0].to_dict()
+                            existing_data.update(new_row.to_dict())
+                            final_rows.append(existing_data)
+                        else:
+                            new_data = new_row.to_dict()
+                            new_data['silo_tipi'] = silo_tipi
+                            defaults = {'protein': 0, 'gluten': 0, 'rutubet': 0, 'sedim': 0, 'maliyet': 0, 'mevcut_miktar': 0}
+                            for k, v in defaults.items():
+                                if k not in new_data:
+                                    new_data[k] = v
+                            final_rows.append(new_data)
 
-        # --- 2. SİLME MANTIĞI ---
-        # Tabloda kalması gereken silo isimleri
-        edited_isimler = set()
-        for edited_df in [edited_bugday, edited_un]:
-            for isim in edited_df['isim'].tolist():
-                if isim and str(isim).strip() != "":
-                    edited_isimler.add(isim)
+                # --- 2. SİLME MANTIĞI ---
+                edited_isimler = set()
+                for edited_df in [edited_bugday, edited_un]:
+                    for isim in edited_df['isim'].tolist():
+                        if isim and str(isim).strip() != "":
+                            edited_isimler.add(isim)
 
-        # Original'de var ama edited'de yok = silindi
-        if not original_df.empty:
-            silinen_df = original_df[~original_df['isim'].isin(edited_isimler)]
+                if not original_df.empty:
+                    silinen_df = original_df[~original_df['isim'].isin(edited_isimler)]
 
-            if not silinen_df.empty:
-                engellenen = []
-                for _, silo in silinen_df.iterrows():
-                    miktar = float(silo.get('mevcut_miktar', 0) or 0)
-                    if miktar > 0:
-                        engellenen.append(f"**{silo['isim']}** ({miktar} Ton stok var)")
+                    if not silinen_df.empty:
+                        engellenen = []
+                        for _, silo in silinen_df.iterrows():
+                            miktar = float(silo.get('mevcut_miktar', 0) or 0)
+                            if miktar > 0:
+                                engellenen.append(f"**{silo['isim']}** ({miktar} Ton stok var)")
 
-                if engellenen:
-                    st.error(
-                        f"⛔ Aşağıdaki silolar **stok içerdiği için silinemez!**\n\n"
-                        + "\n".join([f"- {e}" for e in engellenen])
-                        + "\n\nÖnce bu siloların stoğunu sıfırlayın."
-                    )
-                    st.stop()
+                        if engellenen:
+                            st.error(
+                                "⛔ Aşağıdaki silolar **stok içerdiği için silinemez!**\n\n"
+                                + "\n".join([f"- {e}" for e in engellenen])
+                                + "\n\nÖnce bu siloların stoğunu sıfırlayın."
+                            )
+                            st.stop()
 
-        # --- 3. KAYDET ---
-        df_to_save = pd.DataFrame(final_rows)
-        conn.update(worksheet="silolar", data=df_to_save)
-        clear_cache("silolar")
-        st.cache_data.clear()
+                # --- 3. KAYDET ---
+                df_to_save = pd.DataFrame(final_rows)
+                conn.update(worksheet="silolar", data=df_to_save)
+                clear_cache("silolar")
+                st.cache_data.clear()
 
-        st.success("✅ Silo konfigürasyonu başarıyla güncellendi!")
-        time.sleep(1.5)
-        st.rerun()
+                st.success("✅ Silo konfigürasyonu başarıyla güncellendi!")
+                time.sleep(1.5)
+                st.rerun()
 
-    except Exception as e:
-        st.error(f"Kayıt sırasında hata oluştu: {str(e)}")
+            except Exception as e:
+                st.error(f"Kayıt sırasında hata oluştu: {str(e)}")
 
     except Exception as e:
         st.error(f"Silo verileri yüklenemedi: {e}")
@@ -301,6 +305,7 @@ def show_debug_tools():
         st.write(f"**Backend:** Google Sheets API")
         st.write(f"**Aktif Kullanıcı:** {st.session_state.get('username', 'Bilinmiyor')}")
         st.write(f"**Rol:** {st.session_state.get('user_role', 'Bilinmiyor')}")
+
 
 
 
