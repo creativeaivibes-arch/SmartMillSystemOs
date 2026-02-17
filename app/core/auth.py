@@ -7,7 +7,7 @@ import bcrypt
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from app.core.database import fetch_data, add_data, get_conn
+from app.core.database import fetch_data, add_data, get_conn, log_activity
 
 # Sistemin ana menüde ve yetkilendirmede kullandığı roller
 ROLES = {
@@ -367,6 +367,7 @@ def migrate_user_to_bcrypt(username, plain_password):
     except Exception as e:
         st.error(f"Bcrypt geçiş hatası: {e}")
         return False
+
 
 
 
