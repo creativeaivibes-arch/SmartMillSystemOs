@@ -13,53 +13,116 @@ from app.core.database import fetch_data, add_data, update_data, get_conn, clear
 def show_user_management():
     """Kullanıcı ekleme, çıkarma ve listeleme"""
     st.markdown("### 👥 Kullanıcı Yönetimi")
-    
+
     try:
         users = fetch_data("users")
-        
+
         # Kullanıcı Listesi Tablosu
         if not users.empty:
-            # Görsel güvenlik: Şifreleri gizle
             display_users = users.copy()
             if 'password' in display_users.columns:
                 display_users['password'] = "********"
-            
             st.dataframe(display_users, use_container_width=True)
         else:
             st.info("Sistemde kayıtlı kullanıcı bulunamadı.")
 
         st.divider()
 
-        # Yeni Kullanıcı Ekleme Formu
+        # ================================================================
+        # YENİ KULLANICI EKLEME
+        # ================================================================
         with st.expander("➕ Yeni Kullanıcı Ekle", expanded=False):
             with st.form("add_user_form"):
                 col1, col2 = st.columns(2)
                 new_user = col1.text_input("Kullanıcı Adı (Username)")
                 new_pass = col2.text_input("Şifre", type="password")
-                
+
                 new_name = st.text_input("Ad Soyad")
                 new_role = st.selectbox("Yetki Rolü", ["admin", "quality", "operations", "management"])
-                
+
                 submitted = st.form_submit_button("Kullanıcıyı Kaydet")
-                
+
                 if submitted:
                     if new_user and new_pass:
-                        user_data = {
-                            "username": new_user,
-                            "password": new_pass,
-                            "role": new_role,
-                            "full_name": new_name,
-                            "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        }
-                        if add_data("users", user_data):
-                            st.success(f"✅ {new_user} kullanıcısı başarıyla eklendi!")
-                            clear_cache("users") # Cache temizle
-                            time.sleep(1)
-                            st.rerun()
+                        # Aynı kullanıcı adı var mı kontrol et
+                        if not users.empty and new_user in users['username'].tolist():
+                            st.error(f"⛔ '{new_user}' kullanıcı adı zaten mevcut!")
                         else:
-                            st.error("Kayıt sırasında hata oluştu.")
+                            user_data = {
+                                "username": new_user,
+                                "password": new_pass,
+                                "role": new_role,
+                                "full_name": new_name,
+                                "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            }
+                            if add_data("users", user_data):
+                                st.success(f"✅ {new_user} kullanıcısı başarıyla eklendi!")
+                                clear_cache("users")
+                                time.sleep(1)
+                                st.rerun()
+                            else:
+                                st.error("Kayıt sırasında hata oluştu.")
                     else:
                         st.error("Kullanıcı adı ve şifre boş olamaz.")
+
+        # ================================================================
+        # KULLANICI SİLME
+        # ================================================================
+        st.divider()
+        with st.expander("🗑️ Kullanıcı Sil", expanded=False):
+            try:
+                if not users.empty and 'username' in users.columns:
+                    aktif_kullanici = st.session_state.get('username', '')
+
+                    # Aktif kullanıcıyı listeden çıkar — kendini silemez
+                    silinebilir = users[users['username'] != aktif_kullanici]['username'].tolist()
+
+                    if not silinebilir:
+                        st.info("Silinebilecek başka kullanıcı yok.")
+                    else:
+                        secilen_kullanici = st.selectbox(
+                            "Silinecek Kullanıcıyı Seçin",
+                            silinebilir,
+                            key="kullanici_silme_secim"
+                        )
+
+                        if secilen_kullanici:
+                            kullanici_row = users[users['username'] == secilen_kullanici].iloc[0]
+                            rol  = kullanici_row.get('role', 'Bilinmiyor')
+                            isim = kullanici_row.get('full_name', '')
+
+                            st.warning(f"⚠️ **{secilen_kullanici}** ({isim} / {rol}) kullanıcısı kalıcı olarak silinecek.")
+
+                            col_btn1, col_btn2 = st.columns([1, 3])
+
+                            with col_btn1:
+                                if 'kullanici_silme_onayi' not in st.session_state:
+                                    st.session_state.kullanici_silme_onayi = False
+
+                                if not st.session_state.kullanici_silme_onayi:
+                                    if st.button("🗑️ Sil", type="secondary", use_container_width=True, key="k_sil_btn"):
+                                        st.session_state.kullanici_silme_onayi = True
+                                        st.rerun()
+                                else:
+                                    st.error("Emin misiniz?")
+                                    if st.button("✅ EVET, SİL", type="primary", use_container_width=True, key="k_evet_btn"):
+                                        conn = get_conn()
+                                        df_guncell = users[users['username'] != secilen_kullanici]
+                                        conn.update(worksheet="users", data=df_guncell)
+                                        clear_cache("users")
+                                        st.cache_data.clear()
+                                        st.session_state.kullanici_silme_onayi = False
+                                        st.success(f"✅ {secilen_kullanici} kullanıcısı silindi.")
+                                        time.sleep(1.5)
+                                        st.rerun()
+
+                                    if st.button("❌ İptal", use_container_width=True, key="k_iptal_btn"):
+                                        st.session_state.kullanici_silme_onayi = False
+                                        st.rerun()
+                else:
+                    st.info("Silinecek kullanıcı bulunamadı.")
+            except Exception as e:
+                st.error(f"Kullanıcı silme bölümü yüklenemedi: {str(e)}")
 
     except Exception as e:
         st.error(f"Kullanıcı verileri yüklenirken hata oluştu: {e}")
@@ -475,6 +538,7 @@ def show_debug_tools():
         st.write(f"**Backend:** Google Sheets API")
         st.write(f"**Aktif Kullanıcı:** {st.session_state.get('username', 'Bilinmiyor')}")
         st.write(f"**Rol:** {st.session_state.get('user_role', 'Bilinmiyor')}")
+
 
 
 
