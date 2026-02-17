@@ -26,7 +26,7 @@ def check_password(password, hashed_password):
     return hash_password(password) == hashed_password
 
 def do_logout():
-    """Kullanıcı çıkış işlemini yapar ve sayfayı yeniler"""
+    log_activity("Sistem", "Çıkış", f"Kullanıcı: {st.session_state.get('username','?')}")
     st.session_state.logged_in = False
     st.session_state.username = None
     st.session_state.user_role = None
@@ -194,6 +194,7 @@ def login_user(username, password):
                 st.session_state.username = username
                 st.session_state.user_role = user.iloc[0]['rol']
                 st.session_state.user_fullname = user.iloc[0]['ad_soyad']
+                log_activity("Sistem", "Giriş", f"Kullanıcı: {username} | Rol: {user.iloc[0]['rol']}")
                 return True
             else:
                 return False
@@ -211,6 +212,7 @@ def login_user(username, password):
                 st.session_state.username = username
                 st.session_state.user_role = user.iloc[0]['rol']
                 st.session_state.user_fullname = user.iloc[0]['ad_soyad']
+                log_activity("Sistem", "Giriş", f"Kullanıcı: {username} | Rol: {user.iloc[0]['rol']}")
                 return True
             else:
                 return False
@@ -367,6 +369,7 @@ def migrate_user_to_bcrypt(username, plain_password):
     except Exception as e:
         st.error(f"Bcrypt geçiş hatası: {e}")
         return False
+
 
 
 
