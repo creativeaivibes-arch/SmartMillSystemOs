@@ -13,7 +13,7 @@ st.set_page_config(
 # Core Imports
 from app.core.utils import init_session_state
 from app.core.styles import load_css
-from app.core.database import init_db
+from app.core.database import init_db, log_activity
 from app.core.auth import check_password, do_logout, ROLES, show_profile_settings
 from app.core.config import SESSION_TIMEOUT_SECONDS
 from app.core.license_manager import check_license, show_license_lock_screen, LICENSE_CONFIG
@@ -259,7 +259,22 @@ with st.sidebar:
         selected_page = "ADMIN"
     
 # --- YÖNLENDIRME (ROUTING) ---
-
+# --- AUDİT LOG: SAYFA ZİYARETİ ---
+if selected_page and selected_page != st.session_state.get('last_logged_page'):
+    PAGE_LABELS = {
+        "Dashboard":          "Ana Panel",
+        "KK_BUGDAY":          "Buğday Yönetimi",
+        "KK_UN":              "Un Yönetimi",
+        "PRODUCTION_MANAGER": "Üretim Yönetimi",
+        "FINANCE_DASHBOARD":  "Finans & Strateji",
+        "TRACEABILITY":       "İzlenebilirlik",
+        "ADMIN":              "Yönetim Paneli",
+        "PROFILE":            "Profil Ayarları",
+    }
+    sayfa_adi = PAGE_LABELS.get(selected_page, selected_page)
+    log_activity("Navigasyon", "Sayfa Ziyareti", sayfa_adi)
+    st.session_state.last_logged_page = selected_page
+    
 if selected_page == "Dashboard":
     try:
         dashboard.show_dashboard()
@@ -442,6 +457,7 @@ with st.sidebar:
     # En Alt Footer
     st.caption(f"🏢 {LICENSE_CONFIG.get('CLIENT_NAME', 'Client')}")
     st.caption("v2.0 Enterprise")
+
 
 
 
