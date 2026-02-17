@@ -20,6 +20,7 @@ CACHE_DURATIONS = {
     'production_lots': 60,   # Üretim -> Paçal bağlantısı
     'shipments': 60,         # Sevkiyat -> Lot bağlantısı
     
+    'audit_log': 10,
     'default': 30            # Diğer tüm tablolar için varsayılan
 }
 
@@ -259,6 +260,47 @@ def delete_rows_by_filter(worksheet_name, filter_dict):
         
     except Exception as e:
         return False, f"Hata: {str(e)}", 0
+
+def log_activity(modul, islem, detay=""):
+    """
+    Kullanıcı aktivitelerini audit_log sheet'ine kaydeder.
+    Tüm modüllerden çağrılır. Hata durumunda sistemi durdurmaz.
+
+    Args:
+        modul : Hangi modül  (örn: "Buğday Yönetimi")
+        islem : Ne yapıldı   (örn: "Ham Madde Girişi")
+        detay : Opsiyonel    (örn: "Lot: BG-001, 50 Ton")
+    """
+    try:
+        kullanici = st.session_state.get('username', 'sistem')
+        rol       = st.session_state.get('user_role', 'bilinmiyor')
+
+        log_verisi = {
+            "tarih"    : pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "kullanici": kullanici,
+            "rol"      : rol,
+            "modul"    : modul,
+            "islem"    : islem,
+            "detay"    : str(detay)[:200]
+        }
+
+        conn = get_conn()
+        if conn:
+            try:
+                df_log = conn.read(worksheet="audit_log", ttl=1)
+            except:
+                df_log = pd.DataFrame(columns=["tarih","kullanici","rol","modul","islem","detay"])
+
+            if df_log is None or df_log.empty:
+                df_log = pd.DataFrame(columns=["tarih","kullanici","rol","modul","islem","detay"])
+
+            yeni_satir = pd.DataFrame([log_verisi])
+            df_log = pd.concat([df_log, yeni_satir], ignore_index=True)
+            conn.update(worksheet="audit_log", data=df_log)
+
+    except Exception:
+        pass
+
 
 
 
