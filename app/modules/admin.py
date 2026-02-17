@@ -63,103 +63,100 @@ def show_user_management():
 
     except Exception as e:
         st.error(f"Kullanıcı verileri yüklenirken hata oluştu: {e}")
-
 # ----------------------------------------------------------------
-# 2. SILO YÖNETİMİ (DÜZELTİLDİ: CACHE TEMİZLEME EKLENDİ)
+# 2. SILO YÖNETİMİ
 # ----------------------------------------------------------------
 def show_silo_management():
-    """Silo Konfigürasyonu - TİP SEÇİMİ VE GÜNCELLEME AKTİF (CACHE FIX)"""
+    """Silo Konfigürasyonu - TAB YAPISI VE CACHE FIX"""
     st.markdown("### 🏭 Silo Konfigürasyonu ve Tanımları")
     st.info("Buradan silo isimlerini, kapasitelerini ve kullanım amaçlarını (Buğday/Un) ayarlayabilirsiniz.")
-    
+
+    def render_silo_editor(filtered_df, editor_key):
+        edited = st.data_editor(
+            filtered_df,
+            num_rows="dynamic",
+            use_container_width=True,
+            key=editor_key,
+            column_config={
+                "isim": st.column_config.TextColumn("Silo Adı", required=True),
+                "kapasite": st.column_config.NumberColumn("Kapasite (Ton)", min_value=0, required=True, format="%.0f"),
+                "silo_tipi": st.column_config.TextColumn("Tip", disabled=True),
+                "mevcut_miktar": st.column_config.NumberColumn("Mevcut (Ton)", disabled=True),
+                "aciklama": st.column_config.TextColumn("Açıklama / Konum")
+            }
+        )
+        st.caption("ℹ️ Yeni satır eklemek için tablonun en altına tıklayın.")
+        return edited
+
     try:
-        # Veriyi çek (Force refresh ile en güncel hali)
         df = fetch_data("silolar", force_refresh=True)
-        
+
         if df.empty:
             st.warning("Tanımlı silo bulunamadı. Yeni eklemek için aşağıdaki tabloyu kullanın.")
             df = pd.DataFrame(columns=['isim', 'kapasite', 'silo_tipi', 'mevcut_miktar', 'aciklama'])
-        
-        # --- 1. DATA TİPİ DÜZELTME ---
+
+        # --- DATA TİPİ DÜZELTME ---
         if 'aciklama' not in df.columns: df['aciklama'] = ""
         df['aciklama'] = df['aciklama'].fillna("").astype(str)
 
         if 'silo_tipi' not in df.columns: df['silo_tipi'] = "BUĞDAY"
         df['silo_tipi'] = df['silo_tipi'].fillna("BUĞDAY").astype(str)
-            
-        # Sütunları düzenle 
+
         config_cols = ['isim', 'kapasite', 'silo_tipi', 'mevcut_miktar', 'aciklama']
         for col in config_cols:
             if col not in df.columns:
                 df[col] = "" if col == 'aciklama' else 0
-                
+
         df_display = df[config_cols].copy()
-        
-        # --- EDİTÖR ---
-        edited_df = st.data_editor(
-            df_display,
-            num_rows="dynamic",
-            use_container_width=True,
-            key="silo_config_editor_v2",
-            column_config={
-                "isim": st.column_config.TextColumn("Silo Adı", required=True),
-                "kapasite": st.column_config.NumberColumn("Kapasite (Ton)", min_value=0, required=True, format="%.0f"),
-                "silo_tipi": st.column_config.SelectboxColumn(
-                    "Kullanım Amacı", 
-                    options=["BUĞDAY", "UN", "DİNLENDİRME", "DİĞER"],
-                    required=True,
-                    default="BUĞDAY"
-                ),
-                "mevcut_miktar": st.column_config.NumberColumn("Mevcut (Ton)", disabled=True),
-                "aciklama": st.column_config.TextColumn("Açıklama / Konum")
-            }
-        )
-        
-        st.caption("ℹ️ Not: Yeni satır eklemek için tablonun en altına tıklayın.")
-        
+
+        # --- TAB YAPISI ---
+        tab_bugday, tab_un = st.tabs(["🌾 Buğday Siloları", "🏭 Un Siloları"])
+
+        with tab_bugday:
+            df_bugday = df_display[df_display['silo_tipi'] == "BUĞDAY"].copy()
+            edited_bugday = render_silo_editor(df_bugday, "editor_bugday")
+
+        with tab_un:
+            df_un = df_display[df_display['silo_tipi'] == "UN"].copy()
+            edited_un = render_silo_editor(df_un, "editor_un")
+
         if st.button("💾 Silo Değişikliklerini Kaydet", type="primary"):
             try:
                 conn = get_conn()
-                
-                # --- BİRLEŞTİRME MANTIĞI ---
                 original_df = fetch_data("silolar", force_refresh=True)
                 final_rows = []
-                
-                for _, new_row in edited_df.iterrows():
-                    silo_name = new_row['isim']
-                    match = original_df[original_df['isim'] == silo_name] if not original_df.empty else pd.DataFrame()
-                    
-                    if not match.empty:
-                        existing_data = match.iloc[0].to_dict()
-                        existing_data.update(new_row.to_dict())
-                        final_rows.append(existing_data)
-                    else:
-                        new_data = new_row.to_dict()
-                        defaults = {'protein':0, 'gluten':0, 'rutubet':0, 'sedim':0, 'maliyet':0}
-                        for k, v in defaults.items():
-                            if k not in new_data: new_data[k] = v
-                        final_rows.append(new_data)
-                
-                # Kaydet
+
+                for edited_df, silo_tipi in [(edited_bugday, "BUĞDAY"), (edited_un, "UN")]:
+                    for _, new_row in edited_df.iterrows():
+                        silo_name = new_row['isim']
+                        match = original_df[original_df['isim'] == silo_name] if not original_df.empty else pd.DataFrame()
+
+                        if not match.empty:
+                            existing_data = match.iloc[0].to_dict()
+                            existing_data.update(new_row.to_dict())
+                            final_rows.append(existing_data)
+                        else:
+                            new_data = new_row.to_dict()
+                            new_data['silo_tipi'] = silo_tipi
+                            defaults = {'protein': 0, 'gluten': 0, 'rutubet': 0, 'sedim': 0, 'maliyet': 0}
+                            for k, v in defaults.items():
+                                if k not in new_data: new_data[k] = v
+                            final_rows.append(new_data)
+
                 df_to_save = pd.DataFrame(final_rows)
                 conn.update(worksheet="silolar", data=df_to_save)
-                
-                # --- KRİTİK DÜZELTME: CACHE TEMİZLİĞİ ---
-                # Veritabanı güncellendiği an cache'i siliyoruz ki
-                # Dashboard ve Wheat.py taze veriyi çekebilsin.
-                clear_cache("silolar") 
+                clear_cache("silolar")
                 st.cache_data.clear()
-                
+
                 st.success("✅ Silo konfigürasyonu başarıyla güncellendi!")
                 time.sleep(1.5)
                 st.rerun()
-                
+
             except Exception as e:
                 st.error(f"Kayıt sırasında hata oluştu: {str(e)}")
-            
+
     except Exception as e:
         st.error(f"Silo verileri yüklenemedi: {e}")
-
 # ----------------------------------------------------------------
 # 3. YEDEKLEME VE GERİ YÜKLEME
 # ----------------------------------------------------------------
@@ -273,3 +270,4 @@ def show_debug_tools():
         st.write(f"**Backend:** Google Sheets API")
         st.write(f"**Aktif Kullanıcı:** {st.session_state.get('username', 'Bilinmiyor')}")
         st.write(f"**Rol:** {st.session_state.get('user_role', 'Bilinmiyor')}")
+
