@@ -146,16 +146,17 @@ def show_user_management():
                     aktif_html  = '<span class="aktif-badge">● Aktif</span>' if username == aktif_kullanici else ''
 
                     with cols[i]:
+                        email_html   = f'📧 {email}' if email and email not in ('None', 'nan', '') else ''
+                        created_html = f'📅 {created}' if created and created not in ('None', 'nan', '') else ''
+                        meta_html    = ' &nbsp; '.join(filter(None, [email_html, created_html]))
+
                         st.markdown(f"""
                         <div class="user-card">
                             <div class="user-avatar {cfg['avatar']}">{harf}</div>
                             <div class="user-name">{username}{aktif_html}</div>
                             <div class="user-fullname">{full_name or '—'}</div>
                             <span class="role-badge {cfg['badge']}">{cfg['ikon']} {cfg['label']}</span>
-                            <div class="user-meta">
-                                {'📧 ' + email if email and email != 'None' else ''}
-                                {'&nbsp;&nbsp;📅 ' + created if created and created != 'nan' else ''}
-                            </div>
+                            {f'<div class="user-meta">{meta_html}</div>' if meta_html else ''}
                         </div>
                         """, unsafe_allow_html=True)
         else:
@@ -675,6 +676,7 @@ def show_debug_tools():
         st.write(f"**Backend:** Google Sheets API")
         st.write(f"**Aktif Kullanıcı:** {st.session_state.get('username', 'Bilinmiyor')}")
         st.write(f"**Rol:** {st.session_state.get('user_role', 'Bilinmiyor')}")
+
 
 
 
