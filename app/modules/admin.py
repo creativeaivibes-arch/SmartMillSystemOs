@@ -11,91 +11,225 @@ from app.core.database import fetch_data, add_data, update_data, get_conn, clear
 # 1. KULLANICI YÖNETİMİ
 # ----------------------------------------------------------------
 def show_user_management():
-    """Kullanıcı ekleme, çıkarma ve listeleme"""
-    st.markdown("### 👥 Kullanıcı Yönetimi")
+    """Kullanıcı Yönetimi - Profesyonel Kart Görünümü"""
+
+    st.markdown("""
+    <style>
+    .user-card {
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 18px;
+        margin-bottom: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        transition: box-shadow 0.2s;
+    }
+    .user-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.12); }
+
+    .user-avatar {
+        width: 44px; height: 44px;
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 18px; font-weight: 700;
+        margin-bottom: 10px;
+        color: white;
+    }
+    .avatar-admin      { background: linear-gradient(135deg, #667eea, #764ba2); }
+    .avatar-quality    { background: linear-gradient(135deg, #11998e, #38ef7d); }
+    .avatar-operations { background: linear-gradient(135deg, #f093fb, #f5576c); }
+    .avatar-management { background: linear-gradient(135deg, #4facfe, #00f2fe); }
+    .avatar-default    { background: linear-gradient(135deg, #a8a8a8, #6e6e6e); }
+
+    .user-name {
+        font-size: 15px; font-weight: 700;
+        color: #1a202c; margin-bottom: 2px;
+    }
+    .user-fullname {
+        font-size: 12px; color: #718096; margin-bottom: 8px;
+    }
+    .role-badge {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+    }
+    .role-admin      { background: #e9d8fd; color: #553c9a; }
+    .role-quality    { background: #c6f6d5; color: #276749; }
+    .role-operations { background: #fed7d7; color: #9b2335; }
+    .role-management { background: #bee3f8; color: #2a69ac; }
+    .role-default    { background: #e2e8f0; color: #4a5568; }
+
+    .user-meta {
+        font-size: 11px; color: #a0aec0;
+        margin-top: 8px; padding-top: 8px;
+        border-top: 1px solid #f0f4f8;
+    }
+    .aktif-badge {
+        display: inline-block;
+        background: #c6f6d5; color: #276749;
+        font-size: 10px; font-weight: 700;
+        padding: 2px 8px; border-radius: 20px;
+        margin-left: 6px; vertical-align: middle;
+    }
+    .um-header {
+        display: flex; align-items: center;
+        justify-content: space-between;
+        margin-bottom: 20px;
+    }
+    .um-title {
+        font-size: 22px; font-weight: 800;
+        color: #1a202c;
+    }
+    .um-count {
+        background: #edf2f7; color: #4a5568;
+        font-size: 13px; font-weight: 600;
+        padding: 6px 14px; border-radius: 20px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Rol → renk/avatar eşlemesi
+    ROL_CONFIG = {
+        "admin":      {"badge": "role-admin",      "avatar": "avatar-admin",      "label": "Sistem Yöneticisi", "ikon": "👑"},
+        "quality":    {"badge": "role-quality",    "avatar": "avatar-quality",    "label": "Kalite Kontrol",    "ikon": "🔬"},
+        "operations": {"badge": "role-operations", "avatar": "avatar-operations", "label": "Operasyon",         "ikon": "⚙️"},
+        "management": {"badge": "role-management", "avatar": "avatar-management", "label": "Yönetim",          "ikon": "📊"},
+    }
 
     try:
         users = fetch_data("users")
+        aktif_kullanici = st.session_state.get('username', '')
 
-        # Kullanıcı Listesi Tablosu
+        # ================================================================
+        # BAŞLIK
+        # ================================================================
+        toplam = len(users) if not users.empty else 0
+        st.markdown(f"""
+        <div class="um-header">
+            <div class="um-title">👥 Kullanıcı Yönetimi</div>
+            <div class="um-count">Toplam {toplam} Kullanıcı</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # ================================================================
+        # KULLANICI KARTLARI
+        # ================================================================
         if not users.empty:
-            display_users = users.copy()
-            if 'password' in display_users.columns:
-                display_users['password'] = "********"
-            st.dataframe(display_users, use_container_width=True)
+            # Sütun isimlerini normalize et
+            col_map = {
+                'kullanici_adi': 'username',
+                'sifre_hash': 'password',
+                'rol': 'role',
+                'ad_soyad': 'full_name',
+            }
+            for eski, yeni in col_map.items():
+                if eski in users.columns and yeni not in users.columns:
+                    users = users.rename(columns={eski: yeni})
+
+            max_cols = 4
+            user_list = [users.iloc[i:i+max_cols] for i in range(0, len(users), max_cols)]
+
+            for grup in user_list:
+                cols = st.columns(len(grup))
+                for i, (_, row) in enumerate(grup.iterrows()):
+                    username  = str(row.get('username', row.get('kullanici_adi', '?')))
+                    full_name = str(row.get('full_name', row.get('ad_soyad', '')))
+                    rol       = str(row.get('role', row.get('rol', 'default'))).lower()
+                    email     = str(row.get('email', ''))
+                    created   = str(row.get('created_at', ''))[:10]
+
+                    cfg         = ROL_CONFIG.get(rol, {"badge": "role-default", "avatar": "avatar-default", "label": rol.capitalize(), "ikon": "👤"})
+                    harf        = username[0].upper()
+                    aktif_html  = '<span class="aktif-badge">● Aktif</span>' if username == aktif_kullanici else ''
+
+                    with cols[i]:
+                        st.markdown(f"""
+                        <div class="user-card">
+                            <div class="user-avatar {cfg['avatar']}">{harf}</div>
+                            <div class="user-name">{username}{aktif_html}</div>
+                            <div class="user-fullname">{full_name or '—'}</div>
+                            <span class="role-badge {cfg['badge']}">{cfg['ikon']} {cfg['label']}</span>
+                            <div class="user-meta">
+                                {'📧 ' + email if email and email != 'None' else ''}
+                                {'&nbsp;&nbsp;📅 ' + created if created and created != 'nan' else ''}
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
         else:
             st.info("Sistemde kayıtlı kullanıcı bulunamadı.")
 
         st.divider()
 
         # ================================================================
-        # YENİ KULLANICI EKLEME
+        # EKLEME / SİLME — YAN YANA
         # ================================================================
-        with st.expander("➕ Yeni Kullanıcı Ekle", expanded=False):
-            with st.form("add_user_form"):
-                col1, col2 = st.columns(2)
-                new_user = col1.text_input("Kullanıcı Adı (Username)")
-                new_pass = col2.text_input("Şifre", type="password")
+        col_ekle, col_sil = st.columns(2)
 
-                new_name = st.text_input("Ad Soyad")
-                new_role = st.selectbox("Yetki Rolü", ["admin", "quality", "operations", "management"])
+        # --- YENİ KULLANICI EKLEME ---
+        with col_ekle:
+            with st.expander("➕ Yeni Kullanıcı Ekle", expanded=False):
+                with st.form("add_user_form"):
+                    new_user = st.text_input("Kullanıcı Adı")
+                    new_pass = st.text_input("Şifre", type="password")
+                    new_name = st.text_input("Ad Soyad")
+                    new_role = st.selectbox("Yetki Rolü", ["admin", "quality", "operations", "management"],
+                                            format_func=lambda x: {
+                                                "admin": "👑 Sistem Yöneticisi",
+                                                "quality": "🔬 Kalite Kontrol",
+                                                "operations": "⚙️ Operasyon",
+                                                "management": "📊 Yönetim"
+                                            }[x])
+                    new_email = st.text_input("E-posta (Opsiyonel)")
 
-                submitted = st.form_submit_button("Kullanıcıyı Kaydet")
+                    submitted = st.form_submit_button("✅ Kullanıcıyı Kaydet", type="primary", use_container_width=True)
 
-                if submitted:
-                    if new_user and new_pass:
-                        # Aynı kullanıcı adı var mı kontrol et
-                        if not users.empty and new_user in users['username'].tolist():
-                            st.error(f"⛔ '{new_user}' kullanıcı adı zaten mevcut!")
-                        else:
-                            user_data = {
-                                "username": new_user,
-                                "password": new_pass,
-                                "role": new_role,
-                                "full_name": new_name,
-                                "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                            }
-                            if add_data("users", user_data):
-                                st.success(f"✅ {new_user} kullanıcısı başarıyla eklendi!")
-                                clear_cache("users")
-                                time.sleep(1)
-                                st.rerun()
+                    if submitted:
+                        if new_user and new_pass:
+                            mevcut_userlar = users['username'].tolist() if not users.empty and 'username' in users.columns else []
+                            if new_user in mevcut_userlar:
+                                st.error(f"⛔ '{new_user}' kullanıcı adı zaten mevcut!")
                             else:
-                                st.error("Kayıt sırasında hata oluştu.")
-                    else:
-                        st.error("Kullanıcı adı ve şifre boş olamaz.")
+                                user_data = {
+                                    "username":   new_user,
+                                    "password":   new_pass,
+                                    "role":       new_role,
+                                    "full_name":  new_name,
+                                    "email":      new_email,
+                                    "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                }
+                                if add_data("users", user_data):
+                                    st.success(f"✅ {new_user} eklendi!")
+                                    clear_cache("users")
+                                    time.sleep(1)
+                                    st.rerun()
+                                else:
+                                    st.error("Kayıt sırasında hata oluştu.")
+                        else:
+                            st.error("Kullanıcı adı ve şifre boş olamaz.")
 
-        # ================================================================
-        # KULLANICI SİLME
-        # ================================================================
-        st.divider()
-        with st.expander("🗑️ Kullanıcı Sil", expanded=False):
-            try:
-                if not users.empty and 'username' in users.columns:
-                    aktif_kullanici = st.session_state.get('username', '')
+        # --- KULLANICI SİLME ---
+        with col_sil:
+            with st.expander("🗑️ Kullanıcı Sil", expanded=False):
+                try:
+                    if not users.empty and 'username' in users.columns:
+                        silinebilir = users[users['username'] != aktif_kullanici]['username'].tolist()
 
-                    # Aktif kullanıcıyı listeden çıkar — kendini silemez
-                    silinebilir = users[users['username'] != aktif_kullanici]['username'].tolist()
+                        if not silinebilir:
+                            st.info("Silinebilecek başka kullanıcı yok.")
+                        else:
+                            secilen = st.selectbox("Silinecek Kullanıcı", silinebilir, key="kullanici_silme_secim")
 
-                    if not silinebilir:
-                        st.info("Silinebilecek başka kullanıcı yok.")
-                    else:
-                        secilen_kullanici = st.selectbox(
-                            "Silinecek Kullanıcıyı Seçin",
-                            silinebilir,
-                            key="kullanici_silme_secim"
-                        )
+                            if secilen:
+                                row       = users[users['username'] == secilen].iloc[0]
+                                rol       = str(row.get('role', ''))
+                                isim      = str(row.get('full_name', ''))
+                                cfg       = ROL_CONFIG.get(rol, {"label": rol, "ikon": "👤"})
 
-                        if secilen_kullanici:
-                            kullanici_row = users[users['username'] == secilen_kullanici].iloc[0]
-                            rol  = kullanici_row.get('role', 'Bilinmiyor')
-                            isim = kullanici_row.get('full_name', '')
+                                st.warning(f"⚠️ **{secilen}** ({isim}) silinecek.\nRol: {cfg['ikon']} {cfg['label']}")
 
-                            st.warning(f"⚠️ **{secilen_kullanici}** ({isim} / {rol}) kullanıcısı kalıcı olarak silinecek.")
-
-                            col_btn1, col_btn2 = st.columns([1, 3])
-
-                            with col_btn1:
                                 if 'kullanici_silme_onayi' not in st.session_state:
                                     st.session_state.kullanici_silme_onayi = False
 
@@ -104,25 +238,27 @@ def show_user_management():
                                         st.session_state.kullanici_silme_onayi = True
                                         st.rerun()
                                 else:
-                                    st.error("Emin misiniz?")
-                                    if st.button("✅ EVET, SİL", type="primary", use_container_width=True, key="k_evet_btn"):
-                                        conn = get_conn()
-                                        df_guncell = users[users['username'] != secilen_kullanici]
-                                        conn.update(worksheet="users", data=df_guncell)
-                                        clear_cache("users")
-                                        st.cache_data.clear()
-                                        st.session_state.kullanici_silme_onayi = False
-                                        st.success(f"✅ {secilen_kullanici} kullanıcısı silindi.")
-                                        time.sleep(1.5)
-                                        st.rerun()
-
-                                    if st.button("❌ İptal", use_container_width=True, key="k_iptal_btn"):
-                                        st.session_state.kullanici_silme_onayi = False
-                                        st.rerun()
-                else:
-                    st.info("Silinecek kullanıcı bulunamadı.")
-            except Exception as e:
-                st.error(f"Kullanıcı silme bölümü yüklenemedi: {str(e)}")
+                                    st.error("Bu işlem geri alınamaz! Emin misiniz?")
+                                    c1, c2 = st.columns(2)
+                                    with c1:
+                                        if st.button("✅ EVET, SİL", type="primary", use_container_width=True, key="k_evet_btn"):
+                                            conn = get_conn()
+                                            df_guncell = users[users['username'] != secilen]
+                                            conn.update(worksheet="users", data=df_guncell)
+                                            clear_cache("users")
+                                            st.cache_data.clear()
+                                            st.session_state.kullanici_silme_onayi = False
+                                            st.success(f"✅ {secilen} silindi.")
+                                            time.sleep(1.5)
+                                            st.rerun()
+                                    with c2:
+                                        if st.button("❌ İptal", use_container_width=True, key="k_iptal_btn"):
+                                            st.session_state.kullanici_silme_onayi = False
+                                            st.rerun()
+                    else:
+                        st.info("Silinecek kullanıcı bulunamadı.")
+                except Exception as e:
+                    st.error(f"Hata: {str(e)}")
 
     except Exception as e:
         st.error(f"Kullanıcı verileri yüklenirken hata oluştu: {e}")
@@ -539,6 +675,7 @@ def show_debug_tools():
         st.write(f"**Backend:** Google Sheets API")
         st.write(f"**Aktif Kullanıcı:** {st.session_state.get('username', 'Bilinmiyor')}")
         st.write(f"**Rol:** {st.session_state.get('user_role', 'Bilinmiyor')}")
+
 
 
 
