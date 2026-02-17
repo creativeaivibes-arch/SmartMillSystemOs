@@ -6,7 +6,7 @@ import numpy as np
 import uuid
 
 # --- DATABASE VE CORE IMPORTLARI ---
-from app.core.database import fetch_data, add_data, get_conn, update_data
+from app.core.database import fetch_data, add_data, get_conn, update_data, log_activity
 from app.core.config import INPUT_LIMITS, TERMS, get_limit
 from app.core.error_handling import error_handler, log_info, log_warning, ERROR_HANDLING_AVAILABLE
 from app.core.components import render_help_button
@@ -124,6 +124,7 @@ def delete_intake_record(lot_no):
         # 3. Siloları Yeniden Hesapla (En Kritik Adım)
         recalculate_silos_from_logs()
         
+        log_activity("Buğday Yönetimi", "Kayıt Silme", f"Lot No: {lot_no}")
         return True, "Kayıt ve ilgili stok hareketleri başarıyla silindi."
     except Exception as e:
         return False, f"Silme hatası: {str(e)}"
@@ -180,6 +181,7 @@ def update_intake_record(old_lot_no, new_data):
         # Silo ismi veya tonaj değiştiği için tüm deponun yeniden matematiksel olarak kurgulanması gerekir.
         recalculate_silos_from_logs()
         
+        log_activity("Buğday Yönetimi", "Kayıt Güncelleme", f"Lot No: {old_lot_no}")
         return True, "✅ Kayıt başarıyla güncellendi, stoklar ve ortalamalar eşitlendi."
     except Exception as e:
         return False, f"Güncelleme hatası: {str(e)}"
@@ -766,6 +768,7 @@ def show_mal_kabul():
                 )
                 
                 if ok_arc:
+                    log_activity("Buğday Yönetimi", "Ham Madde Girişi", f"Lot: {lot_no} | Silo: {secilen_silo} | Tonaj: {miktar} Ton")
                     st.success(f"✅ Kayıt Başarılı! Lot: {lot_no}")
                     recalculate_silos_from_logs()
                     time.sleep(1)
@@ -2127,6 +2130,7 @@ def show_tavli_analiz_arsivi():
                 if st.button("❌ İPTAL", use_container_width=True):
                     st.session_state.silme_onayi_aktif = False
                     st.rerun()
+
 
 
 
