@@ -122,7 +122,7 @@ def update_user_password(username, new_password, send_email=False):
     """
     try:
         conn = get_conn()
-        df = fetch_data("kullanicilar")
+        df = fetch_data("users")
         
         if df.empty:
             return False, "Kullanıcı tablosu bulunamadı.", None
@@ -140,7 +140,7 @@ def update_user_password(username, new_password, send_email=False):
         df.loc[mask, 'sifre_hash'] = hash_password_bcrypt(new_password)  # ← DEĞİŞTİ
         
         # Google Sheets'i güncelle
-        conn.update(worksheet="kullanicilar", data=df)
+        conn.update(worksheet="users", data=df)
         
         # Mail gönderme işlemi (değişmedi)
         if send_email and user_email and user_email.strip():
@@ -347,7 +347,7 @@ def migrate_user_to_bcrypt(username, plain_password):
     """
     try:
         conn = get_conn()
-        df = fetch_data("kullanicilar")
+        df = fetch_data("users")
         
         if df.empty:
             return False
@@ -361,12 +361,13 @@ def migrate_user_to_bcrypt(username, plain_password):
         
         # Güncelle
         df.loc[mask, 'sifre_hash'] = new_hash
-        conn.update(worksheet="kullanicilar", data=df)
+        conn.update(worksheet="users", data=df)
         
         return True
     except Exception as e:
         st.error(f"Bcrypt geçiş hatası: {e}")
         return False
+
 
 
 
