@@ -447,9 +447,10 @@ def show_backup_restore():
     with col1:
         st.subheader("📥 Excel Yedeği Al")
         tablolar = {
-            "Kullanıcılar": "users", 
+            "Kullanıcılar": "users",
             "Buğday Siloları": "silolar", 
-            "Stok Hareketleri": "hareketler", 
+            "Buğday Giriş Arşivi": "bugday_giris_arsivi",
+            "Stok Hareketleri": "hareketler",
             "Tavlı Analizler": "tavli_analiz"
         }
         selected_table = st.selectbox("İndirilecek Tablo", list(tablolar.keys()))
@@ -538,6 +539,7 @@ def show_debug_tools():
         st.write(f"**Backend:** Google Sheets API")
         st.write(f"**Aktif Kullanıcı:** {st.session_state.get('username', 'Bilinmiyor')}")
         st.write(f"**Rol:** {st.session_state.get('user_role', 'Bilinmiyor')}")
+
 
 
 
