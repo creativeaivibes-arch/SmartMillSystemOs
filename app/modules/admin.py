@@ -778,29 +778,190 @@ def show_backup_restore():
 # ----------------------------------------------------------------
 # 4. SİSTEM LOGLARI
 # ----------------------------------------------------------------
+# ----------------------------------------------------------------
+# 4. SİSTEM LOGLARI
+# ----------------------------------------------------------------
 def show_system_logs():
-    """Sistemdeki hareketleri ve hataları gösterir"""
-    st.markdown("### 📜 Sistem Hareket Kayıtları")
-    
-    try:
-        logs = fetch_data("hareketler")
-        
-        if not logs.empty:
-            if 'tarih' in logs.columns:
-                logs['tarih'] = pd.to_datetime(logs['tarih'])
-                logs = logs.sort_values('tarih', ascending=False)
-            
-            filter_text = st.text_input("Loglarda Ara (Silo, İşlem Tipi vb.)")
-            if filter_text:
-                mask = logs.astype(str).apply(lambda x: x.str.contains(filter_text, case=False, na=False)).any(axis=1)
-                logs = logs[mask]
-            
-            st.dataframe(logs, use_container_width=True)
-        else:
-            st.info("Henüz kaydedilmiş bir hareket logu yok.")
-            
-    except Exception as e:
-        st.error(f"Loglar okunamadı: {e}")
+    """Audit log ve stok hareketleri"""
+
+    st.markdown("""
+    <style>
+    .log-stat-kart {
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 16px;
+        text-align: center;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    }
+    .log-stat-sayi {
+        font-size: 28px;
+        font-weight: 800;
+        color: #1a202c;
+        margin-bottom: 2px;
+    }
+    .log-stat-etiket {
+        font-size: 12px;
+        color: #718096;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .islem-giris     { color: #276749; background: #c6f6d5; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+    .islem-cikis     { color: #744210; background: #fefcbf; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+    .islem-ekleme    { color: #2a69ac; background: #bee3f8; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+    .islem-silme     { color: #9b2335; background: #fed7d7; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+    .islem-guncelleme{ color: #553c9a; background: #e9d8fd; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+    .islem-ziyaret   { color: #4a5568; background: #edf2f7; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("### 📜 Sistem Aktivite Logları")
+
+    tab_audit, tab_stok = st.tabs(["🔍 Kullanıcı Aktiviteleri", "📦 Stok Hareketleri"])
+
+    # ================================================================
+    # TAB 1 — KULLANICI AKTİVİTELERİ (audit_log)
+    # ================================================================
+    with tab_audit:
+        try:
+            df_log = fetch_data("audit_log", force_refresh=True)
+
+            if df_log is None or df_log.empty:
+                st.info("Henüz kayıtlı aktivite logu yok. Kullanıcılar sistemi kullandıkça burada görünecek.")
+                return
+
+            # Tarih dönüşümü
+            df_log['tarih'] = pd.to_datetime(df_log['tarih'], errors='coerce')
+            df_log = df_log.sort_values('tarih', ascending=False)
+
+            bugun     = pd.Timestamp.now().normalize()
+            bu_hafta  = bugun - pd.Timedelta(days=7)
+            bu_ay     = bugun - pd.Timedelta(days=30)
+
+            # --- İSTATİSTİK KARTLARI ---
+            c1, c2, c3, c4 = st.columns(4)
+            with c1:
+                st.markdown(f"""
+                <div class="log-stat-kart">
+                    <div class="log-stat-sayi">{len(df_log[df_log['tarih'] >= bugun])}</div>
+                    <div class="log-stat-etiket">Bugün</div>
+                </div>""", unsafe_allow_html=True)
+            with c2:
+                st.markdown(f"""
+                <div class="log-stat-kart">
+                    <div class="log-stat-sayi">{len(df_log[df_log['tarih'] >= bu_hafta])}</div>
+                    <div class="log-stat-etiket">Son 7 Gün</div>
+                </div>""", unsafe_allow_html=True)
+            with c3:
+                st.markdown(f"""
+                <div class="log-stat-kart">
+                    <div class="log-stat-sayi">{len(df_log[df_log['tarih'] >= bu_ay])}</div>
+                    <div class="log-stat-etiket">Son 30 Gün</div>
+                </div>""", unsafe_allow_html=True)
+            with c4:
+                st.markdown(f"""
+                <div class="log-stat-kart">
+                    <div class="log-stat-sayi">{df_log['kullanici'].nunique()}</div>
+                    <div class="log-stat-etiket">Aktif Kullanıcı</div>
+                </div>""", unsafe_allow_html=True)
+
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            # --- FİLTRELER ---
+            f1, f2, f3 = st.columns(3)
+
+            with f1:
+                kullanici_listesi = ["Tümü"] + sorted(df_log['kullanici'].dropna().unique().tolist())
+                sec_kullanici = st.selectbox("👤 Kullanıcı", kullanici_listesi, key="log_kullanici")
+
+            with f2:
+                modul_listesi = ["Tümü"] + sorted(df_log['modul'].dropna().unique().tolist())
+                sec_modul = st.selectbox("📂 Modül", modul_listesi, key="log_modul")
+
+            with f3:
+                islem_listesi = ["Tümü"] + sorted(df_log['islem'].dropna().unique().tolist())
+                sec_islem = st.selectbox("⚡ İşlem", islem_listesi, key="log_islem")
+
+            # Tarih aralığı
+            t1, t2 = st.columns(2)
+            with t1:
+                bas_tarih = st.date_input("📅 Başlangıç", value=bu_hafta.date(), key="log_bas")
+            with t2:
+                bit_tarih = st.date_input("📅 Bitiş", value=bugun.date(), key="log_bit")
+
+            # --- FİLTRE UYGULA ---
+            df_filtre = df_log.copy()
+
+            if sec_kullanici != "Tümü":
+                df_filtre = df_filtre[df_filtre['kullanici'] == sec_kullanici]
+            if sec_modul != "Tümü":
+                df_filtre = df_filtre[df_filtre['modul'] == sec_modul]
+            if sec_islem != "Tümü":
+                df_filtre = df_filtre[df_filtre['islem'] == sec_islem]
+
+            df_filtre = df_filtre[
+                (df_filtre['tarih'].dt.date >= bas_tarih) &
+                (df_filtre['tarih'].dt.date <= bit_tarih)
+            ]
+
+            # --- SONUÇ SAYISI ---
+            st.caption(f"🔎 Filtreye uyan {len(df_filtre)} kayıt gösteriliyor.")
+
+            # --- TABLO ---
+            if not df_filtre.empty:
+                df_goster = df_filtre[['tarih', 'kullanici', 'rol', 'modul', 'islem', 'detay']].copy()
+                df_goster['tarih'] = df_goster['tarih'].dt.strftime('%d.%m.%Y %H:%M')
+                df_goster.columns = ['Tarih', 'Kullanıcı', 'Rol', 'Modül', 'İşlem', 'Detay']
+
+                st.dataframe(
+                    df_goster,
+                    use_container_width=True,
+                    hide_index=True,
+                    height=400
+                )
+
+                # CSV İndirme
+                csv = df_filtre.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="⬇️ Filtrelenmiş Logu İndir (CSV)",
+                    data=csv,
+                    file_name=f"audit_log_{pd.Timestamp.now().strftime('%Y%m%d_%H%M')}.csv",
+                    mime="text/csv"
+                )
+            else:
+                st.info("Seçilen filtrelere uyan kayıt bulunamadı.")
+
+        except Exception as e:
+            st.error(f"Audit log yüklenemedi: {str(e)}")
+
+    # ================================================================
+    # TAB 2 — STOK HAREKETLERİ (hareketler)
+    # ================================================================
+    with tab_stok:
+        try:
+            df_h = fetch_data("hareketler")
+
+            if df_h.empty:
+                st.info("Henüz stok hareketi kaydı yok.")
+                return
+
+            if 'tarih' in df_h.columns:
+                df_h['tarih'] = pd.to_datetime(df_h['tarih'], errors='coerce')
+                df_h = df_h.sort_values('tarih', ascending=False)
+
+            # Arama kutusu
+            arama = st.text_input("🔍 Ara (Silo, İşlem Tipi, Lot No...)", key="stok_arama")
+            if arama:
+                mask = df_h.astype(str).apply(
+                    lambda x: x.str.contains(arama, case=False, na=False)
+                ).any(axis=1)
+                df_h = df_h[mask]
+
+            st.caption(f"🔎 {len(df_h)} hareket kaydı gösteriliyor.")
+            st.dataframe(df_h, use_container_width=True, hide_index=True, height=400)
+
+        except Exception as e:
+            st.error(f"Stok hareketleri yüklenemedi: {str(e)}")
 
 # ----------------------------------------------------------------
 # 5. DEBUG ARAÇLARI
@@ -838,6 +999,7 @@ def show_debug_tools():
         st.write(f"**Backend:** Google Sheets API")
         st.write(f"**Aktif Kullanıcı:** {st.session_state.get('username', 'Bilinmiyor')}")
         st.write(f"**Rol:** {st.session_state.get('user_role', 'Bilinmiyor')}")
+
 
 
 
