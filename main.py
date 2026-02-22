@@ -350,7 +350,8 @@ elif selected_page == "KK_UN":
             t("tab_enzyme")          # Enzim Dozaj Hesaplama
         ])
         
-        with tab1: flour.show_spec_yonetimi()
+        with tab1:
+            st.info("🎯 Un Kalite Spesifikasyonları artık **🌾 Buğday Yönetimi → ⚙️ Ayarlar** sekmesine taşındı.")
         with tab2: flour.show_un_analiz_kaydi()
         with tab3: flour.show_un_analiz_kayitlari()
         with tab4: calculations.show_enzim_dozajlama()
@@ -415,17 +416,15 @@ elif selected_page == "ADMIN":
         tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
             "👤 Profilim", 
             "👥 Kullanıcılar", 
-            "🏭 Silo Yönetimi", 
             "💾 Yedekleme", 
             "📜 Sistem Logları", 
             "🛠️ Debug"
         ])
-        with tab1: show_profile_settings() # Admin de kendi profilini buradan yönetir
+        with tab1: show_profile_settings()
         with tab2: admin.show_user_management()
-        with tab3: admin.show_silo_management()
-        with tab4: admin.show_backup_restore()
-        with tab5: admin.show_system_logs()
-        with tab6: admin.show_debug_tools()
+        with tab3: admin.show_backup_restore() 
+        with tab4: admin.show_system_logs()     
+        with tab5: admin.show_debug_tools()     
     else:
         # Admin olmayan biri buraya sızmaya çalışırsa (URL zorlaması vb.)
         st.error("🚫 Bu sayfaya erişim yetkiniz bulunmamaktadır.")
@@ -472,6 +471,7 @@ with st.sidebar:
     # En Alt Footer
     st.caption(f"🏢 {LICENSE_CONFIG.get('CLIENT_NAME', 'Client')}")
     st.caption("v2.0 Enterprise")
+
 
 
 
