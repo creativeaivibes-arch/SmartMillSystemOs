@@ -285,20 +285,20 @@ if selected_page == "Dashboard":
 # --- A) KALİTE KONTROL: BUĞDAY YÖNETİMİ ---
 elif selected_page == "KK_BUGDAY":
     try:
-        # Başlık Dinamik Oldu
         st.markdown(f"## 🌾 {t('nav_wheat')}")
         
-        # Sekme İsimleri Dinamik Oldu
-        tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+        tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
             t("tab_specs"),      # Kalite Standartları
             t("tab_intake"),     # Hammadde Giriş
             t("tab_tempered"),   # Tavlı Analiz
             t("tab_mixing"),     # Akıllı Paçal
             t("tab_stock_out"),  # Stok Çıkışı
-            t("tab_trace")       # İzlenebilirlik
+            t("tab_trace"),      # İzlenebilirlik
+            "⚙️ Ayarlar"         # YENİ EKLENEN
         ])
         
-        with tab1: wheat.show_bugday_spec_yonetimi()
+        with tab1: 
+            st.info("📏 Buğday Kalite Standartları artık **⚙️ Ayarlar** sekmesine taşındı.")
         with tab2: wheat.show_mal_kabul()
         with tab3: wheat.show_tavli_analiz()
         with tab4: mixing.show_pacal_hesaplayici()
@@ -312,6 +312,21 @@ elif selected_page == "KK_BUGDAY":
                 t("sub_archive_temp"),  # Tavlı Analiz Arşivi
                 t("sub_mixing_log")     # Paçal Geçmişi
             ])
+        with tab7:
+            ayar_tab1, ayar_tab2, ayar_tab3 = st.tabs([
+                "🏭 Silo Konfigürasyonu",
+                "🌾 Buğday Standartları", 
+                "🍞 Un Spektleri"
+            ])
+            
+            with ayar_tab1:
+                admin.show_silo_management()
+            
+            with ayar_tab2:
+                wheat.show_bugday_spec_yonetimi()
+            
+            with ayar_tab3:
+                flour.show_spec_yonetimi()
             
             with sub_tab1: wheat.show_bugday_giris_arsivi()
             with sub_tab2: wheat.show_stok_hareketleri()
@@ -457,6 +472,7 @@ with st.sidebar:
     # En Alt Footer
     st.caption(f"🏢 {LICENSE_CONFIG.get('CLIENT_NAME', 'Client')}")
     st.caption("v2.0 Enterprise")
+
 
 
 
