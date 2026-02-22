@@ -312,6 +312,12 @@ elif selected_page == "KK_BUGDAY":
                 t("sub_archive_temp"),  # Tavlı Analiz Arşivi
                 t("sub_mixing_log")     # Paçal Geçmişi
             ])
+        with sub_tab1: wheat.show_bugday_giris_arsivi()
+            with sub_tab2: wheat.show_stok_hareketleri()
+            with sub_tab3: wheat.show_tavli_analiz_arsivi()
+            with sub_tab4: mixing.show_pacal_gecmisi()
+        
+        # === YENİ EKLENEN: AYARLAR SEKMESİ ===
         with tab7:
             ayar_tab1, ayar_tab2, ayar_tab3 = st.tabs([
                 "🏭 Silo Konfigürasyonu",
@@ -327,11 +333,6 @@ elif selected_page == "KK_BUGDAY":
             
             with ayar_tab3:
                 flour.show_spec_yonetimi()
-            
-            with sub_tab1: wheat.show_bugday_giris_arsivi()
-            with sub_tab2: wheat.show_stok_hareketleri()
-            with sub_tab3: wheat.show_tavli_analiz_arsivi()
-            with sub_tab4: mixing.show_pacal_gecmisi()
 
     except Exception as e:
         st.error("🚨 Buğday Yönetim Modülü yüklenirken hata oluştu.")
@@ -471,6 +472,7 @@ with st.sidebar:
     # En Alt Footer
     st.caption(f"🏢 {LICENSE_CONFIG.get('CLIENT_NAME', 'Client')}")
     st.caption("v2.0 Enterprise")
+
 
 
 
