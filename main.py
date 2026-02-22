@@ -240,7 +240,7 @@ with st.sidebar:
         
         kk_bolum = st.sidebar.radio(
             "Bölüm Seçiniz", 
-            ["🌾 Buğday Yönetimi", "🍞 Un Yönetimi", "🔍 Geri İzlenebilirlik"]
+            ["🌾 Buğday Yönetimi", "🍞 Un Yönetimi", "🔍 Geri İzlenebilirlik", "⚙️ Ayarlar"]
         )
         if kk_bolum == "🌾 Buğday Yönetimi":
             selected_page = "KK_BUGDAY"
@@ -248,6 +248,8 @@ with st.sidebar:
             selected_page = "KK_UN"
         elif kk_bolum == "🔍 Geri İzlenebilirlik":
             selected_page = "TRACEABILITY"
+        elif kk_bolum == "⚙️ Ayarlar":
+            selected_page = "KK_AYARLAR"
 
     elif ana_menu == opt_mill:
         selected_page = "PRODUCTION_MANAGER"
@@ -411,6 +413,29 @@ elif selected_page == "TRACEABILITY":
     except Exception as e:
         st.error("🚨 İzlenebilirlik Modülü yüklenirken hata oluştu.")
         st.caption(f"Teknik Hata: {str(e)}")
+# ⚙️ AYARLAR (KALİTE KONTROL)
+elif selected_page == "KK_AYARLAR":
+    try:
+        st.markdown("## ⚙️ Kalite Kontrol Ayarları")
+        
+        tab1, tab2, tab3 = st.tabs([
+            "🏭 Silo Konfigürasyonu",
+            "🌾 Buğday Standartları", 
+            "🍞 Un Spektleri"
+        ])
+        
+        with tab1:
+            admin.show_silo_management()
+        
+        with tab2:
+            wheat.show_bugday_spec_yonetimi()
+        
+        with tab3:
+            flour.show_spec_yonetimi()
+            
+    except Exception as e:
+        st.error("🚨 Ayarlar modülü yüklenirken hata oluştu.")
+        st.caption(f"Teknik Hata: {str(e)}")
 
 # 🛠️ YÖNETİM PANELİ (ADMIN) - Sadece Adminler Görebilir
 elif selected_page == "ADMIN":
@@ -473,6 +498,7 @@ with st.sidebar:
     # En Alt Footer
     st.caption(f"🏢 {LICENSE_CONFIG.get('CLIENT_NAME', 'Client')}")
     st.caption("v2.0 Enterprise")
+
 
 
 
