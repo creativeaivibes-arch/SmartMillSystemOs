@@ -264,304 +264,272 @@ def show_user_management():
     except Exception as e:
         st.error(f"Kullanıcı verileri yüklenirken hata oluştu: {e}")
 # ----------------------------------------------------------------
-# 2. SILO YÖNETİMİ
+# 2. SİLO YÖNETİMİ - YENİ PROFESYONEL TASARIM
 # ----------------------------------------------------------------
 def show_silo_management():
-    """Silo Konfigürasyonu - PROFESYONEL KART + TABLO YAPISI"""
+    """Silo Yönetimi - Form Tabanlı Profesyonel UI"""
 
     st.markdown("""
     <style>
-    .silo-card {
-        background: linear-gradient(135deg, #1e3a5f 0%, #2d5986 100%);
+    .silo-form-kart {
+        background: linear-gradient(135deg, #f6f8fb, #ffffff);
+        border: 1px solid #e2e8f0;
         border-radius: 12px;
-        padding: 16px;
-        margin-bottom: 8px;
-        color: white;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+        padding: 20px;
+        margin-bottom: 15px;
     }
-    .silo-card-un {
-        background: linear-gradient(135deg, #1e5f3a 0%, #2d8659 100%);
-    }
-    .silo-name {
-        font-size: 14px;
+    .form-baslik {
+        font-size: 15px;
         font-weight: 700;
-        letter-spacing: 1px;
-        text-transform: uppercase;
-        margin-bottom: 8px;
-        opacity: 0.95;
+        color: #2d3748;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
     }
-    .silo-stats {
-        font-size: 22px;
-        font-weight: 800;
-        margin-bottom: 4px;
+    .field-label {
+        font-size: 13px;
+        font-weight: 600;
+        color: #4a5568;
+        margin-bottom: 5px;
     }
-    .silo-sub {
+    .alan-aciklama {
         font-size: 11px;
-        opacity: 0.75;
+        color: #a0aec0;
+        font-style: italic;
+        margin-top: -8px;
         margin-bottom: 10px;
     }
-    .silo-bar-bg {
-        background: rgba(255,255,255,0.2);
-        border-radius: 6px;
-        height: 8px;
-        overflow: hidden;
-        margin-bottom: 4px;
+    .basari-box {
+        background: linear-gradient(135deg, #d4edda, #c3e6cb);
+        border-left: 4px solid #28a745;
+        padding: 12px;
+        border-radius: 8px;
+        margin: 10px 0;
     }
-    .silo-bar-fill {
-        height: 8px;
-        border-radius: 6px;
-        transition: width 0.5s ease;
-    }
-    .fill-low  { background: #4ade80; }
-    .fill-mid  { background: #facc15; }
-    .fill-high { background: #f87171; }
-    .fill-full { background: #ef4444; }
-    .silo-pct {
-        font-size: 11px;
-        opacity: 0.8;
-        text-align: right;
-    }
-    .section-title {
-        font-size: 13px;
-        font-weight: 700;
-        color: #64748b;
-        text-transform: uppercase;
-        letter-spacing: 1.5px;
-        margin: 20px 0 10px 0;
-        padding-bottom: 6px;
-        border-bottom: 2px solid #e2e8f0;
+    .uyari-box {
+        background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+        border-left: 4px solid #ffc107;
+        padding: 12px;
+        border-radius: 8px;
+        margin: 10px 0;
     }
     </style>
     """, unsafe_allow_html=True)
 
     st.markdown("### 🏭 Silo Konfigürasyonu ve Tanımları")
 
-    def render_silo_editor(filtered_df, editor_key):
-        edited = st.data_editor(
-            filtered_df,
-            num_rows="dynamic",
-            use_container_width=True,
-            key=editor_key,
-            column_config={
-                "isim":          st.column_config.TextColumn("Silo Adı", required=True),
-                "kapasite":      st.column_config.NumberColumn("Kapasite (Ton)", min_value=0, required=True, format="%.0f"),
-                "silo_tipi":     st.column_config.TextColumn("Tip", disabled=True),
-                "mevcut_miktar": st.column_config.NumberColumn("Mevcut (Ton)", disabled=True),
-                "aciklama":      st.column_config.TextColumn("Açıklama / Konum")
-            }
-        )
-        st.caption("ℹ️ Yeni satır eklemek için tablonun en altına tıklayın.")
-        return edited
-
-    # DÜZELTME 1: max 4 sütun, taşma önlendi
-    def render_silo_cards(df_silo, kart_tipi="bugday"):
-        """Üstteki özet kartları çizer - max 4 sütun"""
-        if df_silo.empty:
-            st.info("Bu tipte henüz silo tanımlanmamış.")
-            return
-
-        kart_class = "silo-card" if kart_tipi == "bugday" else "silo-card silo-card-un"
-        max_cols = 4
-
-        # Siloları max 4'lük gruplara böl
-        silo_gruplari = [df_silo.iloc[i:i+max_cols] for i in range(0, len(df_silo), max_cols)]
-
-        for grup in silo_gruplari:
-            cols = st.columns(len(grup))
-            for i, (_, row) in enumerate(grup.iterrows()):
-                kapasite = float(row.get('kapasite', 1) or 1)
-                mevcut   = float(row.get('mevcut_miktar', 0) or 0)
-                bos      = max(0, kapasite - mevcut)
-                oran     = min(mevcut / kapasite, 1.0) if kapasite > 0 else 0
-                pct      = int(oran * 100)
-
-                if pct < 40:   fill_class = "fill-low"
-                elif pct < 70: fill_class = "fill-mid"
-                elif pct < 90: fill_class = "fill-high"
-                else:          fill_class = "fill-full"
-
-                with cols[i]:
-                    st.markdown(f"""
-                    <div class="{kart_class}">
-                        <div class="silo-name">🏗️ {row['isim']}</div>
-                        <div class="silo-stats">{mevcut:.0f} <span style="font-size:13px;opacity:0.7">/ {kapasite:.0f} Ton</span></div>
-                        <div class="silo-sub">Boş Alan: {bos:.0f} Ton</div>
-                        <div class="silo-bar-bg">
-                            <div class="silo-bar-fill {fill_class}" style="width:{pct}%"></div>
-                        </div>
-                        <div class="silo-pct">%{pct} dolu</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-
     try:
-        # Ana veri — tek seferde çekiliyor, aşağıda tekrar çekilmiyor
         df = fetch_data("silolar", force_refresh=True)
 
         if df.empty:
-            st.warning("Tanımlı silo bulunamadı. Aşağıdan yeni silo ekleyebilirsiniz.")
-            df = pd.DataFrame(columns=['isim', 'kapasite', 'silo_tipi', 'mevcut_miktar', 'aciklama'])
+            st.warning("Henüz kayıtlı silo yok. Aşağıdan yeni silo ekleyebilirsiniz.")
+            df = pd.DataFrame(columns=['isim', 'silo_tipi', 'kapasite', 'mevcut_miktar', 'protein', 'gluten', 'rutubet', 'sedim', 'maliyet'])
 
-        # --- DATA TİPİ DÜZELTME ---
-        if 'aciklama' not in df.columns:
-            df['aciklama'] = ""
-        df['aciklama'] = df['aciklama'].fillna("").astype(str)
-
-        if 'silo_tipi' not in df.columns:
-            df['silo_tipi'] = "BUĞDAY"
-        df['silo_tipi'] = df['silo_tipi'].fillna("BUĞDAY").astype(str)
-
-        config_cols = ['isim', 'kapasite', 'silo_tipi', 'mevcut_miktar', 'aciklama']
-        for col in config_cols:
+        # Eksik sütunları doldur
+        for col in ['protein', 'gluten', 'rutubet', 'sedim', 'maliyet', 'mevcut_miktar']:
             if col not in df.columns:
-                df[col] = "" if col == 'aciklama' else 0
+                df[col] = 0.0
 
-        df_display = df[config_cols].copy()
+        df = df.fillna(0)
+        for col in ['kapasite', 'mevcut_miktar', 'protein', 'gluten', 'rutubet', 'sedim', 'maliyet']:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
         # ================================================================
-        # TAB YAPISI
+        # TAB YAPISI (BUĞDAY / UN)
         # ================================================================
         tab_bugday, tab_un = st.tabs(["🌾 Buğday Siloları", "🏭 Un Siloları"])
 
+        def render_silo_cards(df_silo, kart_tipi="bugday"):
+            if df_silo.empty:
+                st.info(f"{'Buğday' if kart_tipi == 'bugday' else 'Un'} silosu henüz tanımlanmamış.")
+                return
+
+            max_cols = 4
+            silo_gruplari = [df_silo.iloc[i:i+max_cols] for i in range(0, len(df_silo), max_cols)]
+
+            renk = "linear-gradient(135deg, #667eea, #764ba2)" if kart_tipi == "bugday" else "linear-gradient(135deg, #f093fb, #f5576c)"
+
+            for grup in silo_gruplari:
+                cols = st.columns(len(grup))
+                for i, (_, silo) in enumerate(grup.iterrows()):
+                    with cols[i]:
+                        isim = silo['isim']
+                        kapasite = float(silo['kapasite']) if silo['kapasite'] else 0
+                        mevcut = float(silo['mevcut_miktar']) if silo['mevcut_miktar'] else 0
+                        doluluk_oran = (mevcut / kapasite * 100) if kapasite > 0 else 0
+
+                        if doluluk_oran < 40:
+                            bar_renk = "#48bb78"
+                        elif doluluk_oran < 70:
+                            bar_renk = "#ecc94b"
+                        elif doluluk_oran < 90:
+                            bar_renk = "#ed8936"
+                        else:
+                            bar_renk = "#f56565"
+
+                        st.markdown(f"""
+                        <div style="background: {renk}; border-radius: 12px; padding: 15px; color: white; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+                            <div style="font-size: 18px; font-weight: 800; margin-bottom: 8px;">{isim}</div>
+                            <div style="font-size: 12px; opacity: 0.9; margin-bottom: 12px;">
+                                Kapasite: {kapasite:.0f} Ton | Mevcut: {mevcut:.1f} Ton
+                            </div>
+                            <div style="background: rgba(255,255,255,0.3); border-radius: 10px; height: 12px; overflow: hidden;">
+                                <div style="background: {bar_renk}; width: {min(100, doluluk_oran):.1f}%; height: 100%; border-radius: 10px;"></div>
+                            </div>
+                            <div style="text-align: right; font-size: 13px; font-weight: 700; margin-top: 5px;">
+                                %{doluluk_oran:.1f}
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
         with tab_bugday:
-            df_bugday = df_display[df_display['silo_tipi'] == "BUĞDAY"].copy()
-            st.markdown('<div class="section-title">📊 Anlık Doluluk Durumu</div>', unsafe_allow_html=True)
+            df_bugday = df[df['silo_tipi'] == "BUĞDAY"].copy()
+            st.markdown("### 📊 Anlık Doluluk Durumu")
             render_silo_cards(df_bugday, kart_tipi="bugday")
-            st.markdown('<div class="section-title">📝 Silo Ekle / Düzenle</div>', unsafe_allow_html=True)
-            edited_bugday = render_silo_editor(df_bugday, "editor_bugday")
 
         with tab_un:
-            df_un = df_display[df_display['silo_tipi'] == "UN"].copy()
-            st.markdown('<div class="section-title">📊 Anlık Doluluk Durumu</div>', unsafe_allow_html=True)
+            df_un = df[df['silo_tipi'] == "UN"].copy()
+            st.markdown("### 📊 Anlık Doluluk Durumu")
             render_silo_cards(df_un, kart_tipi="un")
-            st.markdown('<div class="section-title">📝 Silo Ekle / Düzenle</div>', unsafe_allow_html=True)
-            edited_un = render_silo_editor(df_un, "editor_un")
 
         # ================================================================
-        # KAYDET BUTONU
+        # FORM BÖLÜMÜ (TAB DIŞINDA)
         # ================================================================
         st.divider()
-        if st.button("💾 Silo Değişikliklerini Kaydet", type="primary", use_container_width=True):
-            try:
-                conn = get_conn()
-                # DÜZELTME 3: original_df olarak üstte çekilen df'yi kullanıyoruz
-                # Gereksiz ikinci fetch_data çağrısı kaldırıldı
-                original_df = df.copy()
-                final_rows = []
+        st.markdown("### 📝 Silo Yönetimi")
 
-                # --- 1. DÜZENLEME / YENİ EKLEME ---
-                for edited_df, silo_tipi in [(edited_bugday, "BUĞDAY"), (edited_un, "UN")]:
-                    for _, new_row in edited_df.iterrows():
-                        silo_name = new_row['isim']
-                        if not silo_name or str(silo_name).strip() == "":
-                            continue
-                        match = original_df[original_df['isim'] == silo_name] if not original_df.empty else pd.DataFrame()
+        # ==================== YENİ SİLO EKLE ====================
+        with st.expander("➕ Yeni Silo Ekle", expanded=False):
+            with st.form("yeni_silo_form", clear_on_submit=True):
+                st.markdown('<div class="form-baslik">📋 Yeni Silo Bilgileri</div>', unsafe_allow_html=True)
 
-                        if not match.empty:
-                            existing_data = match.iloc[0].to_dict()
-                            existing_data.update(new_row.to_dict())
-                            final_rows.append(existing_data)
-                        else:
-                            new_data = new_row.to_dict()
-                            new_data['silo_tipi'] = silo_tipi
-                            defaults = {'protein': 0, 'gluten': 0, 'rutubet': 0, 'sedim': 0, 'maliyet': 0, 'mevcut_miktar': 0}
-                            for k, v in defaults.items():
-                                if k not in new_data:
-                                    new_data[k] = v
-                            final_rows.append(new_data)
+                col1, col2 = st.columns(2)
+                with col1:
+                    yeni_isim = st.text_input("Silo İsmi *", placeholder="Örn: Silo 1")
+                    st.caption("Benzersiz bir isim girin")
 
-                # --- 2. SİLME KONTROLÜ ---
-                edited_isimler = set()
-                for edited_df in [edited_bugday, edited_un]:
-                    for isim in edited_df['isim'].tolist():
-                        if isim and str(isim).strip() != "":
-                            edited_isimler.add(isim)
+                with col2:
+                    yeni_tip = st.selectbox("Silo Tipi *", ["BUĞDAY", "UN"])
 
-                if not original_df.empty:
-                    silinen_df = original_df[~original_df['isim'].isin(edited_isimler)]
-                    if not silinen_df.empty:
-                        engellenen = []
-                        for _, silo in silinen_df.iterrows():
-                            miktar = float(silo.get('mevcut_miktar', 0) or 0)
-                            if miktar > 0:
-                                engellenen.append(f"**{silo['isim']}** ({miktar} Ton stok var)")
+                yeni_kapasite = st.number_input("Kapasite (Ton) *", min_value=1.0, value=500.0, step=10.0)
 
-                        if engellenen:
-                            st.error(
-                                "⛔ Aşağıdaki silolar **stok içerdiği için silinemez!**\n\n"
-                                + "\n".join([f"- {e}" for e in engellenen])
-                                + "\n\nÖnce bu siloların stoğunu sıfırlayın."
-                            )
-                            st.stop()
+                kaydet_btn = st.form_submit_button("💾 Siloyu Kaydet", type="primary", use_container_width=True)
 
-                # --- 3. KAYDET ---
-                df_to_save = pd.DataFrame(final_rows)
-                conn.update(worksheet="silolar", data=df_to_save)
-                clear_cache("silolar")
-                st.cache_data.clear()
+                if kaydet_btn:
+                    if not yeni_isim or yeni_isim.strip() == "":
+                        st.error("⛔ Silo ismi boş olamaz!")
+                    elif yeni_isim in df['isim'].tolist():
+                        st.error(f"⛔ '{yeni_isim}' isimli silo zaten mevcut!")
+                    else:
+                        yeni_silo = {
+                            'isim': yeni_isim,
+                            'silo_tipi': yeni_tip,
+                            'kapasite': yeni_kapasite,
+                            'mevcut_miktar': 0.0,
+                            'protein': 0.0,
+                            'gluten': 0.0,
+                            'rutubet': 0.0,
+                            'sedim': 0.0,
+                            'maliyet': 0.0
+                        }
 
-                st.success("✅ Silo konfigürasyonu başarıyla güncellendi!")
-                time.sleep(1.5)
-                st.rerun()
+                        df_yeni = pd.concat([df, pd.DataFrame([yeni_silo])], ignore_index=True)
+                        conn = get_conn()
+                        conn.update(worksheet="silolar", data=df_yeni)
+                        clear_cache("silolar")
+                        st.cache_data.clear()
 
-            except Exception as e:
-                st.error(f"Kayıt sırasında hata oluştu: {str(e)}")
+                        st.markdown('<div class="basari-box">✅ Silo başarıyla eklendi!</div>', unsafe_allow_html=True)
+                        log_activity("Silo Yönetimi", "Yeni Silo", f"Silo: {yeni_isim} | Tip: {yeni_tip}")
+                        time.sleep(1.5)
+                        st.rerun()
 
-        # ================================================================
-        # SİLME BÖLÜMÜ
-        # DÜZELTME 3: df_fresh kaldırıldı, üstte çekilen df kullanılıyor
-        # ================================================================
-        st.divider()
-        st.markdown('<div class="section-title">🗑️ Silo Sil</div>', unsafe_allow_html=True)
+        # ==================== SİLO DÜZENLE ====================
+        with st.expander("✏️ Silo Düzenle", expanded=False):
+            if df.empty:
+                st.info("Düzenlenecek silo yok.")
+            else:
+                secilen_duz = st.selectbox("Düzenlenecek Siloyu Seçin", df['isim'].tolist(), key="duzenle_sec")
 
-        with st.expander("⚠️ Silo silmek için buraya tıklayın", expanded=False):
-            try:
-                if not df.empty and 'isim' in df.columns:
-                    silo_listesi = df['isim'].tolist()
-                    secilen_silo = st.selectbox("Silinecek Siloyu Seçin", silo_listesi, key="silme_secim")
+                if secilen_duz:
+                    silo_row = df[df['isim'] == secilen_duz].iloc[0]
 
-                    if secilen_silo:
-                        silo_row = df[df['isim'] == secilen_silo].iloc[0]
-                        miktar   = float(silo_row.get('mevcut_miktar', 0) or 0)
-                        kapasite = float(silo_row.get('kapasite', 0) or 0)
+                    with st.form("duzenle_form"):
+                        st.markdown(f'<div class="form-baslik">✏️ {secilen_duz} Bilgileri</div>', unsafe_allow_html=True)
 
-                        col_info, col_btn = st.columns([3, 1])
-                        with col_info:
-                            if miktar > 0:
-                                st.error(f"⛔ **{secilen_silo}** silosu **{miktar} Ton** stok içeriyor. Silinemez!")
+                        yeni_kapasite_duz = st.number_input("Kapasite (Ton)", value=float(silo_row['kapasite']), step=10.0, key="kap_duz")
+
+                        st.caption("⚠️ Stok miktarı otomatik hesaplanır, manuel değiştirilemez.")
+
+                        guncelle_btn = st.form_submit_button("💾 Güncelle", type="primary", use_container_width=True)
+
+                        if guncelle_btn:
+                            df.loc[df['isim'] == secilen_duz, 'kapasite'] = yeni_kapasite_duz
+
+                            conn = get_conn()
+                            conn.update(worksheet="silolar", data=df)
+                            clear_cache("silolar")
+                            st.cache_data.clear()
+
+                            st.markdown('<div class="basari-box">✅ Silo başarıyla güncellendi!</div>', unsafe_allow_html=True)
+                            log_activity("Silo Yönetimi", "Silo Güncelleme", f"Silo: {secilen_duz}")
+                            time.sleep(1.5)
+                            st.rerun()
+
+        # ==================== SİLO SİL ====================
+        with st.expander("🗑️ Silo Sil", expanded=False):
+            if df.empty:
+                st.info("Silinecek silo yok.")
+            else:
+                secilen_sil = st.selectbox("Silinecek Siloyu Seçin", df['isim'].tolist(), key="sil_sec")
+
+                if secilen_sil:
+                    silo_sil_row = df[df['isim'] == secilen_sil].iloc[0]
+                    miktar_sil = float(silo_sil_row.get('mevcut_miktar', 0) or 0)
+
+                    if miktar_sil > 0:
+                        st.markdown(f"""
+                        <div class="uyari-box">
+                            ⛔ <strong>{secilen_sil}</strong> silosu <strong>{miktar_sil:.1f} Ton</strong> stok içeriyor!<br>
+                            Silme işlemi yapılamaz. Önce stoğu sıfırlayın.
+                        </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.warning(f"⚠️ **{secilen_sil}** silosu kalıcı olarak silinecek. Bu işlem geri alınamaz!")
+
+                        col_s1, col_s2 = st.columns(2)
+
+                        with col_s1:
+                            if 'silo_silme_onayi' not in st.session_state:
+                                st.session_state.silo_silme_onayi = False
+
+                            if not st.session_state.silo_silme_onayi:
+                                if st.button("🗑️ Sil", type="secondary", use_container_width=True, key="sil_btn"):
+                                    st.session_state.silo_silme_onayi = True
+                                    st.rerun()
                             else:
-                                st.warning(f"⚠️ **{secilen_silo}** ({kapasite} Ton kapasiteli) silosu kalıcı olarak silinecek.")
+                                if st.button("✅ EVET, SİL", type="primary", use_container_width=True, key="evet_sil"):
+                                    df_yeni_sil = df[df['isim'] != secilen_sil]
+                                    conn = get_conn()
+                                    conn.update(worksheet="silolar", data=df_yeni_sil)
+                                    clear_cache("silolar")
+                                    st.cache_data.clear()
+                                    st.session_state.silo_silme_onayi = False
 
-                        with col_btn:
-                            if miktar == 0:
-                                if 'silme_onayi' not in st.session_state:
-                                    st.session_state.silme_onayi = False
+                                    st.success(f"✅ {secilen_sil} silindi.")
+                                    log_activity("Silo Yönetimi", "Silo Silme", f"Silo: {secilen_sil}")
+                                    time.sleep(1.5)
+                                    st.rerun()
 
-                                if not st.session_state.silme_onayi:
-                                    if st.button("🗑️ Sil", type="secondary", use_container_width=True):
-                                        st.session_state.silme_onayi = True
-                                        st.rerun()
-                                else:
-                                    st.error("Emin misiniz?")
-                                    if st.button("✅ EVET, SİL", type="primary", use_container_width=True):
-                                        conn = get_conn()
-                                        df_guncell = df[df['isim'] != secilen_silo]
-                                        conn.update(worksheet="silolar", data=df_guncell)
-                                        clear_cache("silolar")
-                                        st.cache_data.clear()
-                                        st.session_state.silme_onayi = False
-                                        st.success(f"✅ {secilen_silo} silindi.")
-                                        time.sleep(1.5)
-                                        st.rerun()
-                                    if st.button("❌ İptal", use_container_width=True):
-                                        st.session_state.silme_onayi = False
-                                        st.rerun()
-                else:
-                    st.info("Silinecek silo bulunamadı.")
-            except Exception as e:
-                st.error(f"Silme bölümü yüklenemedi: {str(e)}")
+                        with col_s2:
+                            if st.session_state.get('silo_silme_onayi'):
+                                if st.button("❌ İptal", use_container_width=True, key="iptal_sil"):
+                                    st.session_state.silo_silme_onayi = False
+                                    st.rerun()
 
     except Exception as e:
-        st.error(f"Silo verileri yüklenemedi: {e}")
+        st.error(f"Silo yönetimi yüklenemedi: {str(e)}")
 # ----------------------------------------------------------------
 # 3. YEDEKLEME VE GERİ YÜKLEME
 # ----------------------------------------------------------------
@@ -999,6 +967,7 @@ def show_debug_tools():
         st.write(f"**Backend:** Google Sheets API")
         st.write(f"**Aktif Kullanıcı:** {st.session_state.get('username', 'Bilinmiyor')}")
         st.write(f"**Rol:** {st.session_state.get('user_role', 'Bilinmiyor')}")
+
 
 
 
